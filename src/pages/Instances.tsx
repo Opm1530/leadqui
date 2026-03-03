@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+// import { supabase } from "@/integrations/supabase/client"; // Removido Supabase
 import { firestoreService } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { Smartphone, Plus, Wifi, WifiOff, Trash2, QrCode, RefreshCw, Loader2 } from "lucide-react";
@@ -32,21 +32,8 @@ const Instances = () => {
   };
 
   const checkAllStatuses = useCallback(async (insts: any[]) => {
-    for (const inst of insts) {
-      try {
-        const { data, error } = await supabase.functions.invoke("evolution-api", {
-          body: { action: "status", instanceName: inst.evolution_instance_id },
-        });
-        if (!error && data?.instance?.state) {
-          const newStatus = data.instance.state === "open" ? "conectado" : "desconectado";
-          setInstances((prev) =>
-            prev.map((i) => (i.id === inst.id ? { ...i, status: newStatus } : i))
-          );
-          // Update status in firestore
-          await firestoreService.update("instancias", inst.id, { status: newStatus });
-        }
-      } catch { }
-    }
+    // TODO: Implementar chamada via Firebase Cloud Functions para Evolution API
+    console.log("Check status would happen here via Firebase Functions for:", insts);
   }, []);
 
   useEffect(() => {
@@ -63,11 +50,14 @@ const Instances = () => {
     load();
   }, [user, checkAllStatuses]);
 
-  const callEvolutionApi = async (body: any) => {
-    const { data, error } = await supabase.functions.invoke("evolution-api", { body });
-    if (error) throw new Error(error.message);
-    if (data?.error) throw new Error(data.error);
-    return data;
+  const callEvolutionApi = async (body: any): Promise<any> => {
+    // TODO: Migrar Supabase Edge Functions para Firebase Cloud Functions
+    toast({
+      title: "Funcionalidade em Migração",
+      description: "A integração com Evolution API está sendo migrada para Firebase Functions.",
+      variant: "default"
+    });
+    throw new Error("Integração Evolution API (Firebase) não configurada.");
   };
 
   const handleCreate = async (e: React.FormEvent) => {
