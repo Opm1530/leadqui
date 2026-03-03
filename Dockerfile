@@ -7,10 +7,7 @@ WORKDIR /app
 COPY package.json bun.lockb* package-lock.json* ./
 
 # Install dependencies
-RUN if [ -f bun.lockb ]; then bun install --frozen-lockfile; \
-    elif [ -f package-lock.json ]; then npm ci; \
-    else npm install; \
-    fi
+RUN bun install --frozen-lockfile
 
 # Copy project files
 COPY . .
