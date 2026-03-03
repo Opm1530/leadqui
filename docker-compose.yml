@@ -1,0 +1,11 @@
+services:
+  novo-sistema:
+    build: .
+    container_name: leadqui
+    restart: always
+    networks:
+      - docker_internal
+
+networks:
+  docker_internal:
+    external: true
