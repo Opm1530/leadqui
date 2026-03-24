@@ -10,11 +10,15 @@ import {
   Zap,
   LogOut,
   Settings,
+  Kanban,
+  Tag,
 } from "lucide-react";
 
 const navItems = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/leads", icon: Users, label: "Meus Leads" },
+  { to: "/tags", icon: Tag, label: "Tags" },
+  { to: "/crm", icon: Kanban, label: "CRM" },
   { to: "/campaigns", icon: Rocket, label: "Campanhas" },
   { to: "/instances", icon: Smartphone, label: "Instâncias" },
   { to: "/extraction", icon: Search, label: "Extração" },
@@ -32,7 +36,7 @@ const Sidebar = () => {
   };
 
   return (
-    <aside className="w-64 min-h-screen bg-sidebar border-r border-sidebar-border flex flex-col">
+    <aside className="w-64 h-full bg-sidebar border-r border-sidebar-border flex flex-col">
       <div className="p-6 flex items-center gap-3">
         <div className="w-9 h-9 rounded-lg flex items-center justify-center gradient-button text-sm">
           <img src="/logo.png" alt="Logo" className="w-6 h-6" />

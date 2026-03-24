@@ -1,26 +1,51 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Edit2, Trash2 } from "lucide-react";
-import { auth, db } from "@/integrations/firebase/client";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Search, Plus, Filter, Trash2, Edit2, Download, ArrowRight, Check, X, User, ExternalLink, MapPin, Instagram, Kanban, CheckSquare, PenLine } from "lucide-react";
+import { db } from "@/integrations/firebase/client";
 import { firestoreService } from "@/lib/firestore";
-import { collection, query, where, onSnapshot, limit, orderBy } from "firebase/firestore";
+import { collection, query, where, onSnapshot, limit, addDoc, serverTimestamp, getDocs, deleteDoc } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import TagBadge from "@/components/TagBadge";
 import LeadEditModal from "@/components/LeadEditModal";
+import TagManager from "@/components/TagManager";
 
-const statusColors: Record<string, string> = {
-  novo: "bg-primary/20 text-primary",
-  contatado: "bg-warning/20 text-warning",
-  respondeu: "bg-info/20 text-info",
+// ─── Status / Origin helpers ──────────────────────────────────────────────────
+const STATUS_COLORS: Record<string, string> = {
+  novo:       "bg-primary/20 text-primary",
+  contatado:  "bg-warning/20 text-warning",
+  respondeu:  "bg-info/20 text-info",
   convertido: "bg-success/20 text-success",
 };
 
+const ORIGIN_CONFIG: Record<string, { label: string; cls: string; icon: React.ElementType }> = {
+  google_maps: { label: "Google Maps", cls: "bg-blue-500/20 text-blue-400",   icon: MapPin    },
+  instagram:   { label: "Instagram",   cls: "bg-purple-500/20 text-purple-400", icon: Instagram },
+  manual:      { label: "Manual",      cls: "bg-gray-500/20 text-gray-400",   icon: PenLine   },
+};
+
+// ─── Origin Badge ─────────────────────────────────────────────────────────────
+const OriginBadge = ({ origem }: { origem: string }) => {
+  const cfg = ORIGIN_CONFIG[origem];
+  if (!cfg) return <span className="text-xs text-muted-foreground">{origem || "—"}</span>;
+  const Icon = cfg.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${cfg.cls}`}>
+      <Icon className="w-3 h-3" />
+      {cfg.label}
+    </span>
+  );
+};
+
+// ─── Leads Page ───────────────────────────────────────────────────────────────
 const Leads = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -31,48 +56,49 @@ const Leads = () => {
   const [leadTags, setLeadTags] = useState<Record<string, any[]>>({});
   const [editingLead, setEditingLead] = useState<any>(null);
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 12;
+
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // New lead modal
+  const [newLeadModal, setNewLeadModal] = useState(false);
+  const [newLeadForm, setNewLeadForm] = useState({ nome: "", telefone: "", cidade: "", status: "novo" });
+  const [savingNew, setSavingNew] = useState(false);
+  const [newLeadTagIds, setNewLeadTagIds] = useState<string[]>([]);
+
+  // CRM column modal
+  const [crmModal, setCrmModal] = useState(false);
+  const [crmColumns, setCrmColumns] = useState<any[]>([]);
+  const [crmTargetLeadIds, setCrmTargetLeadIds] = useState<string[]>([]);
+  const [movingToCrm, setMovingToCrm] = useState(false);
+
+  // ── Data fetching ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return;
-
     const fetchTags = async () => {
       const data = await firestoreService.list("tags", user.uid);
       setTags(data);
     };
     fetchTags();
-
     setLoading(true);
-
-    // We remove the user_id filter to show all leads in the system.
-    const q = query(
-      collection(db, "leads"),
-      limit(1000)
-    );
-
+    const q = query(collection(db, "leads"), limit(1000));
     const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const data = snapshot.docs.map(doc => ({
+      const data = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
         created_at: (doc.data() as any).created_at?.toDate?.()?.toISOString() || (doc.data() as any).created_at,
         updated_at: (doc.data() as any).updated_at?.toDate?.()?.toISOString() || (doc.data() as any).updated_at,
       }));
-
-      // Sort client-side
-      const sortedData = [...data].sort((a, b) => {
-        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-      });
-
-      console.log(`Leads raw data received: ${data.length} items`);
-      setLeads(sortedData);
+      const sorted = [...data].sort((a, b) =>
+        new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+      );
+      setLeads(sorted);
       setLoading(false);
-
-      // Fetch tags for these leads
-      const leadIds = data.map(l => l.id);
+      const leadIds = data.map((l) => l.id);
       if (leadIds.length > 0) {
-        const chunks = [];
-        for (let i = 0; i < leadIds.length; i += 30) {
-          chunks.push(leadIds.slice(i, i + 30));
-        }
-
         try {
           const lTags = await firestoreService.getLeadTags(leadIds);
           setLeadTags(lTags);
@@ -85,96 +111,242 @@ const Leads = () => {
       toast({ title: "Erro ao carregar leads", description: error.message, variant: "destructive" });
       setLoading(false);
     });
-
     return () => unsubscribe();
-  }, [user]); // Only re-run if user changes. Filter changes are handled client-side below.
+  }, [user]);
 
-  // Client-side search and tag filter
+  // ── Filtering ─────────────────────────────────────────────────────────────
   const filteredLeads = leads.filter((lead) => {
     const lowSearch = searchTerm.toLowerCase();
-    // Search term check
     const matchesSearch = !searchTerm ||
-      (lead.nome?.toLowerCase().includes(lowSearch)) ||
-      (lead.telefone?.toLowerCase().includes(lowSearch)) ||
-      (lead.username?.toLowerCase().includes(lowSearch));
-
-    // Tag check
+      lead.nome?.toLowerCase().includes(lowSearch) ||
+      lead.telefone?.toLowerCase().includes(lowSearch) ||
+      lead.username?.toLowerCase().includes(lowSearch);
     const matchesTag = tagFilter === "todos" ||
       (leadTags[lead.id] || []).some((t: any) => t.id === tagFilter);
-
-    // Status check (case-insensitive)
     const matchesStatus = statusFilter === "todos" ||
       lead.status?.toLowerCase() === statusFilter.toLowerCase();
-
-    // Origin check (flexible matching)
-    const normalizedOriginFilter = originFilter === "Google Maps" ? "google_maps" :
+    const normalizedOrigin = originFilter === "Google Maps" ? "google_maps" :
       originFilter === "Instagram" ? "instagram" : originFilter;
-
     const matchesOrigin = originFilter === "todos" ||
-      lead.origem?.toLowerCase() === normalizedOriginFilter.toLowerCase() ||
+      lead.origem?.toLowerCase() === normalizedOrigin.toLowerCase() ||
       lead.origem?.toLowerCase() === originFilter.toLowerCase();
-
     return matchesSearch && matchesTag && matchesStatus && matchesOrigin;
   });
 
+  // Reset pagination on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, originFilter, tagFilter]);
+
+  const totalPages = Math.ceil(filteredLeads.length / ITEMS_PER_PAGE);
+  const paginatedLeads = filteredLeads.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // ── Selection ─────────────────────────────────────────────────────────────
+  const allVisibleSelected = paginatedLeads.length > 0 && paginatedLeads.every((l) => selectedIds.has(l.id));
+  const toggleAll = () => {
+    if (allVisibleSelected) {
+      // Remove all visible from selection
+      const newSelected = new Set(selectedIds);
+      paginatedLeads.forEach(l => newSelected.delete(l.id));
+      setSelectedIds(newSelected);
+    } else {
+      // Add all visible to selection
+      const newSelected = new Set(selectedIds);
+      paginatedLeads.forEach(l => newSelected.add(l.id));
+      setSelectedIds(newSelected);
+    }
+  };
+  const toggleOne = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+  const deleteLeadAndRelations = async (id: string) => {
+    // Delete orphan CRM cards
+    const cardsSnap = await getDocs(query(collection(db, "crm_cards"), where("lead_id", "==", id)));
+    const removeCards = cardsSnap.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(removeCards);
+
+    // Delete orphan Lead Tags pivot rows
+    const tagsSnap = await getDocs(query(collection(db, "lead_tags"), where("lead_id", "==", id)));
+    const removeTags = tagsSnap.docs.map(d => deleteDoc(d.ref));
+    await Promise.all(removeTags);
+
+    // Finally delete Lead
+    await firestoreService.delete("leads", id);
+  };
+
   const handleDelete = async (id: string) => {
+    if (!confirm("Tem certeza que deseja excluir este lead e todos os seus vínculos no CRM e Tags?")) return;
     try {
-      await firestoreService.delete("leads", id);
-      toast({ title: "Lead excluído" });
+      await deleteLeadAndRelations(id);
+      toast({ title: "Lead excluído com sucesso!" });
     } catch (error: any) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Erro na exclusão", description: error.message, variant: "destructive" });
     }
   };
 
-  const formatOrigem = (origem: string) => {
-    if (origem === "google_maps") return "Google Maps";
-    if (origem === "instagram") return "Instagram";
-    return origem;
+  const handleDeleteSelected = async () => {
+    if (!confirm(`Excluir permanentemente ${selectedIds.size} lead(s) e seus vínculos?`)) return;
+    try {
+      await Promise.all([...selectedIds].map(deleteLeadAndRelations));
+      setSelectedIds(new Set());
+      toast({ title: `${selectedIds.size} lead(s) apagado(s)` });
+    } catch (error: any) {
+      toast({ title: "Erro ao excluir em massa", description: error.message, variant: "destructive" });
+    }
   };
 
-  const createTestLead = async () => {
-    if (!user) return;
+  // ── New Lead ─────────────────────────────────────────────────────────────
+  const handleCreateLead = async () => {
+    if (!user || !newLeadForm.nome.trim()) return;
+    setSavingNew(true);
     try {
-      await firestoreService.add("leads", user.uid, {
-        nome: "Lead de Teste " + new Date().toLocaleTimeString(),
-        telefone: "11999999999",
-        origem: "google_maps",
-        status: "novo",
-        created_at: new Date().toISOString()
+      const phoneClean = newLeadForm.telefone ? newLeadForm.telefone.replace(/\D/g, "") : "";
+      
+      if (phoneClean) {
+        // Verificar duplicidade extendida (telefone_limpo ou telefone original)
+        const qClean = query(
+          collection(db, "leads"), 
+          where("user_id", "==", user.uid), 
+          where("telefone_limpo", "==", phoneClean),
+          limit(1)
+        );
+        const qOriginal = query(
+          collection(db, "leads"), 
+          where("user_id", "==", user.uid), 
+          where("telefone", "==", newLeadForm.telefone),
+          limit(1)
+        );
+
+        const [snapClean, snapOriginal] = await Promise.all([
+          getDocs(qClean),
+          getDocs(qOriginal)
+        ]);
+
+        if (!snapClean.empty || !snapOriginal.empty) {
+          toast({ 
+            title: "Lead já existe", 
+            description: "Um lead com este telefone já está cadastrado.",
+            variant: "destructive"
+          });
+          setSavingNew(false);
+          return;
+        }
+      }
+
+      const docRef = await firestoreService.add("leads", user.uid, {
+        nome: newLeadForm.nome.trim(),
+        telefone: newLeadForm.telefone || null,
+        telefone_limpo: phoneClean || null,
+        cidade: newLeadForm.cidade || null,
+        status: newLeadForm.status || "novo",
+        origem: "manual",
       });
-      toast({ title: "Lead de teste criado!" });
+      // Assign tags
+      for (const tagId of newLeadTagIds) {
+        await addDoc(collection(db, "lead_tags"), {
+          lead_id: (docRef as any).id,
+          tag_id: tagId,
+          created_at: serverTimestamp(),
+        });
+      }
+      toast({ title: "Lead criado!" });
+      setNewLeadModal(false);
+      setNewLeadForm({ nome: "", telefone: "", cidade: "", status: "novo" });
+      setNewLeadTagIds([]);
     } catch (error: any) {
-      toast({ title: "Erro ao criar teste", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao criar lead", description: error.message, variant: "destructive" });
+    } finally {
+      setSavingNew(false);
+    }
+  };
+
+  // ── Move to CRM ───────────────────────────────────────────────────────────
+  const openCrmModal = async (leadIds: string[]) => {
+    setCrmTargetLeadIds(leadIds);
+    const cols = await firestoreService.list("crm_colunas", user?.uid, [], "posicao");
+    setCrmColumns([...cols].sort((a: any, b: any) => (a.posicao ?? 0) - (b.posicao ?? 0)));
+    setCrmModal(true);
+  };
+
+  const handleMoveToColumn = async (colId: string) => {
+    if (!user) return;
+    setMovingToCrm(true);
+    try {
+      // 1. Verificar quais leads já existem em QUALQUER coluna do CRM do usuário
+      const existingCardsSnap = await getDocs(query(
+        collection(db, "crm_cards"), 
+        where("user_id", "==", user.uid)
+      ));
+      const existingLeadIds = new Set(existingCardsSnap.docs.map(d => d.data().lead_id));
+      
+      const toAdd = crmTargetLeadIds.filter(id => !existingLeadIds.has(id));
+
+      if (toAdd.length === 0) {
+        toast({ title: "Aviso", description: "Todos os leads selecionados já estão no CRM." });
+        setCrmModal(false);
+        return;
+      }
+
+      // 2. Obter posição final da coluna alvo
+      const targetSnap = await getDocs(query(
+        collection(db, "crm_cards"), 
+        where("coluna_id", "==", colId)
+      ));
+      let pos = targetSnap.size;
+
+      // 3. Adicionar novos leads
+      await Promise.all(toAdd.map((leadId) =>
+        addDoc(collection(db, "crm_cards"), {
+          lead_id: leadId,
+          coluna_id: colId,
+          posicao: pos++,
+          user_id: user.uid,
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+        })
+      ));
+      toast({ title: `${toAdd.length} lead(s) movido(s) para o CRM!` });
+      setCrmModal(false);
+      setSelectedIds(new Set());
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } finally {
+      setMovingToCrm(false);
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Meus Leads</h1>
           <div className="flex items-center gap-3 mt-1">
             <p className="text-muted-foreground text-sm">
-              Total no banco: <span className="text-primary font-bold">{leads.length}</span>
+              Total: <span className="text-primary font-bold">{leads.length}</span>
             </p>
             <span className="text-muted-foreground/30">|</span>
             <p className="text-muted-foreground text-sm">
               Filtrados: <span className="text-success font-bold">{filteredLeads.length}</span>
             </p>
-            <span className="text-muted-foreground/30">|</span>
-            <p className="text-muted-foreground text-xs font-mono bg-secondary px-2 py-0.5 rounded">
-              UID: {user?.uid?.substring(0, 8)}...
-            </p>
           </div>
         </div>
         <button
-          onClick={createTestLead}
-          className="text-xs px-3 py-1.5 border border-border rounded-md hover:bg-secondary transition-colors text-muted-foreground"
+          onClick={() => setNewLeadModal(true)}
+          className="gradient-button px-4 py-2 flex items-center gap-2 text-sm"
         >
-          Criar Lead de Teste
+          <Plus className="w-4 h-4" />
+          Novo Lead
         </button>
       </div>
 
+      {/* Filters */}
       <div className="glass-card p-4">
         <div className="flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-[200px]">
@@ -204,8 +376,9 @@ const Leads = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todas origens</SelectItem>
-              <SelectItem value="Instagram">Instagram</SelectItem>
               <SelectItem value="Google Maps">Google Maps</SelectItem>
+              <SelectItem value="Instagram">Instagram</SelectItem>
+              <SelectItem value="manual">Manual</SelectItem>
             </SelectContent>
           </Select>
           {tags.length > 0 && (
@@ -224,6 +397,7 @@ const Leads = () => {
         </div>
       </div>
 
+      {/* Table */}
       <div className="glass-card overflow-hidden">
         {loading ? (
           <div className="p-8 text-center">
@@ -240,6 +414,14 @@ const Leads = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
+                  <th className="p-4 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleAll}
+                      className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
+                    />
+                  </th>
                   <th className="text-left p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nome</th>
                   <th className="text-left p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Telefone</th>
                   <th className="text-left p-4 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Origem</th>
@@ -251,18 +433,47 @@ const Leads = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredLeads.map((lead, i) => (
+                {paginatedLeads.map((lead, i) => (
                   <motion.tr
                     key={lead.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.02 }}
-                    className="border-b border-border/50 hover:bg-secondary/30 transition-colors"
+                    transition={{ delay: i * 0.01 }}
+                    className={`border-b border-border/50 hover:bg-secondary/30 transition-colors ${selectedIds.has(lead.id) ? "bg-primary/5" : ""}`}
                   >
-                    <td className="p-4 text-sm text-foreground font-medium">{lead.nome}</td>
-                    <td className="p-4 text-sm text-muted-foreground">{lead.telefone || "-"}</td>
-                    <td className="p-4 text-sm text-muted-foreground">{formatOrigem(lead.origem)}</td>
-                    <td className="p-4 text-sm text-muted-foreground">{lead.cidade || "-"}</td>
+                    <td className="p-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(lead.id)}
+                        onChange={() => toggleOne(lead.id)}
+                        className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
+                      />
+                    </td>
+                    <td className="p-4 text-sm text-foreground font-medium">
+                      <div className="flex items-center gap-2">
+                        {lead.nome}
+                        <div className="flex gap-1">
+                          {lead.perfil_url && (
+                            <a href={lead.perfil_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:opacity-80" title="Ver Perfil">
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                          {lead.post_url && (
+                            <a href={lead.post_url} target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:opacity-80" title="Ver Post">
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                          {lead.maps_url && (
+                            <a href={lead.maps_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:opacity-80" title="Ver no Maps">
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4 text-sm text-muted-foreground">{lead.telefone || "—"}</td>
+                    <td className="p-4"><OriginBadge origem={lead.origem} /></td>
+                    <td className="p-4 text-sm text-muted-foreground">{lead.cidade || "—"}</td>
                     <td className="p-4">
                       <div className="flex flex-wrap gap-1">
                         {(leadTags[lead.id] || []).map((t: any) => (
@@ -271,13 +482,22 @@ const Leads = () => {
                       </div>
                     </td>
                     <td className="p-4">
-                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${statusColors[lead.status] || ""}`}>
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[lead.status] || ""}`}>
                         {lead.status}
                       </span>
                     </td>
-                    <td className="p-4 text-sm text-muted-foreground">{new Date(lead.created_at).toLocaleDateString("pt-BR")}</td>
+                    <td className="p-4 text-sm text-muted-foreground">
+                      {lead.created_at ? new Date(lead.created_at).toLocaleDateString("pt-BR") : "—"}
+                    </td>
                     <td className="p-4">
-                      <div className="flex gap-2">
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => openCrmModal([lead.id])}
+                          className="p-1.5 rounded-md hover:bg-primary/20 transition-colors text-muted-foreground hover:text-primary"
+                          title="Mover para CRM"
+                        >
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => setEditingLead(lead)}
                           className="p-1.5 rounded-md hover:bg-primary/20 transition-colors text-muted-foreground hover:text-primary"
@@ -296,10 +516,165 @@ const Leads = () => {
                 ))}
               </tbody>
             </table>
+            
+            {/* Controles de Paginação */}
+            {totalPages > 1 && (
+              <div className="p-4 flex items-center justify-between border-t border-border">
+                <span className="text-sm text-muted-foreground">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 bg-secondary text-sm rounded-md disabled:opacity-50 hover:bg-secondary/80 transition-colors"
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 bg-secondary text-sm rounded-md disabled:opacity-50 hover:bg-secondary/80 transition-colors"
+                  >
+                    Próxima
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
+      {/* Floating selection bar */}
+      <AnimatePresence>
+        {selectedIds.size > 0 && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 glass-card px-6 py-3 flex items-center gap-4 shadow-2xl border border-border/50 rounded-2xl"
+          >
+            <span className="text-sm text-foreground font-medium">
+              <CheckSquare className="w-4 h-4 inline mr-1 text-primary" />
+              {selectedIds.size} lead(s) selecionado(s)
+            </span>
+            <button
+              onClick={() => openCrmModal([...selectedIds])}
+              className="gradient-button px-4 py-1.5 text-xs flex items-center gap-1.5"
+            >
+              <Kanban className="w-3.5 h-3.5" />
+              Mover para CRM
+            </button>
+            <button
+              onClick={handleDeleteSelected}
+              className="px-4 py-1.5 text-xs border border-destructive/50 text-destructive rounded-lg hover:bg-destructive/10 transition-colors flex items-center gap-1.5"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Excluir
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancelar
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal: Novo Lead */}
+      <Dialog open={newLeadModal} onOpenChange={(v) => !v && setNewLeadModal(false)}>
+        <DialogContent className="max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Novo Lead Manual</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1 col-span-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Nome *</Label>
+                <Input
+                  value={newLeadForm.nome}
+                  onChange={(e) => setNewLeadForm((p) => ({ ...p, nome: e.target.value }))}
+                  placeholder="Nome do lead"
+                  className="bg-secondary border-border"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Telefone</Label>
+                <Input
+                  value={newLeadForm.telefone}
+                  onChange={(e) => setNewLeadForm((p) => ({ ...p, telefone: e.target.value }))}
+                  placeholder="(11) 99999-9999"
+                  className="bg-secondary border-border"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Cidade</Label>
+                <Input
+                  value={newLeadForm.cidade}
+                  onChange={(e) => setNewLeadForm((p) => ({ ...p, cidade: e.target.value }))}
+                  placeholder="São Paulo"
+                  className="bg-secondary border-border"
+                />
+              </div>
+              <div className="space-y-1 col-span-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Status</Label>
+                <Select value={newLeadForm.status} onValueChange={(v) => setNewLeadForm((p) => ({ ...p, status: v }))}>
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="novo">Novo</SelectItem>
+                    <SelectItem value="contatado">Contatado</SelectItem>
+                    <SelectItem value="respondeu">Respondeu</SelectItem>
+                    <SelectItem value="convertido">Convertido</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setNewLeadModal(false)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+              <button
+                onClick={handleCreateLead}
+                disabled={savingNew || !newLeadForm.nome.trim()}
+                className="gradient-button px-6 py-2 text-sm disabled:opacity-50"
+              >
+                {savingNew ? "Salvando..." : "Criar Lead"}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Mover para CRM */}
+      <Dialog open={crmModal} onOpenChange={(v) => !v && setCrmModal(false)}>
+        <DialogContent className="max-w-sm bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Selecionar Coluna CRM</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            {crmColumns.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Crie uma coluna no CRM primeiro antes de mover leads.
+              </p>
+            ) : (
+              crmColumns.map((col) => (
+                <button
+                  key={col.id}
+                  onClick={() => handleMoveToColumn(col.id)}
+                  disabled={movingToCrm}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors text-left"
+                >
+                  <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: col.cor }} />
+                  <span className="text-sm font-medium text-foreground">{col.nome}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit modal */}
       <LeadEditModal
         lead={editingLead}
         open={!!editingLead}

@@ -12,6 +12,8 @@ import Campaigns from "./pages/Campaigns";
 import Instances from "./pages/Instances";
 import Extraction from "./pages/Extraction";
 import Settings from "./pages/Settings";
+import CRM from "./pages/CRM";
+import Tags from "./pages/Tags";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -33,6 +35,8 @@ const App = () => (
               <Route path="/instances" element={<Instances />} />
               <Route path="/extraction" element={<Extraction />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/crm" element={<CRM />} />
+              <Route path="/tags" element={<Tags />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
