@@ -138,6 +138,18 @@ export const extractGoogleMaps = functions.https.onCall(async (data, context) =>
       snap.forEach(doc => existingUrls.add(doc.data().maps_url));
     }
 
+    // Nomes (Deduplicação por nome exato)
+    const names = places.map((p: any) => p.title).filter(Boolean);
+    const existingNames = new Set<string>();
+    for (let i = 0; i < names.length; i += 30) {
+      const chunk = names.slice(i, i + 30);
+      const snap = await db.collection("leads")
+        .where("user_id", "==", userId)
+        .where("nome", "in", chunk)
+        .get();
+      snap.forEach(doc => existingNames.add(doc.data().nome));
+    }
+
     let savedCount = 0;
     let batchCount = 0;
     const batch = db.batch();
@@ -150,11 +162,13 @@ export const extractGoogleMaps = functions.https.onCall(async (data, context) =>
       if (place.placeId && existingPlaceIds.has(place.placeId)) continue;
       if (phoneClean && existingPhones.has(phoneClean)) continue;
       if (place.url && existingUrls.has(place.url)) continue;
+      if (place.title && existingNames.has(place.title)) continue;
 
       // --- IMPORTANTE: Adicionar aos conjuntos existentes para evitar duplicatas NO MESMO LOTE ---
       if (place.placeId) existingPlaceIds.add(place.placeId);
       if (phoneClean) existingPhones.add(phoneClean);
       if (place.url) existingUrls.add(place.url);
+      if (place.title) existingNames.add(place.title);
 
       const leadRef = db.collection("leads").doc();
       batch.set(leadRef, {
@@ -384,6 +398,21 @@ Seja estrito. Não adicione textos extras.`
           if (!phoneSnap.empty) {
             console.log(`Lead com telefone ${contato} já existe. Pulando...`);
             continue; 
+          }
+        }
+
+        // --- Deduplicação por Nome no Instagram ---
+        const finalName = fullName || u;
+        if (finalName) {
+          const nameSnap = await db.collection("leads")
+            .where("user_id", "==", userId)
+            .where("nome", "==", finalName)
+            .limit(1)
+            .get();
+          
+          if (!nameSnap.empty) {
+            console.log(`Lead com nome ${finalName} já existe. Pulando...`);
+            continue;
           }
         }
 

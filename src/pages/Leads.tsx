@@ -74,6 +74,7 @@ const Leads = () => {
   const [crmColumns, setCrmColumns] = useState<any[]>([]);
   const [crmTargetLeadIds, setCrmTargetLeadIds] = useState<string[]>([]);
   const [movingToCrm, setMovingToCrm] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
 
   // ── Data fetching ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -208,6 +209,27 @@ const Leads = () => {
     try {
       const phoneClean = newLeadForm.telefone ? newLeadForm.telefone.replace(/\D/g, "") : "";
       
+      // 1. Verificar duplicidade por NOME
+      if (newLeadForm.nome.trim()) {
+        const qName = query(
+          collection(db, "leads"),
+          where("user_id", "==", user.uid),
+          where("nome", "==", newLeadForm.nome.trim()),
+          limit(1)
+        );
+        const snapName = await getDocs(qName);
+        if (!snapName.empty) {
+          toast({
+            title: "Lead já existe",
+            description: "Um lead com este nome já está cadastrado.",
+            variant: "destructive"
+          });
+          setSavingNew(false);
+          return;
+        }
+      }
+
+      // 2. Verificar duplicidade por telefone
       if (phoneClean) {
         // Verificar duplicidade extendida (telefone_limpo ou telefone original)
         const qClean = query(
@@ -263,6 +285,57 @@ const Leads = () => {
       toast({ title: "Erro ao criar lead", description: error.message, variant: "destructive" });
     } finally {
       setSavingNew(false);
+    }
+  };
+
+  const handleCleanDuplicates = async () => {
+    if (!user || leads.length === 0) return;
+    if (!confirm("Isso irá remover todos os leads com nomes ou contatos repetidos, mantendo apenas o registro mais antigo de cada um. Deseja continuar?")) return;
+    
+    setCleaning(true);
+    try {
+      const seenNames = new Set<string>();
+      const seenPhones = new Set<string>();
+      const toDelete: string[] = [];
+
+      // Identificar duplicados mantendo o MAIS ANTIGO
+      const sortedByDate = [...leads].sort((a, b) => 
+        new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+      );
+
+      for (const lead of sortedByDate) {
+        const nameKey = (lead.nome || "").toLowerCase().trim();
+        const phoneKey = lead.telefone_limpo || "";
+
+        let isDup = false;
+        if (nameKey && seenNames.has(nameKey)) isDup = true;
+        if (phoneKey && seenPhones.has(phoneKey)) isDup = true;
+
+        if (isDup) {
+          toDelete.push(lead.id);
+        } else {
+          if (nameKey) seenNames.add(nameKey);
+          if (phoneKey) seenPhones.add(phoneKey);
+        }
+      }
+
+      if (toDelete.length === 0) {
+        toast({ title: "Nenhum duplicado encontrado", description: "Seu banco de leads já está limpo!" });
+        setCleaning(false);
+        return;
+      }
+
+      // Executar deleções
+      await Promise.all(toDelete.map((id) => deleteLeadAndRelations(id)));
+
+      toast({ 
+        title: "Limpeza concluída!", 
+        description: `${toDelete.length} lead(s) duplicado(s) foram removidos.`
+      });
+    } catch (error: any) {
+      toast({ title: "Erro na limpeza", description: error.message, variant: "destructive" });
+    } finally {
+      setCleaning(false);
     }
   };
 
@@ -337,13 +410,24 @@ const Leads = () => {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setNewLeadModal(true)}
-          className="gradient-button px-4 py-2 flex items-center gap-2 text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Lead
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleCleanDuplicates}
+            disabled={cleaning || leads.length === 0}
+            className="px-4 py-2 border border-border bg-secondary hover:bg-secondary/80 text-muted-foreground rounded-lg flex items-center gap-2 text-sm transition-colors"
+            title="Remove leads com nomes ou telefones repetidos"
+          >
+            <Trash2 className="w-4 h-4 text-destructive" />
+            {cleaning ? "Limpando..." : "Limpar Duplicados"}
+          </button>
+          <button
+            onClick={() => setNewLeadModal(true)}
+            className="gradient-button px-4 py-2 flex items-center gap-2 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Lead
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
