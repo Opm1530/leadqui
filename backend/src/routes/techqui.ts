@@ -48,16 +48,18 @@ function express_json_raw(req: Request, res: Response, next: any) {
 
 // ── OAuth Meta ────────────────────────────────────────────────────────
 
-// Permissões para Facebook Business Login
+// Permissões para Facebook Business Login — API Instagram Business 2024+
 const META_SCOPES = [
   "business_management",
   "ads_management",
   "ads_read",
   "pages_show_list",
   "pages_read_engagement",
-  "instagram_content_publish",
-  "instagram_manage_comments",
-  "instagram_manage_insights",
+  "instagram_business_basic",
+  "instagram_business_content_publish",
+  "instagram_business_manage_comments",
+  "instagram_business_manage_insights",
+  "instagram_business_manage_messages",
 ].join(",");
 
 // GET /api/techqui/oauth/start?client_id=xxx&user_id=xxx
