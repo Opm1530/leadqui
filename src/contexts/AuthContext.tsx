@@ -1,41 +1,67 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { auth } from "@/integrations/firebase/client";
-import { onAuthStateChanged, signOut as firebaseSignOut, User } from "firebase/auth";
+import api from "@/lib/api";
+
+type AuthUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: "ADMIN" | "MANAGER" | "OPERATOR" | "CLIENT";
+  position?: string;
+};
 
 type AuthContextType = {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
-  signOut: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<AuthUser>;
+  signOut: () => void;
 };
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  signOut: async () => { },
+  signIn: async () => {},
+  signOut: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Ao montar, verificar se há token salvo e validar com o servidor
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    const token = localStorage.getItem("pequi_token");
+    if (!token) {
       setLoading(false);
-    });
+      return;
+    }
 
-    return () => unsubscribe();
+    api.get("/api/auth/me")
+      .then((data) => setUser(data.user))
+      .catch(() => {
+        localStorage.removeItem("pequi_token");
+        localStorage.removeItem("pequi_user");
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const signOut = async () => {
-    await firebaseSignOut(auth);
+  const signIn = async (email: string, password: string): Promise<AuthUser> => {
+    const data = await api.post("/api/auth/login", { email, password });
+    localStorage.setItem("pequi_token", data.token);
+    localStorage.setItem("pequi_user", JSON.stringify(data.user));
+    setUser(data.user);
+    return data.user;
+  };
+
+  const signOut = () => {
+    localStorage.removeItem("pequi_token");
+    localStorage.removeItem("pequi_user");
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

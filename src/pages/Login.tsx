@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Zap } from "lucide-react";
-import { auth } from "@/integrations/firebase/client";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 
@@ -14,13 +12,12 @@ const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, signIn } = useAuth();
 
   useEffect(() => {
-    if (user) navigate("/dashboard");
+    if (user) navigate(user.role === "CLIENT" ? "/viewqui" : "/hub");
   }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,21 +25,13 @@ const Login = () => {
     setLoading(true);
 
     try {
-      if (isSignUp) {
-        await createUserWithEmailAndPassword(auth, email, password);
-        toast({
-          title: "Conta criada!",
-          description: "Login realizado automaticamente.",
-        });
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-        toast({ title: "Login realizado com sucesso!" });
-        navigate("/dashboard");
-      }
+      const loggedUser = await signIn(email, password);
+      toast({ title: "Login realizado com sucesso!" });
+      navigate(loggedUser.role === "CLIENT" ? "/viewqui" : "/hub");
     } catch (error: any) {
       toast({
-        title: "Erro",
-        description: error.message || "Erro ao processar requisição",
+        title: "Erro ao entrar",
+        description: error.message || "Credenciais inválidas",
         variant: "destructive",
       });
     } finally {
@@ -60,10 +49,10 @@ const Login = () => {
       >
         <div className="glass-card p-8">
           <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center gradient-button">
-              <Zap className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-gradient-to-br from-orange-400 to-yellow-400 shadow-lg shadow-orange-500/20">
+              <Zap className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-foreground">LeadPilot</h1>
+            <h1 className="text-2xl font-bold text-foreground">Pequi Digital</h1>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -101,19 +90,19 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 gradient-button rounded-lg disabled:opacity-50"
+              className="w-full py-3 gradient-button rounded-lg disabled:opacity-50 font-semibold"
             >
-              {loading ? "Processando..." : isSignUp ? "CRIAR CONTA" : "ENTRAR"}
+              {loading ? "Entrando..." : "ENTRAR"}
             </button>
           </form>
 
-          <div className="mt-4 text-center">
-            <button
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-muted-foreground hover:text-primary transition-colors"
+          <div className="mt-5 text-center">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-muted-foreground hover:text-orange-400 transition-colors"
             >
-              {isSignUp ? "Já tem conta? Faça login" : "Não tem conta? Cadastre-se"}
-            </button>
+              Esqueceu sua senha?
+            </Link>
           </div>
         </div>
       </motion.div>

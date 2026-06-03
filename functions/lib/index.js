@@ -1,13 +1,17 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getApifyUsage = exports.extractInstagram = exports.extractGoogleMaps = void 0;
+exports.createClientUser = exports.getApifyUsage = exports.extractInstagram = exports.extractGoogleMaps = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const axios_1 = require("axios");
 const openai_1 = require("openai");
 admin.initializeApp();
 const db = admin.firestore();
-exports.extractGoogleMaps = functions.https.onCall(async (data, context) => {
+const runtimeOpts = {
+    timeoutSeconds: 540,
+    memory: "1GB"
+};
+exports.extractGoogleMaps = functions.runWith(runtimeOpts).https.onCall(async (data, context) => {
     var _a, _b, _c, _d, _e, _f;
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "Usuário não autenticado");
@@ -118,6 +122,17 @@ exports.extractGoogleMaps = functions.https.onCall(async (data, context) => {
                 .get();
             snap.forEach(doc => existingUrls.add(doc.data().maps_url));
         }
+        // Nomes (Deduplicação por nome exato)
+        const names = places.map((p) => p.title).filter(Boolean);
+        const existingNames = new Set();
+        for (let i = 0; i < names.length; i += 30) {
+            const chunk = names.slice(i, i + 30);
+            const snap = await db.collection("leads")
+                .where("user_id", "==", userId)
+                .where("nome", "in", chunk)
+                .get();
+            snap.forEach(doc => existingNames.add(doc.data().nome));
+        }
         let savedCount = 0;
         let batchCount = 0;
         const batch = db.batch();
@@ -131,6 +146,8 @@ exports.extractGoogleMaps = functions.https.onCall(async (data, context) => {
                 continue;
             if (place.url && existingUrls.has(place.url))
                 continue;
+            if (place.title && existingNames.has(place.title))
+                continue;
             // --- IMPORTANTE: Adicionar aos conjuntos existentes para evitar duplicatas NO MESMO LOTE ---
             if (place.placeId)
                 existingPlaceIds.add(place.placeId);
@@ -138,6 +155,8 @@ exports.extractGoogleMaps = functions.https.onCall(async (data, context) => {
                 existingPhones.add(phoneClean);
             if (place.url)
                 existingUrls.add(place.url);
+            if (place.title)
+                existingNames.add(place.title);
             const leadRef = db.collection("leads").doc();
             batch.set(leadRef, {
                 user_id: userId,
@@ -197,8 +216,8 @@ exports.extractGoogleMaps = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError("internal", msg);
     }
 });
-exports.extractInstagram = functions.https.onCall(async (data, context) => {
-    var _a, _b, _c, _d, _e;
+exports.extractInstagram = functions.runWith(runtimeOpts).https.onCall(async (data, context) => {
+    var _a, _b, _c, _d;
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "Usuário não autenticado");
     }
@@ -274,7 +293,10 @@ exports.extractInstagram = functions.https.onCall(async (data, context) => {
             });
             const profileRes = await axios_1.default.post(`https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items?token=${apifyKey}`, { usernames: chunk }, { headers: { "Content-Type": "application/json" } });
             const profiles = profileRes.data || [];
-            await updateExt({ step_message: `Extraindo contatos via IA: lote ${i / 10 + 1}...` });
+            // --- Deduplicação de Lote (10 profiles) ---
+            const profilesData = [];
+            const extractedPhones = new Set();
+            const extractedNames = new Set();
             for (const profile of profiles) {
                 const u = profile.username;
                 const fullName = profile.fullName;
@@ -282,7 +304,7 @@ exports.extractInstagram = functions.https.onCall(async (data, context) => {
                 const followers = profile.followersCount || null;
                 const externalUrls = profile.externalUrls || [];
                 const latestPostDate = profile.latestPosts && profile.latestPosts[0] ? profile.latestPosts[0].timestamp : null;
-                // ETAPA 4 - Extração de Contato (OpenAI)
+                // Extração de Contato (OpenAI)
                 let contato = "";
                 try {
                     const completion = await openai.chat.completions.create({
@@ -309,43 +331,64 @@ Seja estrito. Não adicione textos extras.`
                     if (parsed.telefone && parsed.telefone !== "NONE") {
                         contato = String(parsed.telefone).replace(/\D/g, "");
                     }
-                    else if (Array.isArray(parsed) && ((_e = parsed[0]) === null || _e === void 0 ? void 0 : _e.telefone) && parsed[0].telefone !== "NONE") {
-                        contato = String(parsed[0].telefone).replace(/\D/g, ""); // fallback de segurança
-                    }
                 }
                 catch (e) {
                     console.error(`Erro OpenAI para ${u}:`, e);
                 }
-                // ETAPA 5 - Salvar cada lead
-                // Se encontramos um telefone, verificamos se já existe um lead com ele (para evitar duplicidade inter-fontes)
-                if (contato) {
-                    const phoneSnap = await db.collection("leads")
-                        .where("user_id", "==", userId)
-                        .where("telefone_limpo", "==", contato)
-                        .limit(1)
-                        .get();
-                    if (!phoneSnap.empty) {
-                        console.log(`Lead com telefone ${contato} já existe. Pulando...`);
-                        continue;
-                    }
-                }
+                const finalName = fullName || u;
+                profilesData.push({ u, fullName, bio, followers, externalUrls, latestPostDate, contato, finalName });
+                if (contato)
+                    extractedPhones.add(contato);
+                if (finalName)
+                    extractedNames.add(finalName);
+            }
+            // Consultar duplicados do lote (10 leads) em uma única varredura
+            const existingPhones = new Set();
+            const existingNames = new Set();
+            if (extractedPhones.size > 0) {
+                const phonesArr = Array.from(extractedPhones);
+                const snap = await db.collection("leads")
+                    .where("user_id", "==", userId)
+                    .where("telefone_limpo", "in", phonesArr)
+                    .get();
+                snap.forEach(doc => existingPhones.add(doc.data().telefone_limpo));
+            }
+            if (extractedNames.size > 0) {
+                const namesArr = Array.from(extractedNames);
+                const snap = await db.collection("leads")
+                    .where("user_id", "==", userId)
+                    .where("nome", "in", namesArr)
+                    .get();
+                snap.forEach(doc => existingNames.add(doc.data().nome));
+            }
+            // ETAPA 5 - Salvar leads filtrados
+            for (const data of profilesData) {
+                if (data.contato && existingPhones.has(data.contato))
+                    continue;
+                if (data.finalName && existingNames.has(data.finalName))
+                    continue;
+                // Evitar duplicidade dentro do próprio lote (se houver usernames repetidos no chunk)
+                if (data.contato)
+                    existingPhones.add(data.contato);
+                if (data.finalName)
+                    existingNames.add(data.finalName);
                 const leadRef = db.collection("leads").doc();
                 batch.set(leadRef, {
-                    nome: fullName || u,
-                    username: u,
-                    telefone: contato ? contato : "",
-                    telefone_limpo: contato || null,
-                    perfil: "https://instagram.com/" + u,
-                    biografia: bio,
-                    seguidores: followers,
-                    data_ultimo_post: latestPostDate,
+                    nome: data.finalName,
+                    username: data.u,
+                    telefone: data.contato || "",
+                    telefone_limpo: data.contato || null,
+                    perfil: "https://instagram.com/" + data.u,
+                    biografia: data.bio,
+                    seguidores: data.followers,
+                    data_ultimo_post: data.latestPostDate,
                     origem: "instagram",
                     status: "novo",
                     user_id: userId,
                     created_at: admin.firestore.FieldValue.serverTimestamp(),
                     updated_at: admin.firestore.FieldValue.serverTimestamp(),
-                    perfil_url: `https://www.instagram.com/${u}/`,
-                    post_url: postsMap[u] || null
+                    perfil_url: `https://www.instagram.com/${data.u}/`,
+                    post_url: postsMap[data.u] || null
                 });
                 batchCount++;
                 savedCount++;
@@ -359,12 +402,12 @@ Seja estrito. Não adicione textos extras.`
                     });
                     batchCount++;
                 }
-                await updateExt({ progresso: savedCount });
                 if (batchCount >= 400) {
                     await batch.commit();
                     batchCount = 0;
                 }
             }
+            await updateExt({ progresso: savedCount });
         }
         if (batchCount > 0) {
             await batch.commit();
@@ -419,6 +462,36 @@ exports.getApifyUsage = functions.https.onCall(async (data, context) => {
     catch (error) {
         console.error("Erro em getApifyUsage:", error);
         throw new functions.https.HttpsError("internal", error.message || "Erro ao consultar saldo Apify");
+    }
+});
+/**
+ * Cria um usuário no Firebase Auth (acesso do cliente).
+ * Apenas admins podem chamar esta função.
+ */
+exports.createClientUser = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "Acesso negado");
+    }
+    // Verificar se é admin
+    const lowerEmail = (context.auth.token.email || "").toLowerCase();
+    const qAdmin = await db.collection("admins").where("email", "==", lowerEmail).get();
+    if (qAdmin.empty) {
+        throw new functions.https.HttpsError("permission-denied", "Apenas administradores podem criar usuários.");
+    }
+    const { email, password } = data;
+    if (!email || !password) {
+        throw new functions.https.HttpsError("invalid-argument", "E-mail e senha são obrigatórios.");
+    }
+    try {
+        const userRecord = await admin.auth().createUser({
+            email: email,
+            password: password,
+        });
+        return { uid: userRecord.uid };
+    }
+    catch (error) {
+        console.error("Erro ao criar usuário:", error);
+        throw new functions.https.HttpsError("already-exists", error.message);
     }
 });
 //# sourceMappingURL=index.js.map

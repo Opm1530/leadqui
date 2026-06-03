@@ -5,17 +5,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { firestoreService } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
-import { Rocket, Plus, Clock, CheckCircle, AlertCircle, Trash2, Edit2, Eye, Loader2 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Rocket, Plus, Clock, CheckCircle, AlertCircle, Trash2, Edit2, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import api from "@/lib/api";
 
-const variables = ["{{nome}}", "{{telefone}}", "{{seguidores}}", "{{cidade}}", "{{categoria}}", "{{perfil}}", "{{tag_origem}}", "{{extras.chave}}"];
+const variables = ["{{nome}}", "{{telefone}}", "{{cidade}}", "{{categoria}}"];
 
 const statusIcons: Record<string, typeof CheckCircle> = {
-  "finalizada": CheckCircle,
-  "em andamento": Clock,
-  "erro": AlertCircle,
+  FINALIZADA: CheckCircle,
+  EM_ANDAMENTO: Clock,
+  ERRO: AlertCircle,
 };
 
 const Campaigns = () => {
@@ -23,39 +23,39 @@ const Campaigns = () => {
   const { toast } = useToast();
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [instances, setInstances] = useState<any[]>([]);
+  const [leads, setLeads] = useState<any[]>([]);
   const [showNew, setShowNew] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<any>(null);
-
   const [nome, setNome] = useState("");
   const [mensagem, setMensagem] = useState("");
-  const [instanciaId, setInstanciaId] = useState("");
+  const [instanceId, setInstanceId] = useState("");
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [leadSearch, setLeadSearch] = useState("");
+  const [tags, setTags] = useState<any[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [newTagName, setNewTagName] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const fetchCampaigns = async () => {
-    if (!user) return;
+  const fetchData = async () => {
     try {
-      const campData = await firestoreService.list("campanhas", undefined, [], "");
-      setCampaigns(campData);
+      const [campRes, instRes, tagRes, leadRes] = await Promise.all([
+        api.get("/api/campaigns"),
+        api.get("/api/instances"),
+        api.get("/api/tags"),
+        api.get("/api/leads?limit=1000"),
+      ]);
+      setCampaigns(campRes.campaigns || []);
+      setInstances(instRes.instances || []);
+      setTags(tagRes.tags || []);
+      setLeads(leadRes.leads || []);
     } catch (error) {
-      console.error("Error fetching campaigns:", error);
+      console.error("Error fetching data:", error);
     }
   };
 
   useEffect(() => {
     if (!user) return;
-    const fetch = async () => {
-      try {
-        const [campData, instData] = await Promise.all([
-          firestoreService.list("campanhas", undefined, [], ""),
-          firestoreService.list("instancias", undefined, [], ""),
-        ]);
-        setCampaigns(campData);
-        setInstances(instData);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      }
-    };
-    fetch();
+    fetchData();
   }, [user]);
 
   const insertVariable = (v: string, isEdit = false) => {
@@ -68,24 +68,21 @@ const Campaigns = () => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
     setLoading(true);
-
     try {
-      const docRef = await firestoreService.add("campanhas", user.uid, {
+      await api.post("/api/campaigns", {
         nome,
         mensagem,
-        instancia_id: instanciaId || null,
-        status: "em andamento",
-        total_leads: 0
+        instance_id: instanceId || null,
+        tag_ids: selectedTagIds,
+        lead_ids: selectedLeadIds,
+        new_tag_name: newTagName,
       });
-
-      toast({ title: "Campanha criada!", description: "Os disparos serão processados pelo n8n." });
-      fetchCampaigns();
+      toast({ title: "Campanha iniciada!", description: "Os disparos serão processados em background." });
+      fetchData();
       setShowNew(false);
-      setNome("");
-      setMensagem("");
-      setInstanciaId("");
+      setNome(""); setMensagem(""); setInstanceId("");
+      setSelectedTagIds([]); setSelectedLeadIds([]); setNewTagName("");
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } finally {
@@ -96,9 +93,8 @@ const Campaigns = () => {
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!confirm("Tem certeza que deseja excluir esta campanha?")) return;
-
     try {
-      await firestoreService.delete("campanhas", id);
+      await api.delete(`/api/campaigns/${id}`);
       setCampaigns(prev => prev.filter(c => c.id !== id));
       toast({ title: "Campanha excluída" });
     } catch (error: any) {
@@ -110,15 +106,14 @@ const Campaigns = () => {
     e.preventDefault();
     if (!editingCampaign) return;
     setLoading(true);
-
     try {
-      await firestoreService.update("campanhas", editingCampaign.id, {
+      await api.put(`/api/campaigns/${editingCampaign.id}`, {
         nome: editingCampaign.nome,
         mensagem: editingCampaign.mensagem,
-        instancia_id: editingCampaign.instancia_id,
+        instance_id: editingCampaign.instance_id,
       });
       toast({ title: "Campanha atualizada!" });
-      fetchCampaigns();
+      fetchData();
       setEditingCampaign(null);
     } catch (error: any) {
       toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
@@ -134,9 +129,8 @@ const Campaigns = () => {
           <h1 className="text-2xl font-bold text-foreground">Campanhas</h1>
           <p className="text-muted-foreground text-sm mt-1">Gerencie seus disparos em massa</p>
         </div>
-        <button onClick={() => setShowNew(!showNew)} className="gradient-button px-4 py-2 flex items-center gap-2 text-sm">
-          <Plus className="w-4 h-4" />
-          Nova Campanha
+        <button onClick={() => { setShowNew(!showNew); fetchData(); }} className="gradient-button px-4 py-2 flex items-center gap-2 text-sm">
+          <Plus className="w-4 h-4" /> Nova Campanha
         </button>
       </div>
 
@@ -147,47 +141,77 @@ const Campaigns = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground uppercase tracking-wider">Nome da Campanha</Label>
-                <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Promo Fevereiro" className="bg-secondary border-border" required />
+                <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Promo Abril" className="bg-secondary border-border" required />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Instância</Label>
-                <Select value={instanciaId} onValueChange={setInstanciaId}>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Instância WhatsApp</Label>
+                <Select value={instanceId} onValueChange={setInstanceId}>
                   <SelectTrigger className="bg-secondary border-border">
                     <SelectValue placeholder="Selecionar instância" />
                   </SelectTrigger>
                   <SelectContent>
+                    {instances.length === 0 && <SelectItem value="none" disabled>Nenhuma instância conectada</SelectItem>}
                     {instances.map((inst) => (
-                      <SelectItem key={inst.id} value={inst.id}>{inst.nome}</SelectItem>
+                      <SelectItem key={inst.id} value={inst.id}>{inst.nome} ({inst.status})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Filtrar por Tags (Opcional)</Label>
+                <div className="flex flex-wrap gap-2 p-3 bg-secondary/30 rounded-lg border border-border max-h-32 overflow-y-auto">
+                  {tags.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma tag cadastrada.</p>}
+                  {tags.map((tag) => (
+                    <button key={tag.id} type="button" onClick={() => setSelectedTagIds(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
+                      className={`text-[10px] px-2 py-1 rounded-full border transition-all ${selectedTagIds.includes(tag.id) ? "bg-primary text-primary-foreground border-primary" : "bg-transparent text-muted-foreground border-border hover:border-primary/50"}`}>
+                      {tag.nome}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Tag aos Participantes (Existente ou Nova)</Label>
+                <div className="flex flex-wrap gap-2 mb-2 max-h-20 overflow-y-auto p-1">
+                  {tags.map((tag) => (
+                    <button key={tag.id} type="button" onClick={() => setNewTagName(tag.nome)}
+                      className={`text-[9px] px-2 py-0.5 rounded-full border transition-all ${newTagName === tag.nome ? "bg-success text-success-foreground border-success" : "bg-transparent text-muted-foreground border-border hover:border-success/50"}`}>
+                      {tag.nome}
+                    </button>
+                  ))}
+                </div>
+                <Input value={newTagName} onChange={(e) => setNewTagName(e.target.value)} placeholder="Ex: Campanha_Abril" className="bg-secondary border-border" />
+                <p className="text-[10px] text-muted-foreground">O sistema usará a tag selecionada ou criará uma nova com este nome.</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Selecionar Leads Específicos ({selectedLeadIds.length} selecionados)</Label>
+              <Input value={leadSearch} onChange={(e) => setLeadSearch(e.target.value)} placeholder="Buscar por nome ou cidade..." className="bg-secondary border-border mb-2" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 p-3 bg-secondary/30 rounded-lg border border-border max-h-48 overflow-y-auto">
+                {leads.filter(l => (l.nome?.toLowerCase().includes(leadSearch.toLowerCase()) || l.cidade?.toLowerCase().includes(leadSearch.toLowerCase()))).map((lead) => (
+                  <button key={lead.id} type="button" onClick={() => setSelectedLeadIds(prev => prev.includes(lead.id) ? prev.filter(id => id !== lead.id) : [...prev, lead.id])}
+                    className={`flex flex-col items-start p-2 rounded-md border text-left transition-all ${selectedLeadIds.includes(lead.id) ? "bg-primary/20 border-primary" : "bg-transparent border-border hover:border-primary/30"}`}>
+                    <span className="text-xs font-semibold truncate w-full">{lead.nome}</span>
+                    <span className="text-[10px] text-muted-foreground">{lead.telefone} {lead.cidade ? `· ${lead.cidade}` : ""}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">Mensagem</Label>
-              <Textarea
-                value={mensagem}
-                onChange={(e) => setMensagem(e.target.value)}
-                placeholder="Digite sua mensagem personalizada..."
-                className="bg-secondary border-border min-h-[120px]"
-                required
-              />
+              <Textarea value={mensagem} onChange={(e) => setMensagem(e.target.value)} placeholder="Digite sua mensagem..." className="bg-secondary border-border min-h-[120px]" required />
               <div className="flex flex-wrap gap-2 mt-2">
                 <span className="text-xs text-muted-foreground">Variáveis:</span>
                 {variables.map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => insertVariable(v)}
-                    className="text-xs px-2 py-1 rounded-md bg-primary/20 text-primary hover:bg-primary/30 transition-colors cursor-pointer"
-                  >
+                  <button key={v} type="button" onClick={() => insertVariable(v)} className="text-xs px-2 py-1 rounded-md bg-primary/20 text-primary hover:bg-primary/30 transition-colors">
                     {v}
                   </button>
                 ))}
               </div>
             </div>
-
             <button type="submit" disabled={loading} className="gradient-button px-6 py-2.5 text-sm disabled:opacity-50">
               <Rocket className="w-4 h-4 inline mr-2" />
               {loading ? "Criando..." : "Iniciar Campanha"}
@@ -197,17 +221,11 @@ const Campaigns = () => {
       )}
 
       <div className="space-y-3">
-        {campaigns.length === 0 && (
-          <p className="text-sm text-muted-foreground">Nenhuma campanha criada ainda.</p>
-        )}
+        {campaigns.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma campanha criada ainda.</p>}
         {campaigns.map((c, i) => {
           const StatusIcon = statusIcons[c.status] || Clock;
           return (
-            <motion.div
-              key={c.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1 }}
+            <motion.div key={c.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
               onClick={() => setEditingCampaign(c)}
               className="glass-card p-4 flex items-center justify-between cursor-pointer hover:bg-secondary/30 transition-colors"
             >
@@ -217,13 +235,18 @@ const Campaigns = () => {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">{c.nome}</p>
-                  <p className="text-xs text-muted-foreground">{c.total_leads} leads · {new Date(c.created_at).toLocaleDateString("pt-BR")}</p>
+                  <p className="text-xs text-muted-foreground">{c.total_leads} leads · {c.sent || 0} enviados</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 mr-4">
-                  <StatusIcon className={`w-4 h-4 ${c.status === "finalizada" ? "text-success" : c.status === "erro" ? "text-destructive" : "text-primary"}`} />
-                  <span className="text-xs text-muted-foreground capitalize">{c.status}</span>
+                  <StatusIcon className={`w-4 h-4 ${c.status === "FINALIZADA" ? "text-success" : c.status === "ERRO" ? "text-destructive" : "text-primary"}`} />
+                  <div className="flex flex-col">
+                    <span className="text-xs text-muted-foreground capitalize">{c.status?.toLowerCase().replace("_", " ")}</span>
+                    {c.status === "ERRO" && c.erro && (
+                      <span className="text-[10px] text-destructive leading-tight max-w-[150px]" title={c.erro}>{c.erro}</span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={(e) => { e.stopPropagation(); setEditingCampaign(c); }} className="p-2 rounded-md hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors">
@@ -239,68 +262,38 @@ const Campaigns = () => {
         })}
       </div>
 
-      {/* Edit/View Modal */}
       <Dialog open={!!editingCampaign} onOpenChange={(v) => !v && setEditingCampaign(null)}>
-        <DialogContent className="max-w-2xl bg-card border-border">
+        <DialogContent className="bg-card border-border max-w-sm">
           <DialogHeader>
-            <DialogTitle>Editar Campanha</DialogTitle>
+            <DialogTitle className="text-foreground text-center">Editar Campanha</DialogTitle>
+            <DialogDescription className="sr-only">Edite as informações da sua campanha aqui.</DialogDescription>
           </DialogHeader>
           {editingCampaign && (
             <form onSubmit={handleUpdate} className="space-y-4 pt-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Nome da Campanha</Label>
-                  <Input
-                    value={editingCampaign.nome}
-                    onChange={(e) => setEditingCampaign({ ...editingCampaign, nome: e.target.value })}
-                    className="bg-secondary border-border"
-                    required
-                  />
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Nome</Label>
+                  <Input value={editingCampaign.nome} onChange={(e) => setEditingCampaign({ ...editingCampaign, nome: e.target.value })} className="bg-secondary border-border" required />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground uppercase tracking-wider">Instância</Label>
-                  <Select
-                    value={editingCampaign.instancia_id || ""}
-                    onValueChange={(v) => setEditingCampaign({ ...editingCampaign, instancia_id: v })}
-                  >
-                    <SelectTrigger className="bg-secondary border-border">
-                      <SelectValue placeholder="Selecionar instância" />
-                    </SelectTrigger>
+                  <Select value={editingCampaign.instance_id || ""} onValueChange={(v) => setEditingCampaign({ ...editingCampaign, instance_id: v })}>
+                    <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecionar instância" /></SelectTrigger>
                     <SelectContent>
-                      {instances.map((inst) => (
-                        <SelectItem key={inst.id} value={inst.id}>{inst.nome}</SelectItem>
-                      ))}
+                      {instances.map((inst) => <SelectItem key={inst.id} value={inst.id}>{inst.nome}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground uppercase tracking-wider">Mensagem</Label>
-                <Textarea
-                  value={editingCampaign.mensagem}
-                  onChange={(e) => setEditingCampaign({ ...editingCampaign, mensagem: e.target.value })}
-                  className="bg-secondary border-border min-h-[150px]"
-                  required
-                />
+                <Textarea value={editingCampaign.mensagem} onChange={(e) => setEditingCampaign({ ...editingCampaign, mensagem: e.target.value })} className="bg-secondary border-border min-h-[150px]" required />
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {variables.map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => insertVariable(v, true)}
-                      className="text-xs px-2 py-1 rounded-md bg-primary/20 text-primary hover:bg-primary/30 transition-colors cursor-pointer"
-                    >
-                      {v}
-                    </button>
-                  ))}
+                  {variables.map((v) => <button key={v} type="button" onClick={() => insertVariable(v, true)} className="text-xs px-2 py-1 rounded-md bg-primary/20 text-primary hover:bg-primary/30 transition-colors">{v}</button>)}
                 </div>
               </div>
-
               <div className="flex justify-end gap-3 pt-4">
-                <button type="button" onClick={() => setEditingCampaign(null)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">
-                  Cancelar
-                </button>
+                <button type="button" onClick={() => setEditingCampaign(null)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
                 <button type="submit" disabled={loading} className="gradient-button px-6 py-2 text-sm flex items-center gap-2">
                   {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                   Salvar Alterações

@@ -2,110 +2,48 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { firestoreService } from "@/lib/firestore";
-import { db } from "@/integrations/firebase/client";
 import {
-  collection,
-  query,
-  where,
-  getDocs,
-  serverTimestamp,
-  addDoc,
-  deleteDoc,
-  doc,
-  updateDoc,
-} from "firebase/firestore";
-import {
-  DndContext,
-  DragOverlay,
-  closestCorners,
-  rectIntersection,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragStartEvent,
-  DragEndEvent,
-  DragOverEvent,
-  useDroppable,
+  DndContext, DragOverlay, rectIntersection,
+  PointerSensor, useSensor, useSensors,
+  DragStartEvent, DragEndEvent, DragOverEvent, useDroppable,
 } from "@dnd-kit/core";
 import {
-  SortableContext,
-  verticalListSortingStrategy,
-  useSortable,
-  arrayMove,
+  SortableContext, verticalListSortingStrategy,
+  useSortable, arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  Plus,
-  Trash2,
-  Edit2,
-  GripVertical,
-  X,
-  MapPin,
-  Instagram,
-  PenLine,
-  Phone,
-  User,
-  Kanban,
+  Plus, Trash2, Edit2, GripVertical, X,
+  Phone, User, Kanban, Check, Loader2,
+  Instagram, MapPin
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import LeadEditModal from "@/components/LeadEditModal";
-import TagBadge from "@/components/TagBadge";
+import ConvertLeadModal from "@/components/ConvertLeadModal";
+import api from "@/lib/api";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 const COLUMN_COLORS = [
   "#6366f1","#8b5cf6","#ec4899","#f43f5e",
   "#f97316","#eab308","#22c55e","#10b981",
   "#06b6d4","#3b82f6","#64748b","#a16207",
 ];
 
-const ORIGIN_BADGES: Record<string, { label: string; cls: string }> = {
-  google_maps: { label: "Google Maps", cls: "bg-blue-500/20 text-blue-400" },
-  instagram:   { label: "Instagram",   cls: "bg-purple-500/20 text-purple-400" },
-  manual:      { label: "Manual",      cls: "bg-gray-500/20 text-gray-400" },
-};
-
-// ─── Sortable Card Component ───────────────────────────────────────────────────
-const SortableCard = ({
-  card,
-  lead,
-  leadTags,
-  onClick,
-}: {
-  card: any;
-  lead: any;
-  leadTags: any[];
-  onClick: () => void;
-}) => {
+// ── SortableCard ──────────────────────────────────────────────────────────────
+const SortableCard = ({ card, onClick }: { card: any; onClick: () => void }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.3 : 1,
-  };
-
-  const origin = lead?.origem || "";
-  const badge = ORIGIN_BADGES[origin];
+  const lead = card.lead;
+  const tags = lead?.tags?.map((lt: any) => lt.tag).filter(Boolean) || [];
 
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.3 : 1 }}
       {...attributes}
       {...listeners}
       className="glass-card p-3 cursor-grab active:cursor-grabbing hover:bg-secondary/40 transition-colors select-none touch-none"
@@ -119,18 +57,14 @@ const SortableCard = ({
           <p className="text-sm font-medium text-foreground truncate">{lead?.nome || "—"}</p>
           {lead?.telefone && (
             <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-              <Phone className="w-3 h-3" />
-              {lead.telefone}
+              <Phone className="w-3 h-3" /> {lead.telefone}
             </p>
           )}
           <div className="flex flex-wrap gap-1 mt-1.5">
-            {badge && (
-              <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${badge.cls}`}>
-                {badge.label}
+            {tags.map((t: any) => (
+              <span key={t?.id || t?.tag_id} className="text-[10px] px-1.5 py-0.5 rounded-full text-white font-medium" style={{ backgroundColor: t?.cor || "#6366f1" }}>
+                {t?.nome}
               </span>
-            )}
-            {leadTags.map((t) => (
-              <TagBadge key={t.id} nome={t.nome} cor={t.cor} />
             ))}
           </div>
         </div>
@@ -139,22 +73,13 @@ const SortableCard = ({
   );
 };
 
-// ─── Droppable Column Component ───────────────────────────────────────────────
+// ── DroppableColumn ───────────────────────────────────────────────────────────
 const DroppableColumn = ({ col, children, isActive = false }: any) => {
-  const { setNodeRef, isOver } = useDroppable({
-    id: col.id,
-    data: {
-      type: "Column",
-      col,
-    },
-  });
-
+  const { setNodeRef, isOver } = useDroppable({ id: col.id, data: { type: "Column", col } });
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 w-72 flex flex-col rounded-xl transition-all duration-200 ${
-        isOver ? "ring-2 ring-primary bg-primary/5" : isActive ? "ring-1 ring-primary/20" : ""
-      }`}
+      className={`flex-shrink-0 w-72 flex flex-col rounded-xl transition-all duration-200 ${isOver ? "ring-2 ring-primary bg-primary/5" : isActive ? "ring-1 ring-primary/20" : ""}`}
       id={col.id}
     >
       {children}
@@ -162,15 +87,14 @@ const DroppableColumn = ({ col, children, isActive = false }: any) => {
   );
 };
 
-// ─── CRM Component ────────────────────────────────────────────────────────────
+// ── CRM Component ─────────────────────────────────────────────────────────────
 const CRM = () => {
   const { user } = useAuth();
   const { toast } = useToast();
 
   const [columns, setColumns] = useState<any[]>([]);
   const [cards, setCards] = useState<any[]>([]);
-  const [leadsMap, setLeadsMap] = useState<Record<string, any>>({});
-  const [leadTagsMap, setLeadTagsMap] = useState<Record<string, any[]>>({});
+  const [loading, setLoading] = useState(true);
 
   // Modal estados
   const [colModal, setColModal] = useState(false);
@@ -191,77 +115,43 @@ const CRM = () => {
   // Drawer
   const [drawerCard, setDrawerCard] = useState<any | null>(null);
   const [editingLead, setEditingLead] = useState<any | null>(null);
+  const [convertModalOpen, setConvertModalOpen] = useState(false);
 
   // DnD
   const [activeCard, setActiveCard] = useState<any | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
-
-  // Ref sync to fix closure stale state in handleDragEnd 
   const cardsRef = useRef(cards);
   useEffect(() => { cardsRef.current = cards; }, [cards]);
 
-  // ── Data fetching ───────────────────────────────────────────────────────────
+  // ── Fetch ───────────────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     if (!user) return;
     try {
-      const [cols, cds] = await Promise.all([
-        firestoreService.list("crm_colunas", user.uid, [], "posicao"),
-        firestoreService.list("crm_cards", user.uid, [], "posicao"),
+      const [colData, cardData] = await Promise.all([
+        api.get("/api/crm/columns"),
+        api.get("/api/crm/cards"),
       ]);
-      const sortedCols = [...cols].sort((a: any, b: any) => (a.posicao ?? 0) - (b.posicao ?? 0));
-      setColumns(sortedCols);
-      setCards(cds);
-
-      // Fetch leads data
-      const leadIds = [...new Set(cds.map((c: any) => c.lead_id))] as string[];
-      if (leadIds.length > 0) {
-        const leadsData: Record<string, any> = {};
-        for (let i = 0; i < leadIds.length; i += 30) {
-          const chunk = leadIds.slice(i, i + 30);
-          const q = query(collection(db, "leads"), where("__name__", "in", chunk));
-          const snap = await getDocs(q);
-          snap.docs.forEach((d) => { leadsData[d.id] = { id: d.id, ...d.data() }; });
-        }
-        setLeadsMap(leadsData);
-
-        // Fetch tags
-        const tagsData: Record<string, any[]> = {};
-        for (let i = 0; i < leadIds.length; i += 30) {
-          const chunk = leadIds.slice(i, i + 30);
-          const q = query(collection(db, "lead_tags"), where("lead_id", "in", chunk));
-          const snap = await getDocs(q);
-          for (const d of snap.docs) {
-            const { lead_id, tag_id } = d.data();
-            const tagSnap = await getDocs(query(collection(db, "tags"), where("__name__", "in", [tag_id])));
-            if (!tagsData[lead_id]) tagsData[lead_id] = [];
-            tagSnap.docs.forEach((td) => tagsData[lead_id].push({ id: td.id, ...td.data() }));
-          }
-        }
-        setLeadTagsMap(tagsData);
-      }
-    } catch (error) {
-      console.error("Error fetching CRM data:", error);
+      setColumns(colData.columns || []);
+      setCards(cardData.cards || []);
+    } catch (error: any) {
+      toast({ title: "Erro ao carregar CRM", description: error.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
-  }, [user]);
+  }, [user, toast]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // ── Columns CRUD ─────────────────────────────────────────────────────────────
   const handleCreateColumn = async () => {
-    if (!user || !colNome.trim()) return;
+    if (!colNome.trim()) return;
     setSavingCol(true);
     try {
-      await addDoc(collection(db, "crm_colunas"), {
-        nome: colNome.trim(),
-        cor: colCor,
-        posicao: columns.length,
-        user_id: user.uid,
-        created_at: serverTimestamp(),
-      });
+      const data = await api.post("/api/crm/columns", { nome: colNome.trim(), cor: colCor });
+      setColumns((prev) => [...prev, data.column]);
       toast({ title: "Coluna criada!" });
       setColModal(false);
       setColNome("");
-      fetchAll();
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } finally {
@@ -273,22 +163,19 @@ const CRM = () => {
     const colCards = cards.filter((c) => c.coluna_id === col.id);
     if (!confirm(`Excluir a coluna "${col.nome}"${colCards.length > 0 ? ` e seus ${colCards.length} card(s)` : ""}?`)) return;
     try {
-      await Promise.all(colCards.map((c) => deleteDoc(doc(db, "crm_cards", c.id))));
-      await deleteDoc(doc(db, "crm_colunas", col.id));
+      await api.delete(`/api/crm/columns/${col.id}`);
+      setColumns((prev) => prev.filter((c) => c.id !== col.id));
+      setCards((prev) => prev.filter((c) => c.coluna_id !== col.id));
       toast({ title: "Coluna excluída!" });
-      fetchAll();
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     }
   };
 
   const handleRenameColumn = async (col: any) => {
-    if (!editingColNome.trim() || editingColNome === col.nome) {
-      setEditingColId(null);
-      return;
-    }
+    if (!editingColNome.trim() || editingColNome === col.nome) { setEditingColId(null); return; }
     try {
-      await updateDoc(doc(db, "crm_colunas", col.id), { nome: editingColNome.trim() });
+      await api.put(`/api/crm/columns/${col.id}`, { nome: editingColNome.trim() });
       setColumns((prev) => prev.map((c) => c.id === col.id ? { ...c, nome: editingColNome.trim() } : c));
     } catch (error: any) {
       toast({ title: "Erro ao renomear", description: error.message, variant: "destructive" });
@@ -297,32 +184,25 @@ const CRM = () => {
     }
   };
 
-  // ── Add lead to column ────────────────────────────────────────────────────────
+  // ── Add lead ─────────────────────────────────────────────────────────────────
   const openAddLead = async (colId: string) => {
     setAddLeadColId(colId);
     setLeadSearch("");
-    // Leads que ainda NÃO têm crm_card
-    const cardLeadIds = new Set(cards.map((c) => c.lead_id));
-    const allLeads = await firestoreService.list("leads", user?.uid, [], "", 500);
-    setAvailableLeads(allLeads.filter((l: any) => !cardLeadIds.has(l.id)));
+    try {
+      const cardLeadIds = new Set(cards.map((c) => c.lead_id));
+      const data = await api.get("/api/leads?limit=200");
+      setAvailableLeads((data.leads || []).filter((l: any) => !cardLeadIds.has(l.id)));
+    } catch {}
   };
 
   const handleAddLead = async (lead: any) => {
-    if (!user || !addLeadColId) return;
+    if (!addLeadColId) return;
     setAddingLead(true);
     try {
-      const colCards = cards.filter((c) => c.coluna_id === addLeadColId);
-      await addDoc(collection(db, "crm_cards"), {
-        lead_id: lead.id,
-        coluna_id: addLeadColId,
-        posicao: colCards.length,
-        user_id: user.uid,
-        created_at: serverTimestamp(),
-        updated_at: serverTimestamp(),
-      });
+      const data = await api.post("/api/crm/cards", { lead_id: lead.id, coluna_id: addLeadColId });
+      setCards((prev) => [...prev, data.card]);
       toast({ title: `${lead.nome} adicionado ao CRM!` });
       setAddLeadColId(null);
-      fetchAll();
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } finally {
@@ -333,42 +213,32 @@ const CRM = () => {
   const handleRemoveCard = async (card: any) => {
     if (!confirm("Remover este lead do CRM?")) return;
     try {
-      await deleteDoc(doc(db, "crm_cards", card.id));
+      await api.delete(`/api/crm/cards/${card.id}`);
+      setCards((prev) => prev.filter((c) => c.id !== card.id));
       toast({ title: "Lead removido do CRM." });
       setDrawerCard(null);
-      fetchAll();
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     }
   };
 
   // ── Drag & Drop ───────────────────────────────────────────────────────────────
-  const handleDragStart = (event: DragStartEvent) => {
-    const card = cards.find((c) => c.id === event.active.id);
-    setActiveCard(card || null);
+  const findContainer = (id: string) => {
+    if (columns.some((col) => col.id === id)) return id;
+    return cards.find((c) => c.id === id)?.coluna_id;
   };
 
-  // Helper to find column ID from card ID or directly if it's already a column
-  const findContainer = (id: string) => {
-    if (columns.some(col => col.id === id)) return id;
-    const card = cards.find(c => c.id === id);
-    return card?.coluna_id;
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveCard(cards.find((c) => c.id === event.active.id) || null);
   };
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event;
-    if (!over) return;
-    if (active.id === over.id) return;
-
-    const activeContainer = findContainer(active.id as string);
-    const overContainer = findContainer(over.id as string);
-
-    if (activeContainer && overContainer && activeContainer !== overContainer) {
-      setCards((prev) =>
-        prev.map((c) =>
-          c.id === active.id ? { ...c, coluna_id: overContainer } : c
-        )
-      );
+    if (!over || active.id === over.id) return;
+    const from = findContainer(active.id as string);
+    const to = findContainer(over.id as string);
+    if (from && to && from !== to) {
+      setCards((prev) => prev.map((c) => c.id === active.id ? { ...c, coluna_id: to } : c));
     }
   };
 
@@ -377,63 +247,47 @@ const CRM = () => {
     setActiveCard(null);
     if (!over) return;
 
-    // Utilize o estado mais recente em vez do closure original
-    const latestCards = cardsRef.current;
-    const activeCard = latestCards.find((c) => c.id === active.id);
-    if (!activeCard) return;
+    const latest = cardsRef.current;
+    const moved = latest.find((c) => c.id === active.id);
+    if (!moved) return;
 
     try {
-      // Persist column change made by handleDragOver
-      await updateDoc(doc(db, "crm_cards", activeCard.id), {
-        coluna_id: activeCard.coluna_id,
-        updated_at: serverTimestamp(),
-      });
+      // Persist coluna_id change
+      await api.put(`/api/crm/cards/${moved.id}`, { coluna_id: moved.coluna_id });
 
-      // Reorder within the latest column assigned
-      const colCards = latestCards
-        .filter((c) => c.coluna_id === activeCard.coluna_id)
-        .sort((a, b) => (a.posicao ?? 0) - (b.posicao ?? 0));
+      // Reorder within column
+      const col = latest.filter((c) => c.coluna_id === moved.coluna_id).sort((a, b) => (a.posicao ?? 0) - (b.posicao ?? 0));
+      const oldIdx = col.findIndex((c) => c.id === active.id);
+      let newIdx = col.findIndex((c) => c.id === over.id);
+      if (newIdx === -1) newIdx = columns.some((c) => c.id === over.id) ? col.length - 1 : -1;
 
-      const oldIndex = colCards.findIndex((c) => c.id === active.id);
-      let newIndex = colCards.findIndex((c) => c.id === over.id);
-
-      // Se dropou fora de um card (ex: no header ou container vazio), tenta achar a nova coluna
-      if (newIndex === -1) {
-        // Se 'over' for o ID da coluna
-        if (columns.some(c => c.id === over.id)) {
-           newIndex = colCards.length > 0 ? colCards.length - 1 : 0;
-        } else {
-           // Se não achou posição, não reordena
-           return;
-        }
-      }
-
-      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-        const reordered = arrayMove(colCards, oldIndex, newIndex);
-        await Promise.all(
-          reordered.map((c, idx) =>
-            updateDoc(doc(db, "crm_cards", c.id), { posicao: idx })
-          )
-        );
+      if (oldIdx !== -1 && newIdx !== -1 && oldIdx !== newIdx) {
+        const reordered = arrayMove(col, oldIdx, newIdx);
+        await Promise.all(reordered.map((c, idx) => api.put(`/api/crm/cards/${c.id}`, { posicao: idx })));
         setCards((prev) => {
-          const others = prev.filter((c) => c.coluna_id !== activeCard.coluna_id);
-          const updated = reordered.map((c, idx) => ({ ...c, posicao: idx }));
-          return [...others, ...updated];
+          const others = prev.filter((c) => c.coluna_id !== moved.coluna_id);
+          return [...others, ...reordered.map((c, idx) => ({ ...c, posicao: idx }))];
         });
       }
     } catch (error) {
-      console.error("Error saving drag result:", error);
+      console.error("Drag error:", error);
       fetchAll();
     }
   };
 
   const filteredAvailableLeads = availableLeads.filter((l) =>
-    !leadSearch ||
-    l.nome?.toLowerCase().includes(leadSearch.toLowerCase()) ||
-    l.telefone?.includes(leadSearch)
+    !leadSearch || l.nome?.toLowerCase().includes(leadSearch.toLowerCase()) || l.telefone?.includes(leadSearch)
   );
 
-  const drawerLead = drawerCard ? leadsMap[drawerCard.lead_id] : null;
+  const drawerLead = drawerCard?.lead || null;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 h-full">
@@ -441,114 +295,59 @@ const CRM = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Kanban className="w-6 h-6 text-primary" />
-            CRM
+            <Kanban className="w-6 h-6 text-primary" /> CRM
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Organize seus leads em colunas personalizadas
-          </p>
+          <p className="text-muted-foreground text-sm mt-1">Organize seus leads em colunas personalizadas</p>
         </div>
-        <button
-          onClick={() => { setColNome(""); setColCor(COLUMN_COLORS[0]); setColModal(true); }}
-          className="gradient-button px-4 py-2 flex items-center gap-2 text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Nova Coluna
+        <button onClick={() => { setColNome(""); setColCor(COLUMN_COLORS[0]); setColModal(true); }} className="gradient-button px-4 py-2 flex items-center gap-2 text-sm">
+          <Plus className="w-4 h-4" /> Nova Coluna
         </button>
       </div>
 
       {/* Board */}
       {columns.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-card p-12 text-center"
-        >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-12 text-center">
           <Kanban className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-muted-foreground">
-            Nenhuma coluna criada ainda. Clique em <strong>+ Nova Coluna</strong> para começar.
-          </p>
+          <p className="text-muted-foreground">Nenhuma coluna criada ainda. Clique em <strong>+ Nova Coluna</strong> para começar.</p>
         </motion.div>
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={rectIntersection}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
+        <DndContext sensors={sensors} collisionDetection={rectIntersection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
           <div className="flex gap-4 overflow-x-auto pb-4 min-h-[60vh]">
             {columns.map((col) => {
-              const colCards = cards
-                .filter((c) => c.coluna_id === col.id)
-                .sort((a, b) => (a.posicao ?? 0) - (b.posicao ?? 0));
-
+              const colCards = cards.filter((c) => c.coluna_id === col.id).sort((a, b) => (a.posicao ?? 0) - (b.posicao ?? 0));
               return (
                 <DroppableColumn key={col.id} col={col} isActive={activeCard?.coluna_id === col.id}>
-                  {/* Column header */}
-                  <div
-                    className="rounded-t-xl p-3 flex items-center justify-between"
-                    style={{ backgroundColor: `${col.cor}25`, borderBottom: `2px solid ${col.cor}` }}
-                  >
+                  <div className="rounded-t-xl p-3 flex items-center justify-between" style={{ backgroundColor: `${col.cor}25`, borderBottom: `2px solid ${col.cor}` }}>
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: col.cor }} />
                       {editingColId === col.id ? (
                         <input
-                          autoFocus
-                          value={editingColNome}
+                          autoFocus value={editingColNome}
                           onChange={(e) => setEditingColNome(e.target.value)}
                           onBlur={() => handleRenameColumn(col)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleRenameColumn(col);
-                            if (e.key === "Escape") setEditingColId(null);
-                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleRenameColumn(col); if (e.key === "Escape") setEditingColId(null); }}
                           className="bg-transparent border-b border-foreground/30 text-sm font-semibold text-foreground outline-none flex-1 min-w-0"
                         />
                       ) : (
-                        <span
-                          className="text-sm font-semibold text-foreground truncate cursor-pointer hover:opacity-75"
-                          onDoubleClick={() => { setEditingColId(col.id); setEditingColNome(col.nome); }}
-                          title="Duplo clique para renomear"
-                        >
+                        <span className="text-sm font-semibold text-foreground truncate cursor-pointer hover:opacity-75" onDoubleClick={() => { setEditingColId(col.id); setEditingColNome(col.nome); }} title="Duplo clique para renomear">
                           {col.nome}
                         </span>
                       )}
-                      <span className="text-xs text-muted-foreground flex-shrink-0 ml-1">
-                        {colCards.length}
-                      </span>
+                      <span className="text-xs text-muted-foreground flex-shrink-0 ml-1">{colCards.length}</span>
                     </div>
-                    <button
-                      onClick={() => handleDeleteColumn(col)}
-                      className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors flex-shrink-0"
-                    >
+                    <button onClick={() => handleDeleteColumn(col)} className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  {/* Cards list */}
                   <div className="flex-1 rounded-b-xl bg-secondary/20 p-2 space-y-2 min-h-[100px]">
-                    <SortableContext
-                      items={colCards.map((c) => c.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
+                    <SortableContext items={colCards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
                       {colCards.map((card) => (
-                        <SortableCard
-                          key={card.id}
-                          card={card}
-                          lead={leadsMap[card.lead_id]}
-                          leadTags={leadTagsMap[card.lead_id] || []}
-                          onClick={() => setDrawerCard(card)}
-                        />
+                        <SortableCard key={card.id} card={card} onClick={() => setDrawerCard(card)} />
                       ))}
                     </SortableContext>
-
-                    {/* Add lead button */}
-                    <button
-                      onClick={() => openAddLead(col.id)}
-                      className="w-full p-2 rounded-lg border border-dashed border-border/50 text-xs text-muted-foreground hover:text-foreground hover:border-border transition-colors flex items-center justify-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Adicionar lead
+                    <button onClick={() => openAddLead(col.id)} className="w-full p-2 rounded-lg border border-dashed border-border/50 text-xs text-muted-foreground hover:text-foreground hover:border-border transition-colors flex items-center justify-center gap-1">
+                      <Plus className="w-3.5 h-3.5" /> Adicionar lead
                     </button>
                   </div>
                 </DroppableColumn>
@@ -556,13 +355,10 @@ const CRM = () => {
             })}
           </div>
 
-          {/* Drag Overlay */}
           <DragOverlay>
             {activeCard && (
               <div className="glass-card p-3 shadow-xl rotate-2 opacity-90 w-72">
-                <p className="text-sm font-medium text-foreground">
-                  {leadsMap[activeCard.lead_id]?.nome || "—"}
-                </p>
+                <p className="text-sm font-medium text-foreground">{activeCard.lead?.nome || "—"}</p>
               </div>
             )}
           </DragOverlay>
@@ -574,45 +370,28 @@ const CRM = () => {
         <DialogContent className="max-w-sm bg-card border-border">
           <DialogHeader>
             <DialogTitle>Nova Coluna</DialogTitle>
+            <DialogDescription className="sr-only">Crie uma nova coluna para organizar seus leads no funil.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">Nome</Label>
-              <Input
-                value={colNome}
-                onChange={(e) => setColNome(e.target.value)}
-                placeholder="Ex: Em Negociação"
-                className="bg-secondary border-border"
-              />
+              <Input value={colNome} onChange={(e) => setColNome(e.target.value)} placeholder="Ex: Em Negociação" className="bg-secondary border-border" />
             </div>
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">Cor</Label>
               <div className="grid grid-cols-6 gap-2">
                 {COLUMN_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => setColCor(color)}
+                  <button key={color} type="button" onClick={() => setColCor(color)}
                     className={`w-8 h-8 rounded-full transition-all ${colCor === color ? "ring-2 ring-offset-2 ring-offset-card ring-white scale-110" : ""}`}
-                    style={{ backgroundColor: color }}
-                  />
+                    style={{ backgroundColor: color }} />
                 ))}
               </div>
             </div>
-            {/* Preview */}
-            <div
-              className="h-1.5 w-full rounded-full"
-              style={{ backgroundColor: colCor }}
-            />
+            <div className="h-1.5 w-full rounded-full" style={{ backgroundColor: colCor }} />
             <div className="flex justify-end gap-3">
-              <button onClick={() => setColModal(false)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">
-                Cancelar
-              </button>
-              <button
-                onClick={handleCreateColumn}
-                disabled={savingCol || !colNome.trim()}
-                className="gradient-button px-6 py-2 text-sm disabled:opacity-50"
-              >
+              <button onClick={() => setColModal(false)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+              <button onClick={handleCreateColumn} disabled={savingCol || !colNome.trim()} className="gradient-button px-6 py-2 text-sm disabled:opacity-50 flex items-center gap-2">
+                {savingCol && <Loader2 className="w-4 h-4 animate-spin" />}
                 {savingCol ? "Criando..." : "Criar"}
               </button>
             </div>
@@ -624,32 +403,21 @@ const CRM = () => {
       <Dialog open={!!addLeadColId} onOpenChange={(v) => !v && setAddLeadColId(null)}>
         <DialogContent className="max-w-md bg-card border-border">
           <DialogHeader>
-            <DialogTitle>Adicionar Lead</DialogTitle>
+            <DialogTitle>Adicionar Lead ao CRM</DialogTitle>
+            <DialogDescription className="sr-only">Selecione um lead da lista para adicionar a esta coluna do CRM.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 pt-2">
-            <Input
-              placeholder="Buscar por nome ou telefone..."
-              value={leadSearch}
-              onChange={(e) => setLeadSearch(e.target.value)}
-              className="bg-secondary border-border"
-            />
+            <Input placeholder="Buscar por nome ou telefone..." value={leadSearch} onChange={(e) => setLeadSearch(e.target.value)} className="bg-secondary border-border" />
             <div className="max-h-64 overflow-y-auto space-y-2">
               {filteredAvailableLeads.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
-                  {availableLeads.length === 0
-                    ? "Todos os leads já estão no CRM."
-                    : "Nenhum lead encontrado."}
+                  {availableLeads.length === 0 ? "Todos os leads já estão no CRM." : "Nenhum lead encontrado."}
                 </p>
               ) : (
                 filteredAvailableLeads.slice(0, 50).map((lead) => (
-                  <button
-                    key={lead.id}
-                    onClick={() => handleAddLead(lead)}
-                    disabled={addingLead}
-                    className="w-full text-left p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors"
-                  >
+                  <button key={lead.id} onClick={() => handleAddLead(lead)} disabled={addingLead} className="w-full text-left p-3 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors disabled:opacity-50">
                     <p className="text-sm font-medium text-foreground">{lead.nome}</p>
-                    <p className="text-xs text-muted-foreground">{lead.telefone || "—"} · {lead.origem || "—"}</p>
+                    <p className="text-xs text-muted-foreground">{lead.telefone || "—"} · {lead.status}</p>
                   </button>
                 ))
               )}
@@ -658,75 +426,62 @@ const CRM = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Drawer lateral — detalhes do lead */}
+      {/* Drawer lateral */}
       <Sheet open={!!drawerCard} onOpenChange={(v) => !v && setDrawerCard(null)}>
         <SheetContent className="bg-card border-l border-border w-full sm:max-w-md overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="text-foreground flex items-center gap-2">
-              <User className="w-5 h-5 text-primary" />
-              Detalhes do Lead
+              <User className="w-5 h-5 text-primary" /> Detalhes do Lead
             </SheetTitle>
+            <SheetDescription className="sr-only">Informações detalhadas sobre o lead selecionado no CRM.</SheetDescription>
           </SheetHeader>
-
           {drawerLead && (
             <div className="mt-6 space-y-4">
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider">Nome</p>
-                <p className="text-lg font-semibold text-foreground mt-0.5">{drawerLead.nome}</p>
-              </div>
-              {drawerLead.telefone && (
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Telefone</p>
-                  <p className="text-sm text-foreground mt-0.5">{drawerLead.telefone}</p>
+              {[
+                { label: "Nome", value: drawerLead.nome },
+                { label: "Telefone", value: drawerLead.telefone },
+                { label: "Cidade", value: drawerLead.cidade },
+                { label: "E-mail", value: drawerLead.email },
+                { label: "Status", value: drawerLead.status },
+                { label: "Origem", value: drawerLead.origem },
+                { label: "Link Perfil (Instagram)", value: drawerLead.perfil_url, isLink: true, icon: Instagram },
+                { label: "Link Google Maps", value: drawerLead.maps_url, isLink: true, icon: MapPin },
+              ].filter((f) => f.value).map((f: any) => (
+                <div key={f.label}>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider">{f.label}</p>
+                  {f.isLink ? (
+                    <a href={f.value} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline mt-0.5 font-medium flex items-center gap-2">
+                       {f.icon && <f.icon className="w-3.5 h-3.5" />} {f.value}
+                    </a>
+                  ) : (
+                    <p className="text-sm text-foreground mt-0.5 font-medium">{f.value}</p>
+                  )}
                 </div>
-              )}
-              {drawerLead.cidade && (
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Cidade</p>
-                  <p className="text-sm text-foreground mt-0.5">{drawerLead.cidade}</p>
-                </div>
-              )}
-              {drawerLead.origem && (
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Origem</p>
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${ORIGIN_BADGES[drawerLead.origem]?.cls || "bg-primary/10 text-primary"}`}>
-                    {ORIGIN_BADGES[drawerLead.origem]?.label || drawerLead.origem}
-                  </span>
-                </div>
-              )}
-              {drawerLead.status && (
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider">Status</p>
-                  <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary font-medium">
-                    {drawerLead.status}
-                  </span>
-                </div>
-              )}
-              {(leadTagsMap[drawerLead.id] || []).length > 0 && (
+              ))}
+              {(drawerLead.tags || []).length > 0 && (
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Tags</p>
                   <div className="flex flex-wrap gap-1">
-                    {(leadTagsMap[drawerLead.id] || []).map((t) => (
-                      <TagBadge key={t.id} nome={t.nome} cor={t.cor} />
+                    {drawerLead.tags.map((lt: any) => (
+                      <span key={lt.tag?.id || lt.tag_id} className="text-xs px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: lt.tag?.cor || "#6366f1" }}>
+                        {lt.tag?.nome}
+                      </span>
                     ))}
                   </div>
                 </div>
               )}
 
               <div className="flex flex-col gap-2 pt-4 border-t border-border">
-                <button
-                  onClick={() => setEditingLead(drawerLead)}
-                  className="gradient-button py-2.5 text-sm flex items-center justify-center gap-2"
-                >
-                  <Edit2 className="w-4 h-4" />
-                  Editar Lead
+                <button onClick={() => setEditingLead(drawerLead)} className="gradient-button py-2.5 text-sm flex items-center justify-center gap-2">
+                  <Edit2 className="w-4 h-4" /> Editar Lead
                 </button>
-                <button
-                  onClick={() => drawerCard && handleRemoveCard(drawerCard)}
-                  className="py-2.5 text-sm border border-destructive/50 text-destructive rounded-lg hover:bg-destructive/10 flex items-center justify-center gap-2 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                  Remover do CRM
+                {drawerLead.status !== "CONVERTIDO" && (
+                  <button onClick={() => setConvertModalOpen(true)} className="flex items-center justify-center gap-2 py-2.5 text-sm font-medium bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded-lg transition-colors border border-green-500/20">
+                    <Check className="w-4 h-4" /> Converter em Cliente
+                  </button>
+                )}
+                <button onClick={() => drawerCard && handleRemoveCard(drawerCard)} className="py-2.5 text-sm border border-destructive/50 text-destructive rounded-lg hover:bg-destructive/10 flex items-center justify-center gap-2 transition-colors">
+                  <X className="w-4 h-4" /> Remover do CRM
                 </button>
               </div>
             </div>
@@ -734,13 +489,8 @@ const CRM = () => {
         </SheetContent>
       </Sheet>
 
-      {/* Lead Edit Modal */}
-      <LeadEditModal
-        lead={editingLead}
-        open={!!editingLead}
-        onClose={() => setEditingLead(null)}
-        onSaved={() => { fetchAll(); setEditingLead(null); }}
-      />
+      <LeadEditModal lead={editingLead} open={!!editingLead} onClose={() => setEditingLead(null)} onSaved={() => { fetchAll(); setEditingLead(null); }} />
+      <ConvertLeadModal lead={drawerLead} open={convertModalOpen} onClose={() => setConvertModalOpen(false)} onConverted={() => { fetchAll(); setDrawerCard(null); setConvertModalOpen(false); }} userId={""} />
     </div>
   );
 };

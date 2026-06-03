@@ -3,11 +3,10 @@ import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-// import { supabase } from "@/integrations/supabase/client"; // Removido Supabase
-import { firestoreService } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { Smartphone, Plus, Wifi, WifiOff, Trash2, QrCode, RefreshCw, Loader2 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import api from "@/lib/api";
 
 const Instances = () => {
   const { user } = useAuth();
@@ -17,70 +16,33 @@ const Instances = () => {
   const [nome, setNome] = useState("");
   const [loading, setLoading] = useState(false);
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
-  const [qrInstanceName, setQrInstanceName] = useState<string | null>(null);
+  const [qrInstanceId, setQrInstanceId] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState<string | null>(null);
 
-  const fetchInstances = async () => {
-    if (!user) return;
+  const fetchInstances = useCallback(async () => {
     try {
-      const data = await firestoreService.list("instancias", user.uid, [], "");
-      setInstances(data);
+      const data = await api.get("/api/instances");
+      setInstances(data.instances || []);
     } catch (error: any) {
-      console.error("Error fetching instances:", error);
       toast({ title: "Erro ao carregar instâncias", description: error.message, variant: "destructive" });
     }
-  };
-
-  const checkAllStatuses = useCallback(async (insts: any[]) => {
-    // TODO: Implementar chamada via Firebase Cloud Functions para Evolution API
-    console.log("Check status would happen here via Firebase Functions for:", insts);
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     if (!user) return;
-    const load = async () => {
-      try {
-        const data = await firestoreService.list("instancias", user.uid, [], "");
-        setInstances(data);
-        if (data.length > 0) checkAllStatuses(data);
-      } catch (error) {
-        console.error("Error loading instances:", error);
-      }
-    };
-    load();
-  }, [user, checkAllStatuses]);
-
-  const callEvolutionApi = async (body: any): Promise<any> => {
-    // TODO: Migrar Supabase Edge Functions para Firebase Cloud Functions
-    toast({
-      title: "Funcionalidade em Migração",
-      description: "A integração com Evolution API está sendo migrada para Firebase Functions.",
-      variant: "default"
-    });
-    throw new Error("Integração Evolution API (Firebase) não configurada.");
-  };
+    fetchInstances();
+  }, [user, fetchInstances]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !nome.trim()) return;
+    if (!nome.trim()) return;
     setLoading(true);
-
     try {
-      const data = await callEvolutionApi({ action: "create", instanceName: nome.trim() });
-
-      // Save to Firestore
-      await firestoreService.add("instancias", user.uid, {
-        nome: nome.trim(),
-        evolution_instance_id: nome.trim(),
-        status: "desconectado",
-      });
-
-      const qrBase64 = data.qrcode?.base64;
-      if (qrBase64) {
-        setQrCodeData(qrBase64);
-        setQrInstanceName(nome.trim());
+      const data = await api.post("/api/instances", { nome: nome.trim() });
+      if (data.qrcode) {
+        setQrCodeData(data.qrcode);
+        setQrInstanceId(data.instance.id);
       }
-
       toast({ title: "Instância criada!", description: "Escaneie o QR Code para conectar." });
       setShowNew(false);
       setNome("");
@@ -91,13 +53,12 @@ const Instances = () => {
     setLoading(false);
   };
 
-  const handleRefreshQr = async (instanceId: string) => {
+  const handleRefreshQr = async (id: string) => {
     try {
-      const data = await callEvolutionApi({ action: "qrcode", instanceName: instanceId });
-      const qrBase64 = data.base64;
-      if (qrBase64) {
-        setQrCodeData(qrBase64);
-        setQrInstanceName(instanceId);
+      const data = await api.get(`/api/instances/${id}/qrcode`);
+      if (data.qrcode) {
+        setQrCodeData(data.qrcode);
+        setQrInstanceId(id);
       } else {
         toast({ title: "Sem QR Code", description: "A instância pode já estar conectada." });
       }
@@ -109,20 +70,13 @@ const Instances = () => {
   const handleCheckStatus = async (inst: any) => {
     setCheckingStatus(inst.id);
     try {
-      const data = await callEvolutionApi({ action: "status", instanceName: inst.evolution_instance_id });
-      const newStatus = data.instance?.state === "open" ? "conectado" : "desconectado";
-      setInstances((prev) =>
-        prev.map((i) => (i.id === inst.id ? { ...i, status: newStatus } : i))
-      );
-
-      // Update status in firestore
-      await firestoreService.update("instancias", inst.id, { status: newStatus });
-
+      const data = await api.get(`/api/instances/${inst.id}/status`);
+      const newStatus = data.status;
+      setInstances((prev) => prev.map((i) => i.id === inst.id ? { ...i, status: newStatus } : i));
       toast({ title: `Status: ${newStatus}` });
-
-      if (newStatus === "conectado") {
+      if (newStatus === "CONECTADO") {
         setQrCodeData(null);
-        setQrInstanceName(null);
+        setQrInstanceId(null);
       }
     } catch (err: any) {
       toast({ title: "Erro", description: err.message, variant: "destructive" });
@@ -132,7 +86,7 @@ const Instances = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await firestoreService.delete("instancias", id);
+      await api.delete(`/api/instances/${id}`);
       setInstances((prev) => prev.filter((i) => i.id !== id));
       toast({ title: "Instância excluída" });
     } catch (error: any) {
@@ -140,16 +94,31 @@ const Instances = () => {
     }
   };
 
+  useEffect(() => {
+    if (!qrCodeData || !qrInstanceId) return;
+    const interval = setInterval(async () => {
+      try {
+        const data = await api.get(`/api/instances/${qrInstanceId}/status`);
+        if (data.status === "CONECTADO") {
+          setInstances((prev) => prev.map((i) => i.id === qrInstanceId ? { ...i, status: "CONECTADO" } : i));
+          setQrCodeData(null);
+          setQrInstanceId(null);
+          toast({ title: "WhatsApp Conectado!", description: "Sua instância já está pronta para uso." });
+        }
+      } catch {}
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [qrCodeData, qrInstanceId, toast]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Instâncias</h1>
-          <p className="text-muted-foreground text-sm mt-1">Gerencie suas conexões WhatsApp</p>
+          <h1 className="text-2xl font-bold text-foreground">Instâncias WhatsApp</h1>
+          <p className="text-muted-foreground text-sm mt-1">Gerencie suas conexões WhatsApp via Evolution API</p>
         </div>
         <button onClick={() => setShowNew(!showNew)} className="gradient-button px-4 py-2 flex items-center gap-2 text-sm">
-          <Plus className="w-4 h-4" />
-          Nova Instância
+          <Plus className="w-4 h-4" /> Nova Instância
         </button>
       </div>
 
@@ -170,46 +139,40 @@ const Instances = () => {
         </motion.div>
       )}
 
-      {/* QR Code Dialog */}
-      <Dialog open={!!qrCodeData} onOpenChange={(v) => !v && (setQrCodeData(null), setQrInstanceName(null))}>
+      <Dialog open={!!qrCodeData} onOpenChange={(v) => !v && (setQrCodeData(null), setQrInstanceId(null))}>
         <DialogContent className="bg-card border-border max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-foreground text-center">Escaneie o QR Code</DialogTitle>
+            <DialogDescription className="sr-only">Aponte a câmera do seu WhatsApp para este QR Code para estabelecer a conexão.</DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col items-center gap-4">
-            {qrCodeData && (
+          {qrCodeData && (
+            <div className="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-inner border-2 border-primary/20">
               <img src={qrCodeData} alt="QR Code WhatsApp" className="w-64 h-64 rounded-lg bg-white p-2" />
-            )}
-            <p className="text-xs text-muted-foreground text-center">
-              Abra o WhatsApp → Dispositivos conectados → Conectar dispositivo
-            </p>
-            <div className="flex gap-2">
-              {qrInstanceName && (
-                <button
-                  onClick={() => handleRefreshQr(qrInstanceName)}
-                  className="text-xs px-3 py-1.5 rounded-md bg-secondary text-muted-foreground hover:text-foreground flex items-center gap-1"
-                >
-                  <RefreshCw className="w-3 h-3" />
-                  Atualizar QR
-                </button>
-              )}
+              <div className="mt-6 flex flex-col items-center gap-2">
+                <div className="flex items-center gap-2 text-primary font-medium animate-pulse">
+                  <div className="w-2 h-2 bg-primary rounded-full" />
+                  <span>Aguardando leitura do QR Code...</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground text-center max-w-[200px]">
+                  Abra o WhatsApp no seu celular → Aparelhos conectados → Conectar um aparelho
+                </p>
+              </div>
             </div>
-          </div>
+          )}
+          {qrInstanceId && (
+            <div className="flex justify-center">
+              <button onClick={() => handleRefreshQr(qrInstanceId)} className="text-xs px-3 py-1.5 rounded-md bg-secondary text-muted-foreground hover:text-foreground flex items-center gap-1">
+                <RefreshCw className="w-3 h-3" /> Atualizar QR
+              </button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {instances.length === 0 && (
-          <p className="text-sm text-muted-foreground col-span-2">Nenhuma instância cadastrada.</p>
-        )}
+        {instances.length === 0 && <p className="text-sm text-muted-foreground col-span-2">Nenhuma instância cadastrada.</p>}
         {instances.map((inst, i) => (
-          <motion.div
-            key={inst.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="glass-card p-5"
-          >
+          <motion.div key={inst.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} className="glass-card p-5">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -221,35 +184,24 @@ const Instances = () => {
                 </div>
               </div>
               <div className="flex gap-1">
-                <button
-                  onClick={() => handleRefreshQr(inst.evolution_instance_id)}
-                  className="p-1.5 rounded-md hover:bg-primary/20 transition-colors text-muted-foreground hover:text-primary"
-                  title="Gerar QR Code"
-                >
+                <button onClick={() => handleRefreshQr(inst.id)} className="p-1.5 rounded-md hover:bg-primary/20 transition-colors text-muted-foreground hover:text-primary" title="Gerar QR Code">
                   <QrCode className="w-4 h-4" />
                 </button>
-                <button
-                  onClick={() => handleDelete(inst.id)}
-                  className="p-1.5 rounded-md hover:bg-destructive/20 transition-colors text-muted-foreground hover:text-destructive"
-                >
+                <button onClick={() => handleDelete(inst.id)} className="p-1.5 rounded-md hover:bg-destructive/20 transition-colors text-muted-foreground hover:text-destructive">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
             <div className="mt-4 flex items-center justify-between">
-              <button
-                onClick={() => handleCheckStatus(inst)}
-                disabled={checkingStatus === inst.id}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-              >
+              <button onClick={() => handleCheckStatus(inst)} disabled={checkingStatus === inst.id} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                 {checkingStatus === inst.id ? (
                   <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                ) : inst.status === "conectado" ? (
+                ) : inst.status === "CONECTADO" ? (
                   <Wifi className="w-4 h-4 text-success" />
                 ) : (
                   <WifiOff className="w-4 h-4 text-destructive" />
                 )}
-                <span className={`text-xs font-medium ${inst.status === "conectado" ? "text-success" : "text-destructive"}`}>
+                <span className={`text-xs font-medium ${inst.status === "CONECTADO" ? "text-success" : "text-destructive"}`}>
                   {inst.status}
                 </span>
               </button>

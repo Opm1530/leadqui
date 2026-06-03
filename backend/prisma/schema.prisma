@@ -1,0 +1,592 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  OPERATOR
+  CLIENT
+}
+
+model User {
+  id                    String    @id @default(uuid())
+  name                  String
+  email                 String    @unique
+  password_hash         String
+  role                  UserRole  @default(CLIENT)
+  position              String?
+  reset_token           String?   @unique
+  reset_token_expires   DateTime?
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
+
+  settings    UserSettings?
+  leads       Lead[]
+  tags        Tag[]
+  instances   Instance[]
+  campaigns   Campaign[]
+  clients     Client[]
+  extractions Extraction[]
+  crmColumns  CRMColumn[]
+  crmCards    CRMCard[]
+  login_client_profile Client? @relation("LoginUser")
+  assignedTasks Task[] @relation("ResponsibleUser")
+  expenses          Expense[]
+  fixed_expenses    FixedExpense[]
+  inter_credentials InterCredentials?
+  task_templates    TaskTemplate[]
+  notifications     Notification[]
+
+  @@map("users")
+}
+
+model GlobalSettings {
+  id                   String   @id @default(uuid())
+  central_wi_id        String?  // ID da instância do WhatsApp Central (Evolution API)
+  central_wi_name      String?  // Nome da instância
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  @@map("global_settings")
+}
+
+model UserSettings {
+  id                    String   @id @default(uuid())
+  user_id               String   @unique
+  evolution_api_url     String?
+  evolution_api_key     String?
+  serper_api_key        String?
+  apify_api_key         String?
+  openai_api_key        String?
+  notification_phone    String?  // Número WhatsApp para alertas (ex: 5511999999999)
+  notification_instance String?  // Nome da instância Evolution para enviar alertas
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+model Notification {
+  id           String   @id @default(uuid())
+  user_id      String
+  type         String   // FATURA_ATRASADA | TAREFA_VENCIDA | DESPESA_FIXA_VENCENDO | POST_APROVACAO
+  title        String
+  message      String
+  read         Boolean  @default(false)
+  link         String?  // Rota para navegar ao clicar
+  reference_id String?  // ID da entidade relacionada (deduplicação)
+  created_at   DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Lead {
+  id                String     @id @default(uuid())
+  user_id           String
+  nome              String
+  telefone          String?
+  telefone_limpo    String?
+  email             String?
+  endereco          String?
+  cidade            String?
+  categoria         String?
+  website           String?
+  maps_url          String?
+  google_place_id   String?
+  username          String?
+  perfil_url        String?
+  biografia         String?  
+  seguidores        Int?
+  origem            LeadOrigem @default(MANUAL)
+  status            LeadStatus @default(NOVO)
+  client_id         String?
+  created_at        DateTime   @default(now())
+  updated_at        DateTime   @updatedAt
+
+  user    User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  tags    LeadTag[]
+  client  Client?   @relation(fields: [client_id], references: [id])
+  crmCards CRMCard[]
+
+  @@map("leads")
+}
+
+enum LeadOrigem {
+  GOOGLE_MAPS
+  INSTAGRAM
+  MANUAL
+}
+
+enum LeadStatus {
+  NOVO
+  CONTATADO
+  QUALIFICADO
+  CONVERTIDO
+  PERDIDO
+}
+
+model Tag {
+  id         String    @id @default(uuid())
+  user_id    String
+  nome       String
+  cor        String    @default("#6366f1")
+  created_at DateTime  @default(now())
+
+  user  User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  leads LeadTag[]
+
+  @@map("tags")
+}
+
+model LeadTag {
+  lead_id String
+  tag_id  String
+
+  lead Lead @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+
+  @@id([lead_id, tag_id])
+  @@map("lead_tags")
+}
+
+model Instance {
+  id                   String           @id @default(uuid())
+  user_id              String
+  nome                 String
+  evolution_instance_id String
+  status               InstanceStatus   @default(DESCONECTADO)
+  created_at           DateTime         @default(now())
+  updated_at           DateTime         @updatedAt
+
+  user      User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  campaigns Campaign[]
+
+  @@map("instances")
+}
+
+enum InstanceStatus {
+  CONECTADO
+  DESCONECTADO
+}
+
+model Campaign {
+  id          String         @id @default(uuid())
+  user_id     String
+  instance_id String?
+  nome        String
+  mensagem    String       
+  status      CampaignStatus @default(PENDENTE)
+  total_leads Int            @default(0)
+  sent        Int            @default(0)
+  failed      Int            @default(0)
+  erro        String?
+  created_at  DateTime       @default(now())
+  updated_at  DateTime       @updatedAt
+
+  user     User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  instance Instance? @relation(fields: [instance_id], references: [id])
+
+  @@map("campaigns")
+}
+
+enum CampaignStatus {
+  PENDENTE
+  EM_ANDAMENTO
+  FINALIZADA
+  ERRO
+}
+
+model Client {
+  id               String       @id @default(uuid())
+  user_id          String
+  name             String
+  email            String?
+  initial_password String?
+  origin_lead_id   String?
+  status           ClientStatus @default(ATIVO)
+  created_at       DateTime     @default(now())
+  updated_at       DateTime     @updatedAt
+
+  user             User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  login_user_id    String?          @unique
+  login_user       User?            @relation("LoginUser", fields: [login_user_id], references: [id])
+  leads            Lead[]
+  contract         Contract?
+  services         ClientService[]
+  projects         Project[]
+  tasks            Task[]
+  traffic_campaigns TrafficCampaign[]
+  invoices         Invoice[]
+  calendar_posts   CalendarPost[]
+
+  @@map("clients")
+}
+
+enum ProjectType {
+  RECORRENTE
+  UNICO
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  client_id   String
+  name        String   
+  description String?
+  status      ProjectStatus @default(ATIVO)
+  type        ProjectType   @default(RECORRENTE)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  client         Client          @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  tasks          Task[]
+  campaigns      TrafficCampaign[]
+  calendar_posts CalendarPost[]
+
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  ATIVO
+  PAUSADO
+  CONCLUIDO
+}
+
+model Task {
+  id             String    @id @default(uuid())
+  project_id     String
+  client_id      String
+  responsible_id String?   
+  title          String
+  description    String?
+  status         TaskStatus @default(PENDENTE)
+  priority       Priority   @default(MEDIA)
+  due_date       DateTime?
+  completed_at   DateTime?
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  project     Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  client      Client  @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  responsible User?   @relation("ResponsibleUser", fields: [responsible_id], references: [id])
+
+  @@map("tasks")
+}
+
+enum TaskStatus {
+  PENDENTE
+  EM_ANDAMENTO
+  REVISAO
+  CONCLUIDO
+  CANCELADO
+}
+
+enum Priority {
+  BAIXA
+  MEDIA
+  ALTA
+  URGENTE
+}
+
+model TaskTemplate {
+  id          String   @id @default(uuid())
+  user_id     String
+  name        String                    // Ex: "Onboarding Social Media"
+  description String?
+  service     String?                   // Tag opcional de serviço para auto-apply
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  user  User               @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  items TaskTemplateItem[]
+
+  @@map("task_templates")
+}
+
+model TaskTemplateItem {
+  id              String   @id @default(uuid())
+  template_id     String
+  title           String
+  description     String?
+  priority        Priority @default(MEDIA)
+  due_days_offset Int      @default(0)  // Dias após criação do cliente para vencer
+  order           Int      @default(0)
+  created_at      DateTime @default(now())
+
+  template TaskTemplate @relation(fields: [template_id], references: [id], onDelete: Cascade)
+
+  @@map("task_template_items")
+}
+
+model TrafficCampaign {
+  id          String   @id @default(uuid())
+  project_id  String?
+  client_id   String
+  name        String
+  objective   String?
+  budget      Float?
+  status      String   @default("ATIVO") // Ativa, Pausada, Finalizada
+  start_date  DateTime?
+  end_date    DateTime?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  project     Project? @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  client      Client   @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@map("traffic_campaigns")
+}
+
+enum ClientStatus {
+  ATIVO
+  INATIVO
+  INADIMPLENTE
+}
+
+model Contract {
+  id          String   @id @default(uuid())
+  client_id   String   @unique
+  value       Float
+  start_date  String
+  duration    Int
+  payment_day Int      @default(10)
+  responsible String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@map("contracts")
+}
+
+model ClientService {
+  id         String              @id @default(uuid())
+  client_id  String
+  service    String
+  status     ClientServiceStatus @default(ATIVO)
+  created_at DateTime            @default(now())
+
+  client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@map("client_services")
+}
+
+enum ClientServiceStatus {
+  ATIVO
+  INATIVO
+}
+
+model FixedExpense {
+  id          String          @id @default(uuid())
+  user_id     String
+  description String
+  amount      Float
+  category    ExpenseCategory @default(OUTROS)
+  due_day     Int             // dia do mês (1-31)
+  active      Boolean         @default(true)
+  created_at  DateTime        @default(now())
+  updated_at  DateTime        @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("fixed_expenses")
+}
+
+model InterCredentials {
+  id              String   @id @default(uuid())
+  user_id         String   @unique
+  client_id       String
+  client_secret   String
+  account_number  String?
+  cert_content    String?  // Conteúdo do certificado .crt (mTLS)
+  key_content     String?  // Conteúdo da chave privada .key (mTLS)
+  last_sync       DateTime?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  user         User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  transactions InterTransaction[]
+
+  @@map("inter_credentials")
+}
+
+model InterTransaction {
+  id              String   @id @default(uuid())
+  credentials_id  String
+  transaction_id  String   @unique
+  date            DateTime
+  title           String
+  amount          Float
+  type            String   // CREDITO | DEBITO
+  category        String?
+  status          String   @default("PENDENTE") // PENDENTE | VINCULADO | IGNORADO
+  linked_invoice_id String?
+  linked_expense_id String?
+  created_at      DateTime @default(now())
+
+  credentials InterCredentials @relation(fields: [credentials_id], references: [id], onDelete: Cascade)
+
+  @@map("inter_transactions")
+}
+
+model CalendarPost {
+  id             String           @id @default(uuid())
+  client_id      String
+  project_id     String?
+  title          String
+  content        String?
+  type           PostType         @default(POST)
+  platform       PostPlatform     @default(INSTAGRAM)
+  scheduled_date DateTime
+  status         PostStatus       @default(PLANEJADO)
+  created_at     DateTime         @default(now())
+  updated_at     DateTime         @updatedAt
+
+  client  Client   @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [project_id], references: [id], onDelete: SetNull)
+
+  @@map("calendar_posts")
+}
+
+enum PostType {
+  POST
+  STORY
+  REEL
+  CARROSSEL
+  AD
+}
+
+enum PostPlatform {
+  INSTAGRAM
+  FACEBOOK
+  TIKTOK
+  LINKEDIN
+}
+
+enum PostStatus {
+  PLANEJADO
+  PRODUZINDO
+  APROVADO
+  PUBLICADO
+}
+
+model Invoice {
+  id          String        @id @default(uuid())
+  client_id   String
+  description String?
+  amount      Float
+  due_date    DateTime
+  paid_date   DateTime?
+  status      InvoiceStatus @default(PENDENTE)
+  created_at  DateTime      @default(now())
+  updated_at  DateTime      @updatedAt
+
+  client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  PENDENTE
+  PAGO
+  ATRASADO
+  CANCELADO
+}
+
+model Expense {
+  id          String          @id @default(uuid())
+  user_id     String
+  description String
+  amount      Float
+  category    ExpenseCategory @default(OUTROS)
+  date        DateTime
+  created_at  DateTime        @default(now())
+  updated_at  DateTime        @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("expenses")
+}
+
+enum ExpenseCategory {
+  FERRAMENTAS
+  ANUNCIOS
+  PESSOAL
+  INFRAESTRUTURA
+  OUTROS
+}
+
+model Extraction {
+  id            String          @id @default(uuid())
+  user_id       String
+  tipo          ExtractionType
+  parametros    String        
+  status        ExtractionStatus @default(PENDENTE)
+  progresso     Int             @default(0)
+  total_leads   Int             @default(0)
+  step_message  String?
+  erro          String?
+  created_at    DateTime        @default(now())
+  updated_at    DateTime        @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("extractions")
+}
+
+enum ExtractionType {
+  GOOGLE_MAPS
+  INSTAGRAM
+}
+
+enum ExtractionStatus {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDO
+  PARADO
+  ERRO
+}
+
+model CRMColumn {
+  id         String    @id @default(uuid())
+  user_id    String
+  nome       String
+  cor        String    @default("#6366f1")
+  posicao    Int       @default(0)
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+
+  user  User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  cards CRMCard[]
+
+  @@map("crm_columns")
+}
+
+model CRMCard {
+  id         String   @id @default(uuid())
+  user_id    String
+  lead_id    String
+  coluna_id  String
+  posicao    Int      @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user   User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  lead   Lead      @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+  column CRMColumn @relation(fields: [coluna_id], references: [id], onDelete: Cascade)
+
+  @@unique([lead_id, user_id])
+  @@map("crm_cards")
+}

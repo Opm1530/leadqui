@@ -1,130 +1,91 @@
 import { useState, useEffect } from "react";
-import { auth, db } from "@/integrations/firebase/client";
-import { collection, query, where, getDocs, addDoc, deleteDoc, doc } from "firebase/firestore";
-import { firestoreService } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
-import { Input } from "@/components/ui/input";
-import { Plus, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-interface Tag {
-  id: string;
-  nome: string;
-  cor: string;
-}
+import { Plus, X } from "lucide-react";
+import api from "@/lib/api";
 
 interface TagManagerProps {
   leadId: string;
   assignedTagIds: string[];
-  onTagsChanged: () => void;
+  onChange?: (newTagIds: string[]) => void;
 }
 
-const TAG_COLORS = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4", "#f97316"];
-
-const TagManager = ({ leadId, assignedTagIds, onTagsChanged }: TagManagerProps) => {
+const TagManager = ({ leadId, assignedTagIds, onChange }: TagManagerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [newTagName, setNewTagName] = useState("");
-  const [selectedColor, setSelectedColor] = useState(TAG_COLORS[0]);
+  const [allTags, setAllTags] = useState<any[]>([]);
+  const [selected, setSelected] = useState<string[]>(assignedTagIds);
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setSelected(assignedTagIds);
+  }, [assignedTagIds]);
 
   useEffect(() => {
     if (!user) return;
-    firestoreService.list("tags", user.uid).then((data: any) => setTags(data || []));
+    api.get("/api/tags").then((d) => setAllTags(d.tags || [])).catch(console.error);
   }, [user]);
 
-  const createTag = async () => {
-    if (!user || !newTagName.trim()) return;
+  const toggle = (tagId: string) => {
+    setSelected((prev) =>
+      prev.includes(tagId) ? prev.filter((t) => t !== tagId) : [...prev, tagId]
+    );
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
     try {
-      const docRef = await firestoreService.add("tags", user.uid, {
-        nome: newTagName.trim(),
-        cor: selectedColor
-      });
-      const newTag = { id: docRef.id, nome: newTagName.trim(), cor: selectedColor };
-      setTags((prev) => [...prev, newTag]);
-      setNewTagName("");
+      await api.post(`/api/leads/${leadId}/tags`, { tag_ids: selected });
+      onChange?.(selected);
+      setOpen(false);
+      toast({ title: "Tags atualizadas!" });
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
   };
 
-  const toggleTag = async (tagId: string) => {
-    try {
-      if (assignedTagIds.includes(tagId)) {
-        const q = query(collection(db, "lead_tags"), where("lead_id", "==", leadId), where("tag_id", "==", tagId));
-        const snap = await getDocs(q);
-        for (const d of snap.docs) {
-          await deleteDoc(d.ref);
-        }
-      } else {
-        await addDoc(collection(db, "lead_tags"), { lead_id: leadId, tag_id: tagId });
-      }
-      onTagsChanged();
-    } catch (error: any) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
-    }
-  };
-
-  const deleteTag = async (tagId: string) => {
-    try {
-      await firestoreService.delete("tags", tagId);
-      setTags((prev) => prev.filter((t) => t.id !== tagId));
-      onTagsChanged();
-    } catch (error: any) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
-    }
-  };
+  const selectedTags = allTags.filter((t) => selected.includes(t.id));
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Tags</p>
-      <div className="flex flex-wrap gap-2">
-        {tags.map((tag) => (
-          <button
-            key={tag.id}
-            onClick={() => toggleTag(tag.id)}
-            className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium border transition-all ${assignedTagIds.includes(tag.id) ? "ring-2 ring-offset-1 ring-offset-background" : "opacity-60 hover:opacity-100"
-              }`}
-            style={{
-              backgroundColor: `${tag.cor}20`,
-              color: tag.cor,
-              borderColor: tag.cor,
-              ...(assignedTagIds.includes(tag.id) ? { ringColor: tag.cor } : {}),
-            }}
-          >
+    <div>
+      <div className="flex flex-wrap gap-1.5 items-center">
+        {selectedTags.map((tag) => (
+          <span key={tag.id} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full text-white font-medium" style={{ backgroundColor: tag.cor || "#6366f1" }}>
             {tag.nome}
-            <X
-              className="w-3 h-3 hover:opacity-70"
-              onClick={(e) => {
-                e.stopPropagation();
-                deleteTag(tag.id);
-              }}
-            />
-          </button>
+          </span>
         ))}
-      </div>
-      <div className="flex gap-2 items-center">
-        <Input
-          value={newTagName}
-          onChange={(e) => setNewTagName(e.target.value)}
-          placeholder="Nova tag..."
-          className="bg-secondary border-border h-8 text-sm flex-1"
-          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), createTag())}
-        />
-        <div className="flex gap-1">
-          {TAG_COLORS.map((c) => (
-            <button
-              key={c}
-              onClick={() => setSelectedColor(c)}
-              className={`w-5 h-5 rounded-full border-2 transition-all ${selectedColor === c ? "border-foreground scale-110" : "border-transparent"}`}
-              style={{ backgroundColor: c }}
-            />
-          ))}
-        </div>
-        <button onClick={createTag} className="p-1.5 rounded-md bg-primary/20 text-primary hover:bg-primary/30">
-          <Plus className="w-4 h-4" />
+        <button onClick={() => setOpen(!open)} className="text-xs px-2 py-0.5 rounded-full border border-dashed border-border text-muted-foreground hover:text-primary hover:border-primary transition-colors flex items-center gap-1">
+          <Plus className="w-3 h-3" /> Tags
         </button>
       </div>
+
+      {open && (
+        <div className="mt-2 p-3 bg-secondary rounded-lg border border-border space-y-2">
+          <div className="flex flex-wrap gap-2">
+            {allTags.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma tag criada.</p>}
+            {allTags.map((tag) => (
+              <button
+                key={tag.id}
+                onClick={() => toggle(tag.id)}
+                className={`text-xs px-2.5 py-1 rounded-full font-medium transition-all ${selected.includes(tag.id) ? "text-white ring-2 ring-white/30" : "opacity-50"}`}
+                style={{ backgroundColor: tag.cor || "#6366f1" }}
+              >
+                {selected.includes(tag.id) && <X className="w-2.5 h-2.5 inline mr-1" />}
+                {tag.nome}
+              </button>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setOpen(false)} className="text-xs text-muted-foreground hover:text-foreground">Cancelar</button>
+            <button onClick={handleSave} disabled={saving} className="text-xs gradient-button px-3 py-1 disabled:opacity-50">
+              {saving ? "Salvando..." : "Salvar"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

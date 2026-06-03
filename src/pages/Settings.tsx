@@ -4,105 +4,108 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { firestoreService } from "@/lib/firestore";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db } from "@/integrations/firebase/client";
-import { Settings as SettingsIcon, Save, Link, Key, Receipt } from "lucide-react";
-import { httpsCallable } from "firebase/functions";
-import { functions } from "@/integrations/firebase/functions";
+import { useRole } from "@/hooks/useRole";
+import { Settings as SettingsIcon, Save, Key, Link2, Lock, Globe, Bell } from "lucide-react";
+import api from "@/lib/api";
 
 const Settings = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { isAdmin } = useRole();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [webhookGoogleMaps, setWebhookGoogleMaps] = useState("");
-  const [webhookInstagram, setWebhookInstagram] = useState("");
+
   const [evolutionApiUrl, setEvolutionApiUrl] = useState("");
   const [evolutionApiKey, setEvolutionApiKey] = useState("");
   const [serperApiKey, setSerperApiKey] = useState("");
   const [apifyApiKey, setApifyApiKey] = useState("");
   const [openaiApiKey, setOpenaiApiKey] = useState("");
+  const [notificationPhone, setNotificationPhone] = useState("");
+  const [notificationInstance, setNotificationInstance] = useState("");
 
-  const [serperCreditsRemaining, setSerperCreditsRemaining] = useState<number | null>(null);
-  const [serperCreditsUpdatedAt, setSerperCreditsUpdatedAt] = useState<string | null>(null);
+  // Global Settings (Admin only)
+  const [centralWiId, setCentralWiId] = useState("");
+  const [centralWiName, setCentralWiName] = useState("");
 
-  const [apifyUsage, setApifyUsage] = useState<{ usedUsd: number, totalCreditsUsd: number, remainingUsd: number } | null>(null);
-  const [loadingApify, setLoadingApify] = useState(false);
+  // Change Password
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    const fetchConfig = async () => {
-      setLoading(true);
-      try {
-        const docRef = doc(db, "configuracoes", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setWebhookGoogleMaps(data.webhook_google_maps || "");
-          setWebhookInstagram(data.webhook_instagram || "");
-          setEvolutionApiUrl(data.evolution_api_url || "");
-          setEvolutionApiKey(data.evolution_api_key || "");
-          setSerperApiKey(data.serper_api_key || "");
-          setApifyApiKey(data.apify_api_key || "");
-          setOpenaiApiKey(data.openai_api_key || "");
-          
-          setSerperCreditsRemaining(data.serper_credits_remaining ?? null);
-          setSerperCreditsUpdatedAt(data.serper_credits_updated_at?.toDate?.()?.toISOString() || null);
-        }
-      } catch (error) {
-        console.error("Error fetching settings:", error);
-      } finally {
-        setLoading(false);
+    fetchSettings();
+  }, [user, isAdmin]);
+
+  const fetchSettings = async () => {
+    setLoading(true);
+    try {
+      const data = await api.get("/api/settings");
+      const s = data.settings || {};
+      setEvolutionApiUrl(s.evolution_api_url || "");
+      setEvolutionApiKey(s.evolution_api_key || "");
+      setSerperApiKey(s.serper_api_key || "");
+      setApifyApiKey(s.apify_api_key || "");
+      setOpenaiApiKey(s.openai_api_key || "");
+      setNotificationPhone(s.notification_phone || "");
+      setNotificationInstance(s.notification_instance || "");
+
+      if (isAdmin) {
+        const global = await api.get("/api/settings/global");
+        setCentralWiId(global.central_wi_id || "");
+        setCentralWiName(global.central_wi_name || "");
       }
-    };
-    fetchConfig();
-  }, [user]);
-
-  const saveApiKey = async (field: string, value: string) => {
-    if (!user || !value.trim()) return;
-    try {
-      await setDoc(doc(db, "configuracoes", user.uid), { [field]: value.trim(), user_id: user.uid }, { merge: true });
-      toast({ title: "Chave salva com segurança!" });
-    } catch (error: any) {
-      toast({ title: "Erro ao salvar chave", description: error.message, variant: "destructive" });
-    }
-  };
-
-  const checkApifyUsage = async () => {
-    if (!user) return;
-    setLoadingApify(true);
-    try {
-      const fn = httpsCallable(functions, "getApifyUsage");
-      const res = await fn({ userId: user.uid }) as any;
-      setApifyUsage(res.data);
-    } catch (err: any) {
-      toast({ title: "Erro ao consultar saldo Apify", description: err.message, variant: "destructive" });
+    } catch (error) {
+      console.error(error);
     } finally {
-      setLoadingApify(false);
+      setLoading(false);
     }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
     setSaving(true);
-
-    const payload = {
-      user_id: user.uid,
-      webhook_google_maps: webhookGoogleMaps || null,
-      webhook_instagram: webhookInstagram || null,
-      evolution_api_url: evolutionApiUrl || null,
-      evolution_api_key: evolutionApiKey || null,
-    };
-
     try {
-      await setDoc(doc(db, "configuracoes", user.uid), payload, { merge: true });
+      await api.put("/api/settings", {
+        evolution_api_url:      evolutionApiUrl      || null,
+        evolution_api_key:      evolutionApiKey      || null,
+        serper_api_key:         serperApiKey         || null,
+        apify_api_key:          apifyApiKey          || null,
+        openai_api_key:         openaiApiKey         || null,
+        notification_phone:     notificationPhone    || null,
+        notification_instance:  notificationInstance || null,
+      });
+
+      if (isAdmin) {
+        await api.patch("/api/settings/global", {
+          central_wi_id: centralWiId || null,
+          central_wi_name: centralWiName || null
+        });
+      }
+
       toast({ title: "Configurações salvas!" });
     } catch (error: any) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangingPassword(true);
+    try {
+      await api.put("/api/auth/change-password", {
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+      toast({ title: "Senha alterada com sucesso!" });
+      setCurrentPassword("");
+      setNewPassword("");
+    } catch (error: any) {
+      toast({ title: "Erro ao alterar senha", description: error.message, variant: "destructive" });
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -115,206 +118,101 @@ const Settings = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
-        <p className="text-muted-foreground text-sm mt-1">Gerencie seus webhooks e integrações</p>
+        <p className="text-muted-foreground text-sm mt-1">Gerencie integrações e sua conta</p>
       </div>
 
-      <form onSubmit={handleSave} className="max-w-2xl space-y-6">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6 space-y-5">
-          <div className="flex items-center gap-2 mb-2">
-            <Link className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-semibold text-foreground">Webhooks n8n</h3>
-          </div>
+      <form onSubmit={handleSave} className="space-y-6">
+        {isAdmin && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-6 space-y-5 border-orange-500/20">
+            <div className="flex items-center gap-2 mb-2">
+              <Globe className="w-5 h-5 text-orange-500" />
+              <h3 className="text-lg font-semibold text-foreground">Configurações Globais (Pequi Digital)</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">WhatsApp Central ID (Instância)</Label>
+                <Input value={centralWiId} onChange={(e) => setCentralWiId(e.target.value)} placeholder="Ex: CentralAgencia" className="bg-secondary border-border" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Nome da Instância</Label>
+                <Input value={centralWiName} onChange={(e) => setCentralWiName(e.target.value)} placeholder="Ex: WhatsApp Matriz" className="bg-secondary border-border" />
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground italic">
+              * Este WhatsApp será utilizado pelo sistema para notificações de tarefas do Tasqui.
+            </p>
+          </motion.div>
+        )}
 
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Webhook Google Maps</Label>
-            <Input
-              value={webhookGoogleMaps}
-              onChange={(e) => setWebhookGoogleMaps(e.target.value)}
-              placeholder="https://n8n.example.com/webhook/google-maps"
-              className="bg-secondary border-border"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Webhook Instagram</Label>
-            <Input
-              value={webhookInstagram}
-              onChange={(e) => setWebhookInstagram(e.target.value)}
-              placeholder="https://n8n.example.com/webhook/instagram"
-              className="bg-secondary border-border"
-            />
-          </div>
-        </motion.div>
-
+        {/* Evolution API */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="glass-card p-6 space-y-5">
           <div className="flex items-center gap-2 mb-2">
-            <Key className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-semibold text-foreground">Evolution API</h3>
+            <Link2 className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-semibold text-foreground">Evolution API Individual</h3>
           </div>
-
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground uppercase tracking-wider">URL da API</Label>
-            <Input
-              value={evolutionApiUrl}
-              onChange={(e) => setEvolutionApiUrl(e.target.value)}
-              placeholder="https://evolution.example.com"
-              className="bg-secondary border-border"
-            />
+            <Input value={evolutionApiUrl} onChange={(e) => setEvolutionApiUrl(e.target.value)} placeholder="https://evolution.seudominio.com" className="bg-secondary border-border" />
           </div>
-
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground uppercase tracking-wider">API Key</Label>
-            <Input
-              type="password"
-              value={evolutionApiKey}
-              onChange={(e) => setEvolutionApiKey(e.target.value)}
-              placeholder="Sua chave da API Evolution"
-              className="bg-secondary border-border"
-            />
+            <Input type="password" value={evolutionApiKey} onChange={(e) => setEvolutionApiKey(e.target.value)} placeholder="Sua chave da Evolution API" className="bg-secondary border-border" />
           </div>
         </motion.div>
 
+        {/* Alertas WhatsApp */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="glass-card p-6 space-y-5">
+          <div className="flex items-center gap-2 mb-2">
+            <Bell className="w-5 h-5 text-orange-400" />
+            <h3 className="text-lg font-semibold text-foreground">Alertas por WhatsApp</h3>
+          </div>
+          <div className="p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-300 text-xs leading-relaxed">
+            Configure para receber alertas automáticos de faturas atrasadas, tarefas vencidas, despesas fixas e posts pendentes de aprovação.
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Número para Alertas</Label>
+              <Input
+                value={notificationPhone}
+                onChange={e => setNotificationPhone(e.target.value)}
+                placeholder="5511999999999 (com DDI e DDD)"
+                className="bg-secondary border-border"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Instância Evolution</Label>
+              <Input
+                value={notificationInstance}
+                onChange={e => setNotificationInstance(e.target.value)}
+                placeholder="Nome da instância para envio"
+                className="bg-secondary border-border"
+              />
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Usa a Evolution API configurada acima. Deixe em branco para receber apenas notificações in-app.
+          </p>
+        </motion.div>
+
+        {/* APIs de Extração */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="glass-card p-6 space-y-5">
           <div className="flex items-center gap-2 mb-2">
             <Key className="w-5 h-5 text-primary" />
             <h3 className="text-lg font-semibold text-foreground">APIs de Extração</h3>
           </div>
-          <p className="text-xs text-muted-foreground -mt-3">
-            As chaves são salvas diretamente no servidor (Firestore) e nunca expostas no frontend.
-          </p>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Serper API Key</Label>
-              <a href="https://serper.dev" target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
-                Documentação ↗
-              </a>
+          {[
+            { label: "Serper API Key", value: serperApiKey, set: setSerperApiKey, placeholder: "Chave do Serper (Google Maps)" },
+            { label: "Apify API Key", value: apifyApiKey, set: setApifyApiKey, placeholder: "Chave do Apify (Instagram)" },
+            { label: "OpenAI API Key", value: openaiApiKey, set: setOpenaiApiKey, placeholder: "sk-..." },
+          ].map((field) => (
+            <div key={field.label} className="space-y-2">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">{field.label}</Label>
+              <Input type="password" value={field.value} onChange={(e) => field.set(e.target.value)} placeholder={field.placeholder} className="bg-secondary border-border" />
             </div>
-            <div className="flex gap-2">
-              <Input
-                type="password"
-                placeholder="Insira a Serper API Key"
-                className="bg-secondary border-border flex-1"
-                id="serper-key-input"
-                defaultValue={serperApiKey}
-              />
-              <button
-                type="button"
-                className="px-4 py-2 text-sm gradient-button"
-                onClick={() => {
-                  const el = document.getElementById("serper-key-input") as HTMLInputElement;
-                  if (el?.value) saveApiKey("serper_api_key", el.value);
-                }}
-              >
-                Salvar
-              </button>
-            </div>
-            
-            {serperCreditsRemaining !== null ? (
-              <div className="mt-2 text-xs flex items-center justify-between bg-primary/5 p-2 rounded-md border border-primary/20">
-                <span className="text-muted-foreground">
-                  Última consulta: <strong className="text-foreground">{serperCreditsRemaining} queries restantes</strong> · Data: {new Date(serperCreditsUpdatedAt!).toLocaleDateString("pt-BR")}
-                </span>
-                {(() => {
-                  const pct = serperCreditsRemaining / 2500;
-                  let colorClass = "bg-green-500/20 text-green-500 border-green-500/30";
-                  if (pct <= 0.2) colorClass = "bg-red-500/20 text-red-500 border-red-500/30";
-                  else if (pct <= 0.5) colorClass = "bg-yellow-500/20 text-yellow-500 border-yellow-500/30";
-                  return <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase ${colorClass}`}>Saldo</span>;
-                })()}
-              </div>
-            ) : (
-              <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
-                <Receipt className="w-3 h-3" /> Faça sua primeira extração para ver o saldo do Serper.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Apify API Key</Label>
-              <a href="https://apify.com/apify/instagram-hashtag-scraper" target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
-                Documentação ↗
-              </a>
-            </div>
-            <div className="flex gap-2">
-              <Input
-                type="password"
-                placeholder="Insira a Apify API Key"
-                className="bg-secondary border-border flex-1"
-                id="apify-key-input"
-                defaultValue={apifyApiKey}
-              />
-              <button
-                type="button"
-                className="px-4 py-2 text-sm gradient-button"
-                onClick={() => {
-                  const el = document.getElementById("apify-key-input") as HTMLInputElement;
-                  if (el?.value) saveApiKey("apify_api_key", el.value);
-                }}
-              >
-                Salvar
-              </button>
-            </div>
-            
-            <div className="flex justify-start mt-2">
-              <button 
-                type="button" 
-                onClick={checkApifyUsage} 
-                disabled={loadingApify || !apifyApiKey} 
-                className="text-xs bg-secondary hover:bg-secondary/80 text-foreground border border-border px-3 py-1 rounded-md disabled:opacity-50 transition-colors flex items-center gap-1"
-              >
-                <Receipt className="w-3 h-3" />
-                {loadingApify ? "Consultando..." : "Ver saldo Apify"}
-              </button>
-            </div>
-
-            {apifyUsage && (
-              <div className="mt-2 text-xs flex items-center justify-between bg-primary/5 p-2 rounded-md border border-primary/20">
-                <span className="text-muted-foreground">
-                  Usado: <strong className="text-foreground">${apifyUsage.usedUsd.toFixed(2)}</strong> / ${apifyUsage.totalCreditsUsd.toFixed(2)} — Restante: <strong className="text-foreground">${apifyUsage.remainingUsd.toFixed(2)}</strong>
-                </span>
-                {(() => {
-                  const pct = apifyUsage.totalCreditsUsd > 0 ? Math.max(0, apifyUsage.remainingUsd / apifyUsage.totalCreditsUsd) : 0;
-                  let colorClass = "bg-green-500/20 text-green-500 border-green-500/30";
-                  if (pct <= 0.2) colorClass = "bg-red-500/20 text-red-500 border-red-500/30";
-                  else if (pct <= 0.5) colorClass = "bg-yellow-500/20 text-yellow-500 border-yellow-500/30";
-                  return <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase ${colorClass}`}>Status</span>;
-                })()}
-              </div>
-            )}
-          </div>
-          
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">OpenAI API Key</Label>
-              <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">
-                Obter Chave ↗
-              </a>
-            </div>
-            <div className="flex gap-2">
-              <Input
-                type="password"
-                placeholder="Insira a OpenAI API Key (sk-...)"
-                className="bg-secondary border-border flex-1"
-                id="openai-key-input"
-                defaultValue={openaiApiKey}
-              />
-              <button
-                type="button"
-                className="px-4 py-2 text-sm gradient-button"
-                onClick={() => {
-                  const el = document.getElementById("openai-key-input") as HTMLInputElement;
-                  if (el?.value) saveApiKey("openai_api_key", el.value);
-                }}
-              >
-                Salvar
-              </button>
-            </div>
-          </div>
+          ))}
         </motion.div>
 
         <button type="submit" disabled={saving} className="gradient-button px-6 py-3 flex items-center gap-2 text-sm disabled:opacity-50">
@@ -322,6 +220,27 @@ const Settings = () => {
           {saving ? "Salvando..." : "Salvar Configurações"}
         </button>
       </form>
+
+      {/* Alterar Senha */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="max-w-2xl">
+        <form onSubmit={handleChangePassword} className="glass-card p-6 space-y-5">
+          <div className="flex items-center gap-2 mb-2">
+            <Lock className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-semibold text-foreground">Alterar Senha</h3>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Senha Atual</Label>
+            <Input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" className="bg-secondary border-border" required />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Nova Senha</Label>
+            <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" minLength={6} className="bg-secondary border-border" required />
+          </div>
+          <button type="submit" disabled={changingPassword} className="gradient-button px-6 py-3 text-sm disabled:opacity-50">
+            {changingPassword ? "Alterando..." : "Alterar Senha"}
+          </button>
+        </form>
+      </motion.div>
     </div>
   );
 };
