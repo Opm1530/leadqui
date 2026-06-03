@@ -48,17 +48,17 @@ function express_json_raw(req: Request, res: Response, next: any) {
 
 // ── OAuth Meta ────────────────────────────────────────────────────────
 
-// Permissões necessárias para o app Meta
+// Permissões para Facebook Business Login
+// Instagram é acessado via Página — não usar escopos instagram_* diretos
 const META_SCOPES = [
-  "instagram_basic",
-  "instagram_content_publish",
-  "instagram_manage_comments",
-  "instagram_manage_insights",
+  "business_management",
   "ads_management",
   "ads_read",
   "pages_show_list",
   "pages_read_engagement",
-  "business_management",
+  "pages_manage_posts",
+  "pages_manage_metadata",
+  "pages_manage_engagement",
 ].join(",");
 
 // GET /api/techqui/oauth/start?client_id=xxx&user_id=xxx
