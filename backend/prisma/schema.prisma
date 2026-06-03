@@ -45,6 +45,8 @@ model User {
   inter_credentials InterCredentials?
   task_templates    TaskTemplate[]
   notifications     Notification[]
+  techqui_settings  TechQuiSettings?
+  vault_credentials VaultCredential[]
 
   @@map("users")
 }
@@ -231,6 +233,8 @@ model Client {
   traffic_campaigns TrafficCampaign[]
   invoices         Invoice[]
   calendar_posts   CalendarPost[]
+  meta_connection  ClientMetaConnection?
+  vault_credentials VaultCredential[]
 
   @@map("clients")
 }
@@ -589,4 +593,217 @@ model CRMCard {
 
   @@unique([lead_id, user_id])
   @@map("crm_cards")
+}
+
+// ── TechQui ───────────────────────────────────────────────────────────
+
+model TechQuiSettings {
+  id                  String   @id @default(uuid())
+  user_id             String   @unique
+  meta_app_id         String?
+  meta_app_secret     String?
+  meta_business_id    String?
+  meta_system_token   String?  // System User Token para o MCP de Ads
+  openai_api_key      String?  // Chave para o agente de análise (pode reusar UserSettings)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("techqui_settings")
+}
+
+model ClientMetaConnection {
+  id                    String   @id @default(uuid())
+  client_id             String   @unique
+  instagram_account_id  String?
+  instagram_username    String?
+  ad_account_id         String?
+  page_id               String?
+  page_name             String?
+  access_token          String?  // Long-lived token do cliente
+  token_expires_at      DateTime?
+  connected_at          DateTime @default(now())
+  updated_at            DateTime @updatedAt
+
+  client           Client                @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  scheduled_posts  InstagramScheduledPost[]
+  comment_rules    InstagramCommentRule[]
+  comment_logs     InstagramCommentLog[]
+  ads_analyses     MetaAdsAnalysis[]
+
+  @@map("client_meta_connections")
+}
+
+model InstagramScheduledPost {
+  id              String                    @id @default(uuid())
+  connection_id   String
+  client_id       String
+  caption         String?
+  media_urls      String                    // JSON: string[]
+  media_type      InstagramMediaType        @default(IMAGE)
+  scheduled_at    DateTime
+  status          InstagramPostStatus       @default(AGENDADO)
+  instagram_media_id String?
+  error_message   String?
+  published_at    DateTime?
+  created_at      DateTime                  @default(now())
+  updated_at      DateTime                  @updatedAt
+
+  connection ClientMetaConnection @relation(fields: [connection_id], references: [id], onDelete: Cascade)
+
+  @@map("instagram_scheduled_posts")
+}
+
+enum InstagramMediaType {
+  IMAGE
+  CAROUSEL
+  REELS
+}
+
+enum InstagramPostStatus {
+  AGENDADO
+  PUBLICADO
+  ERRO
+  CANCELADO
+}
+
+model MetaAdsAnalysis {
+  id            String   @id @default(uuid())
+  connection_id String
+  client_id     String
+  triggered_by  String   @default("SCHEDULED") // SCHEDULED | MANUAL
+  raw_data      String   // JSON das campanhas/métricas
+  analysis_text String   // Texto da análise do Claude
+  created_at    DateTime @default(now())
+
+  connection  ClientMetaConnection @relation(fields: [connection_id], references: [id], onDelete: Cascade)
+  suggestions MetaAgentSuggestion[]
+
+  @@map("meta_ads_analyses")
+}
+
+model MetaAgentSuggestion {
+  id             String               @id @default(uuid())
+  analysis_id    String
+  client_id      String
+  title          String
+  description    String
+  action_type    String               // PAUSE_CAMPAIGN | INCREASE_BUDGET | DECREASE_BUDGET | PAUSE_ADSET | UPDATE_BID
+  action_payload String               // JSON com os parâmetros da ação
+  status         MetaSuggestionStatus @default(PENDENTE)
+  executed_at    DateTime?
+  result         String?
+  created_at     DateTime             @default(now())
+
+  analysis MetaAdsAnalysis @relation(fields: [analysis_id], references: [id], onDelete: Cascade)
+
+  @@map("meta_agent_suggestions")
+}
+
+enum MetaSuggestionStatus {
+  PENDENTE
+  APROVADO
+  REJEITADO
+  EXECUTADO
+  ERRO
+}
+
+model InstagramCommentRule {
+  id            String              @id @default(uuid())
+  connection_id String
+  client_id     String
+  name          String
+  reply_type    CommentReplyType    @default(FIXO)
+  fixed_reply   String?
+  keywords      String?             // JSON: string[] — vazio = responde todos
+  apply_to      CommentApplyTo      @default(TODOS)
+  post_ids      String?             // JSON: string[] de instagram_media_id
+  active        Boolean             @default(true)
+  created_at    DateTime            @default(now())
+  updated_at    DateTime            @updatedAt
+
+  connection ClientMetaConnection @relation(fields: [connection_id], references: [id], onDelete: Cascade)
+
+  @@map("instagram_comment_rules")
+}
+
+enum CommentReplyType {
+  FIXO
+  IA
+}
+
+enum CommentApplyTo {
+  TODOS
+  ESPECIFICOS
+}
+
+model InstagramCommentLog {
+  id                 String   @id @default(uuid())
+  connection_id      String
+  client_id          String
+  rule_id            String?
+  comment_id         String   @unique
+  post_id            String
+  commenter_username String?
+  comment_text       String
+  reply_text         String?
+  replied_at         DateTime?
+  status             String   @default("RESPONDIDO") // RESPONDIDO | ERRO | IGNORADO
+  created_at         DateTime @default(now())
+
+  connection ClientMetaConnection @relation(fields: [connection_id], references: [id], onDelete: Cascade)
+
+  @@map("instagram_comment_logs")
+}
+
+// ── Cofre de Senhas ───────────────────────────────────────────────────
+
+model VaultCredential {
+  id          String   @id @default(uuid())
+  client_id   String
+  user_id     String   // dono (agência)
+  title       String
+  category    VaultCategory @default(OUTROS)
+  username    String?  // armazenado em texto puro (não sensível)
+  url         String?  // armazenado em texto puro
+  notes       String?  // armazenado em texto puro
+  // Campos criptografados com AES-256-GCM
+  password_enc String  // ciphertext hex
+  password_iv  String  // IV hex (único por registro)
+  password_tag String  // GCM auth tag hex
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  audit_logs VaultAuditLog[]
+
+  @@map("vault_credentials")
+}
+
+enum VaultCategory {
+  SOCIAL_MEDIA
+  HOSTING
+  EMAIL
+  ADS
+  CRM
+  BANCO
+  DOMINIO
+  OUTROS
+}
+
+model VaultAuditLog {
+  id            String   @id @default(uuid())
+  credential_id String
+  user_id       String   // quem revelou
+  user_email    String
+  user_role     String
+  ip_address    String?
+  action        String   @default("REVEAL") // REVEAL | CREATE | UPDATE | DELETE
+  created_at    DateTime @default(now())
+
+  credential VaultCredential @relation(fields: [credential_id], references: [id], onDelete: Cascade)
+
+  @@map("vault_audit_logs")
 }

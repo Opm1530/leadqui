@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 
-type Module = "leadqui" | "tasqui" | "teamqui" | "cashqui";
+type Module = "leadqui" | "tasqui" | "teamqui" | "cashqui" | "techqui";
 
 interface ModuleContextType {
   activeModule: Module;

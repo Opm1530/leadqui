@@ -37,6 +37,8 @@ import TasquiCalendar from "./pages/TasquiCalendar";
 import TasquiTraffic from "./pages/TasquiTraffic";
 import TasquiTemplates from "./pages/TasquiTemplates";
 import ViewQui from "./pages/ViewQui";
+import TechQui from "./pages/TechQui";
+import Vault from "./pages/Vault";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +72,7 @@ const App = () => (
                 <Route path="/crm" element={<CRM />} />
                 <Route path="/tags" element={<Tags />} />
                 <Route path="/clients" element={<Clients />} />
+                <Route path="/vault" element={<Vault />} />
                 <Route path="/tasqui" element={<Tasqui />} />
                 <Route path="/tasqui/calendar" element={<TasquiCalendar />} />
                 <Route path="/tasqui/traffic" element={<TasquiTraffic />} />
@@ -78,6 +81,11 @@ const App = () => (
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/tasqui-stats" element={<Stats />} />
                 <Route path="/teamqui" element={<Teamqui />} />
+                <Route path="/techqui" element={<TechQui />} />
+                <Route path="/techqui/instagram" element={<TechQui />} />
+                <Route path="/techqui/ads" element={<TechQui />} />
+                <Route path="/techqui/comments" element={<TechQui />} />
+                <Route path="/techqui/settings" element={<TechQui />} />
                 <Route path="/roles" element={<Roles />} />
                 {/* CashQui */}
                 <Route path="/cashqui" element={<CashQuiDashboard />} />

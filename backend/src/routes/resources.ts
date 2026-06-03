@@ -423,8 +423,8 @@ router.put("/clients/:id", async (req: AuthRequest, res: Response): Promise<void
         await prisma.clientService.createMany({
           data: services.map((s: string) => ({ client_id: id, service: s, status: "ATIVO" })),
         });
-        // Disparar automação para novos serviços
-        await createOperationalFlow(id, services);
+        // Disparar automação para novos serviços (passa userId para buscar templates)
+        await createOperationalFlow(id, services, false, undefined, undefined, req.user!.id);
       }
     }
 

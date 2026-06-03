@@ -18,15 +18,51 @@ import templatesRoutes from "./routes/templates";
 import notificationsRoutes from "./routes/notifications";
 import { startRecurringInvoicesJob } from "./lib/recurringInvoices";
 import { startNotificationChecker } from "./lib/notificationChecker";
+import techquiRoutes from "./routes/techqui";
+import vaultRoutes from "./routes/vault";
+import { startInstagramScheduler } from "./lib/instagramScheduler";
+import { startAdsAnalyzerJob } from "./lib/adsAnalyzerJob";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ── Security & Parsing ────────────────────────────────────────────────
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'"],
+      styleSrc:   ["'self'", "'unsafe-inline'"],
+      imgSrc:     ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+      frameSrc:   ["'none'"],
+      objectSrc:  ["'none'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // compatibilidade com uploads de imagem
+}));
+
+// Rate limiting simples para rotas de auth (proteção contra brute-force)
+const authAttempts = new Map<string, { count: number; resetAt: number }>();
+app.use("/api/auth/login", (req, res, next) => {
+  const ip = req.ip || "unknown";
+  const now = Date.now();
+  const entry = authAttempts.get(ip);
+
+  if (entry && now < entry.resetAt) {
+    if (entry.count >= 10) {
+      res.status(429).json({ error: "Muitas tentativas. Aguarde 15 minutos." });
+      return;
+    }
+    entry.count++;
+  } else {
+    authAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+  }
+  next();
+});
+
 app.use(cors({
   origin: (origin, callback) => {
-    // Permitir requisições sem origin (ex: Postman, curl) e qualquer localhost
     if (!origin || origin.startsWith("http://localhost") || origin === process.env.FRONTEND_URL) {
       callback(null, true);
     } else {
@@ -56,6 +92,8 @@ app.use("/api/cashqui", cashquiRoutes);
 app.use("/api/viewqui", viewquiRoutes);
 app.use("/api/templates", templatesRoutes);
 app.use("/api/notifications", notificationsRoutes);
+app.use("/api/techqui", techquiRoutes);
+app.use("/api/vault", vaultRoutes);
 app.use("/api", resourcesRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────
@@ -75,6 +113,8 @@ app.listen(PORT, () => {
   console.log(`   Ambiente: ${process.env.NODE_ENV || "development"}`);
   startRecurringInvoicesJob();
   startNotificationChecker();
+  startInstagramScheduler();
+  startAdsAnalyzerJob();
 });
 
 export default app;

@@ -25,7 +25,7 @@ router.get("/dashboard", async (req: AuthRequest, res: Response): Promise<void> 
       data: { status: "ATRASADO" },
     });
 
-    const [invoices, expenses, clients] = await Promise.all([
+    const [invoices, expenses, clients, contracts] = await Promise.all([
       (prisma as any).invoice.findMany({
         where: { client: { user_id: userId } },
         include: { client: { select: { name: true } } },
@@ -36,6 +36,11 @@ router.get("/dashboard", async (req: AuthRequest, res: Response): Promise<void> 
       (prisma as any).client.findMany({
         where: { user_id: userId, status: "ATIVO" },
         select: { id: true },
+      }),
+      // MRR real: soma dos contratos ativos (recorrentes, duração > 0 ou indefinida)
+      (prisma as any).contract.findMany({
+        where: { client: { user_id: userId, status: "ATIVO" } },
+        select: { value: true },
       }),
     ]);
 
@@ -55,14 +60,8 @@ router.get("/dashboard", async (req: AuthRequest, res: Response): Promise<void> 
       .filter((e: any) => e.date >= startOfMonth && e.date <= endOfMonth)
       .reduce((sum: number, e: any) => sum + e.amount, 0);
 
-    const mrr = invoices
-      .filter((i: any) => i.status !== "CANCELADO")
-      .reduce((acc: Record<string, number>, i: any) => {
-        if (!acc[i.client_id]) acc[i.client_id] = 0;
-        acc[i.client_id] = Math.max(acc[i.client_id], i.amount);
-        return acc;
-      }, {});
-    const mrrTotal = Object.values(mrr).reduce((sum: number, v: any) => sum + v, 0);
+    // MRR = soma dos valores de contrato dos clientes ativos
+    const mrrTotal = contracts.reduce((sum: number, c: any) => sum + Number(c.value), 0);
 
     res.json({
       mrr: mrrTotal,

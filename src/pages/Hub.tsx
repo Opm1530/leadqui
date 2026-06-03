@@ -68,10 +68,10 @@ const Hub = () => {
     {
       id: "techqui",
       name: "TechQui",
-      description: "Ferramentas técnicas e utilitários para a operação da agência.",
+      description: "Meta Ads, Instagram Scheduler e Auto-reply de comentários.",
       icon: Zap,
       color: "from-orange-500 to-yellow-600",
-      route: "/coming-soon",
+      route: "/techqui",
       adminOnly: false,
     },
     {

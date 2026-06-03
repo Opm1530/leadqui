@@ -81,6 +81,26 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   }
 });
 
+// ── PATCH /api/campaigns/:id/stop ─────────────────────────────────────
+router.patch("/:id/stop", async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = String(req.params.id);
+  try {
+    const existing = await prisma.campaign.findFirst({ where: { id, user_id: req.user!.id } });
+    if (!existing) { res.status(404).json({ error: "Campanha não encontrada" }); return; }
+    if (existing.status !== "EM_ANDAMENTO") {
+      res.status(400).json({ error: "Só é possível parar campanhas em andamento" });
+      return;
+    }
+    const campaign = await prisma.campaign.update({
+      where: { id },
+      data: { status: "ERRO", erro: "Cancelada pelo usuário" },
+    });
+    res.json({ campaign });
+  } catch (error) {
+    res.status(500).json({ error: "Erro ao parar campanha" });
+  }
+});
+
 // ── DELETE /api/campaigns/:id ──────────────────────────────────────────
 router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
@@ -165,9 +185,9 @@ async function startCampaign(
     let failed = 0;
 
     for (const lead of leads) {
-      // Check cancellation/stop if status changed
+      // Check cancellation — pára se o usuário cancelou ou se houve erro externo
       const camp = await prisma.campaign.findUnique({ where: { id: campaignId } });
-      if (camp?.status === "ERRO") break; // Stop loop if manually set to ERROR or other stop logic
+      if (!camp || camp.status === "ERRO") break;
 
       try {
         const msg = mensagem

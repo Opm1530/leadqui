@@ -79,7 +79,7 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
 // ── PUT /api/leads/:id ────────────────────────────────────────────────
 router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
-  const { tags: _tags, ...data } = req.body;
+  const { tags, tag_ids, ...data } = req.body;
 
   try {
     const existing = await prisma.lead.findFirst({ where: { id, user_id: req.user!.id } });
@@ -94,7 +94,28 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
     delete data.id;
 
     const lead = await prisma.lead.update({ where: { id }, data });
-    res.json({ lead });
+
+    // Atualizar tags se enviadas junto com o update
+    const incomingTagIds: string[] | null =
+      Array.isArray(tag_ids) ? tag_ids :
+      Array.isArray(tags)    ? tags.map((t: any) => (typeof t === "string" ? t : t.tag_id ?? t.id)).filter(Boolean) :
+      null;
+
+    if (incomingTagIds !== null) {
+      await prisma.leadTag.deleteMany({ where: { lead_id: id } });
+      if (incomingTagIds.length > 0) {
+        await prisma.leadTag.createMany({
+          data: incomingTagIds.map((tag_id) => ({ lead_id: id, tag_id })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    const updated = await prisma.lead.findUnique({
+      where: { id },
+      include: { tags: { include: { tag: true } } },
+    });
+    res.json({ lead: updated });
   } catch (error) {
     console.error("Update lead error:", error);
     res.status(500).json({ error: "Erro ao atualizar lead" });

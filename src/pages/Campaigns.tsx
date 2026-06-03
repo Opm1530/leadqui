@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Rocket, Plus, Clock, CheckCircle, AlertCircle, Trash2, Edit2, Loader2 } from "lucide-react";
+import { Rocket, Plus, Clock, CheckCircle, AlertCircle, Trash2, Edit2, Loader2, StopCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import api from "@/lib/api";
 
@@ -87,6 +87,18 @@ const Campaigns = () => {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStop = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Parar o disparo desta campanha?")) return;
+    try {
+      await api.patch(`/api/campaigns/${id}/stop`, {});
+      toast({ title: "Campanha parada", description: "O disparo foi interrompido." });
+      fetchData();
+    } catch (error: any) {
+      toast({ title: "Erro ao parar campanha", description: error.message, variant: "destructive" });
     }
   };
 
@@ -249,6 +261,11 @@ const Campaigns = () => {
                   </div>
                 </div>
                 <div className="flex gap-2">
+                  {c.status === "EM_ANDAMENTO" && (
+                    <button onClick={(e) => handleStop(c.id, e)} title="Parar campanha" className="p-2 rounded-md hover:bg-yellow-500/20 text-muted-foreground hover:text-yellow-400 transition-colors">
+                      <StopCircle className="w-4 h-4" />
+                    </button>
+                  )}
                   <button onClick={(e) => { e.stopPropagation(); setEditingCampaign(c); }} className="p-2 rounded-md hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors">
                     <Edit2 className="w-4 h-4" />
                   </button>

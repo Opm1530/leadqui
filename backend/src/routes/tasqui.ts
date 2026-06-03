@@ -85,6 +85,34 @@ router.patch("/tasks/:id", authenticateJWT, async (req: AuthRequest, res: Respon
   const { status, responsible_id, title, description, due_date, priority } = req.body;
 
   try {
+    // Clientes só podem atualizar status das próprias tarefas
+    if (req.user?.role === "CLIENT") {
+      const client = await prisma.client.findFirst({ where: { login_user_id: req.user.id } as any });
+      if (!client) { res.status(403).json({ error: "Acesso negado" }); return; }
+
+      const existing = await (prisma as any).task.findFirst({ where: { id: taskId, client_id: client.id } });
+      if (!existing) { res.status(404).json({ error: "Tarefa não encontrada" }); return; }
+
+      // Cliente só pode alterar status (não título, responsável, etc.)
+      const task = await (prisma as any).task.update({
+        where: { id: taskId },
+        data: {
+          ...(status && { status }),
+          ...(status === "CONCLUIDO" && { completed_at: new Date() }),
+        },
+      });
+      res.json(task);
+      return;
+    }
+
+    // Usuários internos: verificar que a tarefa pertence a um cliente do usuário
+    const existing = await (prisma as any).task.findFirst({
+      where: { id: taskId },
+      include: { client: { select: { user_id: true } } },
+    });
+    if (!existing) { res.status(404).json({ error: "Tarefa não encontrada" }); return; }
+    if (existing.client?.user_id !== req.user!.id) { res.status(403).json({ error: "Acesso negado" }); return; }
+
     const task = await (prisma as any).task.update({
       where: { id: taskId },
       data: {
@@ -94,8 +122,8 @@ router.patch("/tasks/:id", authenticateJWT, async (req: AuthRequest, res: Respon
         description,
         priority,
         due_date: due_date ? new Date(due_date) : undefined,
-        completed_at: status === "CONCLUIDO" ? new Date() : undefined
-      }
+        completed_at: status === "CONCLUIDO" ? new Date() : undefined,
+      },
     });
 
     res.json(task);

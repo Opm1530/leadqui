@@ -26,6 +26,10 @@ import {
   Bell,
   Landmark,
   LayoutTemplate,
+  Instagram,
+  BarChart2,
+  Link2,
+  Lock,
 } from "lucide-react";
 
 const leadquiItems = [
@@ -36,8 +40,9 @@ const leadquiItems = [
   { to: "/clients", icon: Briefcase, label: "Clientes" },
   { to: "/extractions", icon: Database, label: "Extração de Leads" },
   { to: "/campaigns", icon: Share2, label: "Campanhas" },
-  { to: "/instances", icon: Zap, label: "Instâncias" },
-  { to: "/settings", icon: Settings, label: "Configurações" },
+  { to: "/instances", icon: Zap,  label: "Instâncias"        },
+  { to: "/vault",     icon: Lock, label: "Cofre de Senhas"   },
+  { to: "/settings",  icon: Settings, label: "Configurações" },
 ];
 
 const tasquiItems = [
@@ -54,6 +59,14 @@ const teamquiItems = [
   { to: "/teamqui", icon: Users, label: "Membros da Equipe" },
   { to: "/roles", icon: ShieldAlert, label: "Cargos e Permissões" },
   { to: "/settings", icon: Settings, label: "Configurações" },
+];
+
+const techquiItems = [
+  { to: "/techqui",          icon: Link2,        label: "Conexões Meta"    },
+  { to: "/techqui/instagram",icon: Instagram,    label: "Instagram"        },
+  { to: "/techqui/ads",      icon: BarChart2,    label: "Meta Ads"         },
+  { to: "/techqui/comments", icon: MessageSquare,label: "Auto-reply"       },
+  { to: "/techqui/settings", icon: Settings,     label: "Configurações"    },
 ];
 
 const cashquiItems = [
@@ -79,6 +92,7 @@ const Sidebar = () => {
       case "tasqui": return "Tasqui";
       case "teamqui": return "Teamqui";
       case "cashqui": return "CashQui";
+      case "techqui": return "TechQui";
       default: return "Leadqui";
     }
   };
@@ -86,9 +100,10 @@ const Sidebar = () => {
   const getMenuItems = () => {
     let items = [];
     switch (activeModule) {
-      case "tasqui": items = [...tasquiItems]; break;
+      case "tasqui":  items = [...tasquiItems];  break;
       case "teamqui": items = [...teamquiItems]; break;
       case "cashqui": items = [...cashquiItems]; break;
+      case "techqui": items = [...techquiItems]; break;
       default: items = [...leadquiItems]; break;
     }
     
