@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -40,6 +41,7 @@ const LeadEditModal = ({ lead, open, onClose, onSaved }: LeadEditModalProps) => 
         origem: form.origem,
         perfil_url: form.perfil_url || null,
         maps_url: form.maps_url || null,
+        observacao: form.observacao || null,
       });
       toast({ title: "Lead atualizado!" });
       onSaved();
@@ -106,6 +108,17 @@ const LeadEditModal = ({ lead, open, onClose, onSaved }: LeadEditModalProps) => 
                 <SelectItem value="INSTAGRAM">Instagram</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Observação</Label>
+            <Textarea
+              value={form.observacao || ""}
+              onChange={(e) => set("observacao", e.target.value)}
+              placeholder="Anotações sobre o lead, contexto da conversa..."
+              className="bg-secondary border-border resize-none"
+              rows={3}
+            />
           </div>
 
           <div className="space-y-1.5 pt-2 border-t border-border/50">

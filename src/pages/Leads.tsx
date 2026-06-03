@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -58,7 +59,7 @@ const Leads = () => {
   // Modals
   const [editingLead, setEditingLead] = useState<any>(null);
   const [newLeadModal, setNewLeadModal] = useState(false);
-  const [newForm, setNewForm] = useState({ nome: "", telefone: "", cidade: "", status: "NOVO" });
+  const [newForm, setNewForm] = useState({ nome: "", telefone: "", cidade: "", status: "NOVO", observacao: "" });
   const [savingNew, setSavingNew] = useState(false);
 
   // Selection
@@ -156,11 +157,12 @@ const Leads = () => {
         telefone: newForm.telefone || null,
         cidade: newForm.cidade || null,
         status: newForm.status,
+        observacao: newForm.observacao || null,
         origem: "MANUAL",
       });
       toast({ title: "Lead criado!" });
       setNewLeadModal(false);
-      setNewForm({ nome: "", telefone: "", cidade: "", status: "NOVO" });
+      setNewForm({ nome: "", telefone: "", cidade: "", status: "NOVO", observacao: "" });
       fetchLeads(1);
     } catch (error: any) {
       toast({ title: "Erro ao criar lead", description: error.message, variant: "destructive" });
@@ -398,6 +400,16 @@ const Leads = () => {
                   <SelectItem value="QUALIFICADO">Qualificado</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Observação</Label>
+              <Textarea
+                value={newForm.observacao}
+                onChange={(e) => setNewForm({ ...newForm, observacao: e.target.value })}
+                placeholder="Anotações sobre o lead, contexto da conversa..."
+                className="bg-secondary border-border resize-none"
+                rows={3}
+              />
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={() => setNewLeadModal(false)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>

@@ -112,6 +112,7 @@ model Lead {
   perfil_url        String?
   biografia         String?  
   seguidores        Int?
+  observacao        String?    // campo livre de observações/descrição
   origem            LeadOrigem @default(MANUAL)
   status            LeadStatus @default(NOVO)
   client_id         String?
