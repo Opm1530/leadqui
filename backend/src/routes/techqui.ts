@@ -121,7 +121,7 @@ router.get("/oauth/callback", async (req: Request, res: Response): Promise<void>
     const expiresIn: number = longTokenRes.data.expires_in || 5184000;
     const tokenExpiresAt    = new Date(Date.now() + expiresIn * 1000);
 
-    // 2. Buscar todas as Páginas com Instagram vinculado
+    // 2a. Páginas do Facebook com Instagram vinculado
     const pagesRes = await axios.get("https://graph.facebook.com/v20.0/me/accounts", {
       params: { access_token: longToken, fields: "id,name,access_token,instagram_business_account{id,username,name}", limit: 50 },
     });
@@ -132,9 +132,42 @@ router.get("/oauth/callback", async (req: Request, res: Response): Promise<void>
       page_name:            p.name,
       instagram_account_id: p.instagram_business_account?.id || null,
       instagram_username:   p.instagram_business_account?.username || p.instagram_business_account?.name || null,
+      source:               "page",
     }));
 
-    // 3. Buscar todas as Contas de Anúncios
+    // 2b. Contas de Instagram direto na BM (sem Página vinculada)
+    // Busca via /me/businesses → instagram_accounts
+    try {
+      const bizRes = await axios.get("https://graph.facebook.com/v20.0/me/businesses", {
+        params: { access_token: longToken, fields: "id,name", limit: 10 },
+      });
+      const businesses: any[] = bizRes.data.data || [];
+
+      for (const biz of businesses) {
+        try {
+          const igRes = await axios.get(`https://graph.facebook.com/v20.0/${biz.id}/instagram_accounts`, {
+            params: { access_token: longToken, fields: "id,username,name", limit: 50 },
+          });
+          const bmIgAccounts: any[] = igRes.data.data || [];
+
+          for (const ig of bmIgAccounts) {
+            // Evitar duplicatas com contas já capturadas via Página
+            const alreadyAdded = pages.some(p => p.instagram_account_id === ig.id);
+            if (!alreadyAdded) {
+              pages.push({
+                page_id:              null,
+                page_name:            `${biz.name} (BM)`,
+                instagram_account_id: ig.id,
+                instagram_username:   ig.username || ig.name || null,
+                source:               "bm",
+              });
+            }
+          }
+        } catch {}
+      }
+    } catch {}
+
+    // 3. Contas de Anúncios
     let adAccounts: any[] = [];
     try {
       const adRes = await axios.get("https://graph.facebook.com/v20.0/me/adaccounts", {
