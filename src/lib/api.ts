@@ -1,7 +1,9 @@
 // Cliente HTTP centralizado para a API do Pequi Digital
 // Envia o JWT automaticamente em todas as requisições autenticadas
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+// Em produção VITE_API_URL é "" (vazio) — nginx proxia /api/* para o backend
+// Em dev aponta para localhost:3001
+const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
 const getToken = () => localStorage.getItem("pequi_token");
 

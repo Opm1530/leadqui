@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useState, useEffect, useCallback } from "react";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,15 +53,14 @@ const TechQui = () => {
   const { setActiveModule } = useModule();
   const { toast } = useToast();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = routeToTab[location.pathname] ?? "connections";
   const [clients, setClients] = useState<any[]>([]);
   const [connections, setConnections] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>(null);
   const [selectedClient, setSelectedClient] = useState<string>("all");
 
-  useEffect(() => { setActiveModule("techqui"); loadBase(); }, []);
-
-  const loadBase = async () => {
+  const loadBase = useCallback(async () => {
     const [cli, conn, sett] = await Promise.all([
       api.get("/api/clients").then(d => d.clients || []).catch(() => []),
       api.get("/api/techqui/connections").then(d => d.connections || []).catch(() => []),
@@ -70,7 +69,30 @@ const TechQui = () => {
     setClients(cli);
     setConnections(conn);
     setSettings(sett);
-  };
+  }, []);
+
+  useEffect(() => {
+    setActiveModule("techqui");
+    loadBase();
+  }, []);
+
+  // Tratar retorno do OAuth
+  useEffect(() => {
+    const oauth = searchParams.get("oauth");
+    if (!oauth) return;
+
+    if (oauth === "success") {
+      toast({ title: "Conta Meta conectada!", description: "Instagram e Ads configurados automaticamente." });
+      loadBase();
+    } else if (oauth === "denied") {
+      toast({ title: "Autorização negada", description: "O usuário não autorizou o acesso.", variant: "destructive" });
+    } else if (oauth === "error") {
+      const msg = searchParams.get("msg") || "Erro desconhecido";
+      toast({ title: "Erro ao conectar", description: decodeURIComponent(msg), variant: "destructive" });
+    }
+    // Limpar os parâmetros da URL
+    setSearchParams({});
+  }, [searchParams]);
 
   const connForClient = (cid: string) => connections.find(c => c.client_id === cid);
 
@@ -123,130 +145,158 @@ const TechQui = () => {
 
 // ── Tab: Conexões ─────────────────────────────────────────────────────
 const ConnectionsTab = ({ clients, connections, onRefresh, toast }: any) => {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState<any>({ client_id: "", instagram_account_id: "", instagram_username: "", ad_account_id: "", page_id: "", page_name: "", access_token: "" });
-  const [saving, setSaving] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
+  const [connectingId, setConnectingId] = useState<string | null>(null);
 
-  const openNew = () => { setEditing(null); setForm({ client_id: "", instagram_account_id: "", instagram_username: "", ad_account_id: "", page_id: "", page_name: "", access_token: "" }); setModalOpen(true); };
-  const openEdit = (conn: any) => { setEditing(conn); setForm({ ...conn, access_token: "" }); setModalOpen(true); };
-
-  const save = async () => {
-    if (!form.client_id) { toast({ title: "Selecione um cliente", variant: "destructive" }); return; }
-    setSaving(true);
+  const startOAuth = async (clientId: string) => {
+    setConnectingId(clientId);
     try {
-      await api.post("/api/techqui/connections", form);
-      toast({ title: editing ? "Conexão atualizada!" : "Conta vinculada!" });
-      setModalOpen(false);
+      const d = await api.get(`/api/techqui/oauth/start?client_id=${clientId}`);
+      // Abrir popup centralizado
+      const w = 600, h = 700;
+      const left = window.screenX + (window.outerWidth - w) / 2;
+      const top  = window.screenY + (window.outerHeight - h) / 2;
+      const popup = window.open(d.url, "meta_oauth", `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`);
+
+      // Monitorar quando o popup fechar
+      const timer = setInterval(() => {
+        if (!popup || popup.closed) {
+          clearInterval(timer);
+          setConnectingId(null);
+          onRefresh(); // recarregar conexões quando o popup fechar
+        }
+      }, 800);
+    } catch (e: any) {
+      toast({ title: "Erro ao iniciar conexão", description: e.message, variant: "destructive" });
+      setConnectingId(null);
+    }
+  };
+
+  const remove = async (id: string, name: string) => {
+    if (!confirm(`Desvincular a conta Meta de "${name}"?`)) return;
+    try {
+      await api.delete(`/api/techqui/connections/${id}`);
+      toast({ title: "Conta desvinculada" });
       onRefresh();
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
-    } finally { setSaving(false); }
+    }
   };
 
-  const remove = async (id: string) => {
-    if (!confirm("Desvincular esta conta?")) return;
-    try { await api.delete(`/api/techqui/connections/${id}`); onRefresh(); } catch {}
-  };
-
-  const connectedIds = connections.map((c: any) => c.client_id);
-  const unconnected  = clients.filter((c: any) => !connectedIds.includes(c.id));
+  const connectedMap = Object.fromEntries(connections.map((c: any) => [c.client_id, c]));
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">{connections.length} conta(s) Meta vinculada(s)</p>
-        <Button onClick={openNew} size="sm" className="gradient-button">
-          <Plus className="w-4 h-4 mr-1" /> Vincular Conta
-        </Button>
       </div>
 
-      {connections.length === 0 && (
-        <div className="glass-card p-10 text-center text-muted-foreground">
-          <Instagram className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">Nenhuma conta Meta vinculada ainda.</p>
-          <p className="text-xs mt-1">Clique em "Vincular Conta" para começar.</p>
+      {/* Instrução */}
+      <div className="glass-card p-4 border border-blue-500/20 flex items-start gap-3">
+        <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <span className="text-[10px] font-bold text-blue-400">i</span>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          <p>Clique em <strong className="text-foreground">Conectar com Meta</strong> ao lado do cliente. Uma janela abrirá para você fazer login no Facebook e autorizar o acesso. O sistema capturará automaticamente o <strong className="text-foreground">Instagram, Página e Conta de Anúncios</strong>.</p>
+          <p className="mt-1">Certifique-se de estar logado na conta do cliente (ou ter acesso de administrador à conta Business dele).</p>
+        </div>
+      </div>
+
+      {clients.length === 0 && (
+        <div className="glass-card p-10 text-center text-muted-foreground text-sm">
+          Nenhum cliente cadastrado. Cadastre clientes em Leadqui → Clientes.
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {connections.map((conn: any) => (
-          <motion.div key={conn.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-5">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-                  <Instagram className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <p className="font-semibold text-sm text-foreground">{conn.client?.name}</p>
-                  {conn.instagram_username && <p className="text-xs text-muted-foreground">@{conn.instagram_username}</p>}
-                </div>
-              </div>
-              <div className="flex gap-1">
-                <Button variant="ghost" size="sm" onClick={() => openEdit(conn)}><Edit2 className="w-3.5 h-3.5" /></Button>
-                <Button variant="ghost" size="sm" onClick={() => remove(conn.id)} className="text-destructive hover:text-destructive"><Unlink className="w-3.5 h-3.5" /></Button>
-              </div>
-            </div>
-            <div className="space-y-1.5 text-xs text-muted-foreground">
-              {conn.instagram_account_id && <p className="flex gap-2"><Instagram className="w-3.5 h-3.5 text-pink-400 mt-0.5" /><span>Instagram: <span className="text-foreground font-mono">{conn.instagram_account_id}</span></span></p>}
-              {conn.ad_account_id && <p className="flex gap-2"><Target className="w-3.5 h-3.5 text-blue-400 mt-0.5" /><span>Ad Account: <span className="text-foreground font-mono">{conn.ad_account_id}</span></span></p>}
-              {conn.page_id && <p className="flex gap-2"><Users className="w-3.5 h-3.5 text-green-400 mt-0.5" /><span>Page: <span className="text-foreground font-mono">{conn.page_name || conn.page_id}</span></span></p>}
-              {conn.access_token && <p className="flex gap-2"><CheckCircle className="w-3.5 h-3.5 text-green-400 mt-0.5" /><span className="text-green-400">Token configurado</span></p>}
-            </div>
-          </motion.div>
-        ))}
-      </div>
+      <div className="space-y-3">
+        {clients.map((client: any) => {
+          const conn = connectedMap[client.id];
+          const isConnecting = connectingId === client.id;
 
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="bg-card border-border max-w-lg">
-          <DialogHeader><DialogTitle>{editing ? "Editar Conexão" : "Vincular Conta Meta"}</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Cliente</Label>
-              <Select value={form.client_id} onValueChange={v => setForm({ ...form, client_id: v })}>
-                <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecionar cliente" /></SelectTrigger>
-                <SelectContent>
-                  {clients.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Instagram Account ID</Label>
-                <Input value={form.instagram_account_id} onChange={e => setForm({ ...form, instagram_account_id: e.target.value })} placeholder="123456789" className="bg-secondary border-border" />
+          return (
+            <motion.div key={client.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4 flex items-center gap-4">
+              {/* Avatar */}
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                <span className="text-white font-bold text-sm">{client.name[0]}</span>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Username</Label>
-                <Input value={form.instagram_username} onChange={e => setForm({ ...form, instagram_username: e.target.value })} placeholder="@usuario" className="bg-secondary border-border" />
+
+              {/* Info do cliente */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground">{client.name}</p>
+
+                {conn ? (
+                  <div className="flex flex-wrap gap-3 mt-1">
+                    {conn.instagram_username && (
+                      <span className="flex items-center gap-1 text-[11px] text-pink-400">
+                        <Instagram className="w-3 h-3" /> @{conn.instagram_username}
+                      </span>
+                    )}
+                    {conn.ad_account_id && (
+                      <span className="flex items-center gap-1 text-[11px] text-blue-400">
+                        <Target className="w-3 h-3" /> {conn.ad_account_id}
+                      </span>
+                    )}
+                    {conn.page_name && (
+                      <span className="flex items-center gap-1 text-[11px] text-green-400">
+                        <Users className="w-3 h-3" /> {conn.page_name}
+                      </span>
+                    )}
+                    {conn.token_expires_at && (
+                      <span className="text-[11px] text-muted-foreground">
+                        Token expira {new Date(conn.token_expires_at).toLocaleDateString("pt-BR")}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-0.5">Sem conta Meta vinculada</p>
+                )}
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Ad Account ID</Label>
-                <Input value={form.ad_account_id} onChange={e => setForm({ ...form, ad_account_id: e.target.value })} placeholder="act_123456789" className="bg-secondary border-border" />
+
+              {/* Ações */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {conn ? (
+                  <>
+                    {/* Reconectar (renovar token) */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => startOAuth(client.id)}
+                      disabled={isConnecting}
+                      className="text-xs h-8 border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+                    >
+                      {isConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />}
+                      Reconectar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => remove(conn.id, client.name)}
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Unlink className="w-3.5 h-3.5" />
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    onClick={() => startOAuth(client.id)}
+                    disabled={isConnecting}
+                    size="sm"
+                    className="h-8 text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
+                  >
+                    {isConnecting ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                    ) : (
+                      <svg className="w-3.5 h-3.5 mr-1.5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                      </svg>
+                    )}
+                    Conectar com Meta
+                  </Button>
+                )}
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Page ID</Label>
-                <Input value={form.page_id} onChange={e => setForm({ ...form, page_id: e.target.value })} placeholder="123456789" className="bg-secondary border-border" />
-              </div>
-              <div className="space-y-1.5 col-span-2">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Nome da Página</Label>
-                <Input value={form.page_name} onChange={e => setForm({ ...form, page_name: e.target.value })} placeholder="Ex: Pequi Digital" className="bg-secondary border-border" />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Access Token (Long-lived)</Label>
-              <Textarea value={form.access_token} onChange={e => setForm({ ...form, access_token: e.target.value })} placeholder={editing ? "Deixe em branco para manter o token atual" : "EAAxxxxxxxx..."} className="bg-secondary border-border font-mono text-xs" rows={3} />
-              <p className="text-[10px] text-muted-foreground">Token de longa duração (~60 dias). Gere no Meta Business Suite → Configurações → Tokens.</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setModalOpen(false)}>Cancelar</Button>
-            <Button onClick={save} disabled={saving} className="gradient-button">
-              {saving && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
-              {editing ? "Salvar" : "Vincular"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
   );
 };

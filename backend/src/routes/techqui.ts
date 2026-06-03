@@ -46,6 +46,183 @@ function express_json_raw(req: Request, res: Response, next: any) {
   next();
 }
 
+// ── OAuth Meta ────────────────────────────────────────────────────────
+
+// Permissões necessárias para o app Meta
+const META_SCOPES = [
+  "instagram_basic",
+  "instagram_content_publish",
+  "instagram_manage_comments",
+  "instagram_manage_insights",
+  "ads_management",
+  "ads_read",
+  "pages_show_list",
+  "pages_read_engagement",
+  "business_management",
+].join(",");
+
+// GET /api/techqui/oauth/start?client_id=xxx&user_id=xxx
+// Gera a URL de autorização Meta e retorna para o frontend abrir em popup
+router.get("/oauth/start", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  const clientId = String(req.query.client_id || "");
+  if (!clientId) { res.status(400).json({ error: "client_id obrigatório" }); return; }
+
+  try {
+    const settings = await (prisma as any).techQuiSettings.findUnique({
+      where: { user_id: req.user!.id },
+    });
+
+    if (!settings?.meta_app_id) {
+      res.status(400).json({ error: "Configure o App ID da Meta em TechQui → Configurações antes de conectar." });
+      return;
+    }
+
+    // State codifica: client_id + user_id (para recuperar no callback)
+    const state = Buffer.from(JSON.stringify({ client_id: clientId, user_id: req.user!.id })).toString("base64url");
+
+    const redirectUri = process.env.META_OAUTH_REDIRECT_URI!;
+    const oauthUrl = `https://www.facebook.com/v20.0/dialog/oauth?client_id=${settings.meta_app_id}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(META_SCOPES)}&state=${state}&response_type=code`;
+
+    res.json({ url: oauthUrl });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/techqui/oauth/callback?code=xxx&state=xxx
+// Meta redireciona aqui após o usuário autorizar
+router.get("/oauth/callback", async (req: Request, res: Response): Promise<void> => {
+  const code  = String(req.query.code  || "");
+  const state = String(req.query.state || "");
+  const error = String(req.query.error || "");
+
+  const frontendBase = process.env.FRONTEND_URL || "http://localhost:8080";
+
+  // Usuário negou
+  if (error) {
+    res.redirect(`${frontendBase}/techqui?oauth=denied`);
+    return;
+  }
+
+  if (!code || !state) {
+    res.redirect(`${frontendBase}/techqui?oauth=error&msg=parametros_invalidos`);
+    return;
+  }
+
+  try {
+    // Decodificar state
+    const { client_id, user_id } = JSON.parse(Buffer.from(state, "base64url").toString("utf8"));
+
+    // Buscar App credentials do usuário
+    const settings = await (prisma as any).techQuiSettings.findUnique({ where: { user_id } });
+    if (!settings?.meta_app_id || !settings?.meta_app_secret) {
+      res.redirect(`${frontendBase}/techqui?oauth=error&msg=app_nao_configurado`);
+      return;
+    }
+
+    const redirectUri = process.env.META_OAUTH_REDIRECT_URI!;
+
+    // 1. Trocar code por token de curta duração
+    const tokenRes = await axios.get("https://graph.facebook.com/v20.0/oauth/access_token", {
+      params: {
+        client_id:     settings.meta_app_id,
+        client_secret: settings.meta_app_secret,
+        redirect_uri:  redirectUri,
+        code,
+      },
+    });
+    const shortToken: string = tokenRes.data.access_token;
+
+    // 2. Trocar por token de longa duração (~60 dias)
+    const longTokenRes = await axios.get("https://graph.facebook.com/v20.0/oauth/access_token", {
+      params: {
+        grant_type:        "fb_exchange_token",
+        client_id:         settings.meta_app_id,
+        client_secret:     settings.meta_app_secret,
+        fb_exchange_token: shortToken,
+      },
+    });
+    const longToken: string    = longTokenRes.data.access_token;
+    const expiresIn: number    = longTokenRes.data.expires_in || 5184000; // 60 dias padrão
+    const tokenExpiresAt       = new Date(Date.now() + expiresIn * 1000);
+
+    // 3. Buscar Pages do usuário
+    const pagesRes = await axios.get("https://graph.facebook.com/v20.0/me/accounts", {
+      params: { access_token: longToken, fields: "id,name,access_token,instagram_business_account" },
+    });
+    const pages: any[] = pagesRes.data.data || [];
+
+    // 4. Encontrar Instagram Business Account vinculado a alguma Page
+    let instagramAccountId: string | null = null;
+    let instagramUsername: string | null  = null;
+    let pageId: string | null             = null;
+    let pageName: string | null           = null;
+    let pageToken: string | null          = null;
+
+    for (const page of pages) {
+      if (page.instagram_business_account?.id) {
+        instagramAccountId = page.instagram_business_account.id;
+        pageId    = page.id;
+        pageName  = page.name;
+        pageToken = page.access_token; // token específico da page (não expira)
+
+        // Buscar username do Instagram
+        try {
+          const igRes = await axios.get(`https://graph.facebook.com/v20.0/${instagramAccountId}`, {
+            params: { fields: "username,name", access_token: longToken },
+          });
+          instagramUsername = igRes.data.username || igRes.data.name || null;
+        } catch {}
+        break;
+      }
+    }
+
+    // 5. Buscar Ad Accounts
+    let adAccountId: string | null = null;
+    try {
+      const adRes = await axios.get("https://graph.facebook.com/v20.0/me/adaccounts", {
+        params: { access_token: longToken, fields: "id,name,account_status", limit: 10 },
+      });
+      const adAccounts: any[] = adRes.data.data || [];
+      // Pegar o primeiro ativo (account_status === 1)
+      const active = adAccounts.find((a: any) => a.account_status === 1) || adAccounts[0];
+      if (active) adAccountId = active.id; // já vem com "act_" prefix
+    } catch {}
+
+    // 6. Salvar conexão no banco
+    await (prisma as any).clientMetaConnection.upsert({
+      where:  { client_id },
+      create: {
+        client_id,
+        instagram_account_id: instagramAccountId,
+        instagram_username:   instagramUsername,
+        ad_account_id:        adAccountId,
+        page_id:              pageId,
+        page_name:            pageName,
+        access_token:         longToken,
+        token_expires_at:     tokenExpiresAt,
+      },
+      update: {
+        instagram_account_id: instagramAccountId,
+        instagram_username:   instagramUsername,
+        ad_account_id:        adAccountId,
+        page_id:              pageId,
+        page_name:            pageName,
+        access_token:         longToken,
+        token_expires_at:     tokenExpiresAt,
+        updated_at:           new Date(),
+      },
+    });
+
+    // 7. Redirecionar para o frontend com sucesso
+    res.redirect(`${frontendBase}/techqui?oauth=success&client_id=${client_id}`);
+  } catch (e: any) {
+    console.error("[OAuth Callback] Erro:", e.response?.data || e.message);
+    const msg = encodeURIComponent(e.response?.data?.error?.message || e.message);
+    res.redirect(`${frontendBase}/techqui?oauth=error&msg=${msg}`);
+  }
+});
+
 // ── TechQui Settings ─────────────────────────────────────────────────
 router.get("/settings", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
   try {

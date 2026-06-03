@@ -120,7 +120,7 @@ model Lead {
 
   user    User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
   tags    LeadTag[]
-  client  Client?   @relation(fields: [client_id], references: [id])
+  client  Client?   @relation(fields: [client_id], references: [id], onDelete: SetNull)
   crmCards CRMCard[]
 
   @@map("leads")
@@ -487,17 +487,18 @@ enum PostStatus {
 }
 
 model Invoice {
-  id          String        @id @default(uuid())
-  client_id   String
-  description String?
-  amount      Float
-  due_date    DateTime
-  paid_date   DateTime?
-  status      InvoiceStatus @default(PENDENTE)
-  created_at  DateTime      @default(now())
-  updated_at  DateTime      @updatedAt
+  id                  String        @id @default(uuid())
+  client_id           String?       // nullable para preservar histórico após exclusão do cliente
+  client_name_snapshot String?      // nome do cliente salvo no momento da exclusão
+  description         String?
+  amount              Float
+  due_date            DateTime
+  paid_date           DateTime?
+  status              InvoiceStatus @default(PENDENTE)
+  created_at          DateTime      @default(now())
+  updated_at          DateTime      @updatedAt
 
-  client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  client Client? @relation(fields: [client_id], references: [id], onDelete: SetNull)
 
   @@map("invoices")
 }

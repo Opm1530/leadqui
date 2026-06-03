@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
-import { Search, Briefcase, Edit2, Rocket, PlusCircle, KeyRound } from "lucide-react";
+import { Search, Briefcase, Edit2, Rocket, PlusCircle, KeyRound, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import ClientEditModal from "@/components/ClientEditModal";
@@ -44,6 +44,20 @@ const Clients = () => {
   const filteredClients = clients.filter((c) =>
     c.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleDelete = async (client: any) => {
+    const confirmed = confirm(
+      `Excluir "${client.name}"?\n\nIsso irá apagar permanentemente:\n• Projetos e tarefas\n• Calendário editorial\n• Campanhas de tráfego\n• Cofre de senhas\n• Conexões Meta\n\nO histórico de pagamentos (faturas) será preservado.\n\nEsta ação não pode ser desfeita.`
+    );
+    if (!confirmed) return;
+    try {
+      await api.delete(`/api/clients/${client.id}`);
+      toast({ title: "Cliente excluído", description: `"${client.name}" e todos os dados relacionados foram removidos.` });
+      fetchClients();
+    } catch (e: any) {
+      toast({ title: "Erro ao excluir", description: e.message, variant: "destructive" });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -190,6 +204,13 @@ const Clients = () => {
                           title="Editar Cliente"
                         >
                           <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(client)}
+                          className="p-2 rounded-md hover:bg-destructive/20 transition-colors text-muted-foreground hover:text-destructive"
+                          title="Excluir Cliente"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>

@@ -439,15 +439,64 @@ router.delete("/clients/:id", async (req: AuthRequest, res: Response): Promise<v
   const id = String(req.params.id);
   const existing = await prisma.client.findFirst({ where: { id, user_id: req.user!.id } });
   if (!existing) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
-  
-  // Deletar o usuário de acesso também? Vamos manter se ele tiver outros vínculos, 
-  // mas aqui o cadastro é 1:1 então faz sentido remover para não poluir
-  if ((existing as any).login_user_id) {
-    await prisma.user.delete({ where: { id: (existing as any).login_user_id } }).catch(() => {});
-  }
 
-  await prisma.client.delete({ where: { id } });
-  res.json({ message: "Cliente excluído" });
+  try {
+    // 1. Preservar histórico de faturas: salvar nome do cliente e desligar a FK
+    await (prisma as any).invoice.updateMany({
+      where: { client_id: id },
+      data:  { client_name_snapshot: existing.name, client_id: null },
+    });
+
+    // 2. Desvincular leads (mantém o lead, só remove a referência ao cliente)
+    await prisma.lead.updateMany({
+      where: { client_id: id },
+      data:  { client_id: null },
+    });
+
+    // 3. Excluir dados operacionais em ordem segura
+    // Tarefas
+    await (prisma as any).task.deleteMany({ where: { client_id: id } });
+    // Posts do calendário
+    await (prisma as any).calendarPost.deleteMany({ where: { client_id: id } });
+    // Campanhas de tráfego
+    await (prisma as any).trafficCampaign.deleteMany({ where: { client_id: id } });
+    // Projetos (tasks já foram removidas acima)
+    await prisma.project.deleteMany({ where: { client_id: id } });
+    // Cofre de senhas
+    await (prisma as any).vaultCredential.deleteMany({ where: { client_id: id } });
+    // Sugestões do agente de Ads
+    await (prisma as any).metaAgentSuggestion.deleteMany({ where: { client_id: id } });
+    // Análises de Ads
+    await (prisma as any).metaAdsAnalysis.deleteMany({ where: { client_id: id } });
+    // Regras de comentários
+    await (prisma as any).instagramCommentRule.deleteMany({ where: { client_id: id } });
+    // Logs de comentários
+    await (prisma as any).instagramCommentLog.deleteMany({ where: { client_id: id } });
+    // Posts agendados
+    await (prisma as any).instagramScheduledPost.deleteMany({ where: { client_id: id } });
+    // Conexão Meta (cascade cuida dos filhos restantes)
+    await (prisma as any).clientMetaConnection.deleteMany({ where: { client_id: id } });
+    // Serviços e contrato
+    await prisma.clientService.deleteMany({ where: { client_id: id } });
+    await prisma.contract.deleteMany({ where: { client_id: id } });
+    // Cards do CRM que referenciam leads deste cliente
+    await (prisma as any).cRMCard.deleteMany({
+      where: { lead: { client_id: null, user_id: req.user!.id } },
+    });
+
+    // 4. Excluir o usuário de acesso do cliente (login ViewQui)
+    if ((existing as any).login_user_id) {
+      await prisma.user.delete({ where: { id: (existing as any).login_user_id } }).catch(() => {});
+    }
+
+    // 5. Excluir o cliente
+    await prisma.client.delete({ where: { id } });
+
+    res.json({ message: "Cliente excluído com sucesso" });
+  } catch (error: any) {
+    console.error("Delete client error:", error);
+    res.status(500).json({ error: "Erro ao excluir cliente: " + error.message });
+  }
 });
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────

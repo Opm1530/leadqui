@@ -27,7 +27,12 @@ router.get("/dashboard", async (req: AuthRequest, res: Response): Promise<void> 
 
     const [invoices, expenses, clients, contracts] = await Promise.all([
       (prisma as any).invoice.findMany({
-        where: { client: { user_id: userId } },
+        where: {
+          OR: [
+            { client: { user_id: userId } },
+            { client_id: null, client_name_snapshot: { not: null } },
+          ],
+        },
         include: { client: { select: { name: true } } },
       }),
       (prisma as any).expense.findMany({
@@ -84,11 +89,21 @@ router.get("/invoices", async (req: AuthRequest, res: Response): Promise<void> =
     const userId = req.user!.id;
     const { status, client_id } = req.query;
 
-    const where: any = { client: { user_id: userId } };
+    // Incluir faturas de clientes ativos E faturas órfãs (cliente excluído, com snapshot)
+    const where: any = {
+      OR: [
+        { client: { user_id: userId } },
+        { client_id: null, client_name_snapshot: { not: null } },
+      ],
+    };
     if (status) where.status = status;
-    if (client_id) where.client_id = client_id;
+    if (client_id) {
+      // Ao filtrar por cliente específico, mostrar só desse cliente
+      where.OR = undefined;
+      where.client_id = client_id;
+    }
 
-    // Atualizar status de faturas vencidas
+    // Atualizar status de faturas vencidas (só das ativas)
     await (prisma as any).invoice.updateMany({
       where: { status: "PENDENTE", due_date: { lt: new Date() }, client: { user_id: userId } },
       data: { status: "ATRASADO" },
@@ -100,7 +115,13 @@ router.get("/invoices", async (req: AuthRequest, res: Response): Promise<void> =
       orderBy: { due_date: "asc" },
     });
 
-    res.json({ invoices });
+    // Injetar nome do snapshot quando o cliente foi excluído
+    const normalized = invoices.map((inv: any) => ({
+      ...inv,
+      client: inv.client ?? (inv.client_name_snapshot ? { name: `${inv.client_name_snapshot} (excluído)`, email: null } : null),
+    }));
+
+    res.json({ invoices: normalized });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
