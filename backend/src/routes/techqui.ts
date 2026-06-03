@@ -86,137 +86,138 @@ router.get("/oauth/start", authenticateJWT, async (req: AuthRequest, res: Respon
   }
 });
 
-// GET /api/techqui/oauth/callback?code=xxx&state=xxx
-// Meta redireciona aqui após o usuário autorizar
+// Sessões OAuth temporárias em memória (expiram em 10 min)
+const oauthSessions = new Map<string, { data: any; expiresAt: number }>();
+
+// GET /api/techqui/oauth/callback
 router.get("/oauth/callback", async (req: Request, res: Response): Promise<void> => {
   const code  = String(req.query.code  || "");
   const state = String(req.query.state || "");
   const error = String(req.query.error || "");
-
   const frontendBase = process.env.FRONTEND_URL || "http://localhost:8080";
 
-  // Usuário negou
-  if (error) {
-    res.redirect(`${frontendBase}/techqui?oauth=denied`);
-    return;
-  }
-
-  if (!code || !state) {
-    res.redirect(`${frontendBase}/techqui?oauth=error&msg=parametros_invalidos`);
-    return;
-  }
+  if (error) { res.redirect(`${frontendBase}/techqui?oauth=denied`); return; }
+  if (!code || !state) { res.redirect(`${frontendBase}/techqui?oauth=error&msg=parametros_invalidos`); return; }
 
   try {
-    // Decodificar state
     const { client_id, user_id } = JSON.parse(Buffer.from(state, "base64url").toString("utf8"));
-
-    // Buscar App credentials do usuário
     const settings = await (prisma as any).techQuiSettings.findUnique({ where: { user_id } });
     if (!settings?.meta_app_id || !settings?.meta_app_secret) {
-      res.redirect(`${frontendBase}/techqui?oauth=error&msg=app_nao_configurado`);
-      return;
+      res.redirect(`${frontendBase}/techqui?oauth=error&msg=app_nao_configurado`); return;
     }
 
     const redirectUri = process.env.META_OAUTH_REDIRECT_URI!;
 
-    // 1. Trocar code por token de curta duração
+    // 1. Token curto → token longo
     const tokenRes = await axios.get("https://graph.facebook.com/v20.0/oauth/access_token", {
-      params: {
-        client_id:     settings.meta_app_id,
-        client_secret: settings.meta_app_secret,
-        redirect_uri:  redirectUri,
-        code,
-      },
+      params: { client_id: settings.meta_app_id, client_secret: settings.meta_app_secret, redirect_uri: redirectUri, code },
     });
     const shortToken: string = tokenRes.data.access_token;
 
-    // 2. Trocar por token de longa duração (~60 dias)
     const longTokenRes = await axios.get("https://graph.facebook.com/v20.0/oauth/access_token", {
-      params: {
-        grant_type:        "fb_exchange_token",
-        client_id:         settings.meta_app_id,
-        client_secret:     settings.meta_app_secret,
-        fb_exchange_token: shortToken,
-      },
+      params: { grant_type: "fb_exchange_token", client_id: settings.meta_app_id, client_secret: settings.meta_app_secret, fb_exchange_token: shortToken },
     });
-    const longToken: string    = longTokenRes.data.access_token;
-    const expiresIn: number    = longTokenRes.data.expires_in || 5184000; // 60 dias padrão
-    const tokenExpiresAt       = new Date(Date.now() + expiresIn * 1000);
+    const longToken: string = longTokenRes.data.access_token;
+    const expiresIn: number = longTokenRes.data.expires_in || 5184000;
+    const tokenExpiresAt    = new Date(Date.now() + expiresIn * 1000);
 
-    // 3. Buscar Pages do usuário
+    // 2. Buscar todas as Páginas com Instagram vinculado
     const pagesRes = await axios.get("https://graph.facebook.com/v20.0/me/accounts", {
-      params: { access_token: longToken, fields: "id,name,access_token,instagram_business_account" },
+      params: { access_token: longToken, fields: "id,name,access_token,instagram_business_account{id,username,name}", limit: 50 },
     });
-    const pages: any[] = pagesRes.data.data || [];
+    const rawPages: any[] = pagesRes.data.data || [];
 
-    // 4. Encontrar Instagram Business Account vinculado a alguma Page
-    let instagramAccountId: string | null = null;
-    let instagramUsername: string | null  = null;
-    let pageId: string | null             = null;
-    let pageName: string | null           = null;
-    let pageToken: string | null          = null;
+    const pages = rawPages.map((p: any) => ({
+      page_id:              p.id,
+      page_name:            p.name,
+      instagram_account_id: p.instagram_business_account?.id || null,
+      instagram_username:   p.instagram_business_account?.username || p.instagram_business_account?.name || null,
+    }));
 
-    for (const page of pages) {
-      if (page.instagram_business_account?.id) {
-        instagramAccountId = page.instagram_business_account.id;
-        pageId    = page.id;
-        pageName  = page.name;
-        pageToken = page.access_token; // token específico da page (não expira)
-
-        // Buscar username do Instagram
-        try {
-          const igRes = await axios.get(`https://graph.facebook.com/v20.0/${instagramAccountId}`, {
-            params: { fields: "username,name", access_token: longToken },
-          });
-          instagramUsername = igRes.data.username || igRes.data.name || null;
-        } catch {}
-        break;
-      }
-    }
-
-    // 5. Buscar Ad Accounts
-    let adAccountId: string | null = null;
+    // 3. Buscar todas as Contas de Anúncios
+    let adAccounts: any[] = [];
     try {
       const adRes = await axios.get("https://graph.facebook.com/v20.0/me/adaccounts", {
-        params: { access_token: longToken, fields: "id,name,account_status", limit: 10 },
+        params: { access_token: longToken, fields: "id,name,account_status", limit: 50 },
       });
-      const adAccounts: any[] = adRes.data.data || [];
-      // Pegar o primeiro ativo (account_status === 1)
-      const active = adAccounts.find((a: any) => a.account_status === 1) || adAccounts[0];
-      if (active) adAccountId = active.id; // já vem com "act_" prefix
+      adAccounts = (adRes.data.data || []).map((a: any) => ({
+        id:     a.id,
+        name:   a.name,
+        active: a.account_status === 1,
+      }));
     } catch {}
 
-    // 6. Salvar conexão no banco
+    // 4. Salvar sessão temporária (10 min)
+    const sessionId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    oauthSessions.set(sessionId, {
+      data: { client_id, user_id, longToken, tokenExpiresAt, pages, adAccounts },
+      expiresAt: Date.now() + 10 * 60 * 1000,
+    });
+
+    // 5. Redirecionar para seleção no frontend
+    res.redirect(`${frontendBase}/techqui?oauth=select&session=${sessionId}&client_id=${client_id}`);
+  } catch (e: any) {
+    console.error("[OAuth Callback] Erro:", e.response?.data || e.message);
+    const msg = encodeURIComponent(e.response?.data?.error?.message || e.message);
+    res.redirect(`${frontendBase}/techqui?oauth=error&msg=${msg}`);
+  }
+});
+
+// GET /api/techqui/oauth/session/:sessionId — buscar opções da sessão
+router.get("/oauth/session/:sessionId", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  const sessionId = String(req.params.sessionId);
+  const session = oauthSessions.get(sessionId);
+  if (!session || Date.now() > session.expiresAt) {
+    res.status(404).json({ error: "Sessão expirada ou inválida" }); return;
+  }
+  const { pages, adAccounts, client_id } = session.data;
+  res.json({ pages, adAccounts, client_id });
+});
+
+// POST /api/techqui/oauth/finalize — salvar a seleção do usuário
+router.post("/oauth/finalize", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { session_id, page_id, ad_account_id } = req.body;
+  if (!session_id) { res.status(400).json({ error: "session_id obrigatório" }); return; }
+
+  const session = oauthSessions.get(session_id);
+  if (!session || Date.now() > session.expiresAt) {
+    res.status(400).json({ error: "Sessão expirada. Clique em Conectar com Meta novamente." }); return;
+  }
+
+  const { client_id, longToken, tokenExpiresAt, pages, adAccounts } = session.data;
+
+  // Encontrar página selecionada
+  const selectedPage = pages.find((p: any) => p.page_id === page_id) || pages[0] || {};
+
+  try {
     await (prisma as any).clientMetaConnection.upsert({
       where:  { client_id },
       create: {
         client_id,
-        instagram_account_id: instagramAccountId,
-        instagram_username:   instagramUsername,
-        ad_account_id:        adAccountId,
-        page_id:              pageId,
-        page_name:            pageName,
+        instagram_account_id: selectedPage.instagram_account_id || null,
+        instagram_username:   selectedPage.instagram_username   || null,
+        ad_account_id:        ad_account_id || null,
+        page_id:              selectedPage.page_id  || null,
+        page_name:            selectedPage.page_name || null,
         access_token:         longToken,
         token_expires_at:     tokenExpiresAt,
       },
       update: {
-        instagram_account_id: instagramAccountId,
-        instagram_username:   instagramUsername,
-        ad_account_id:        adAccountId,
-        page_id:              pageId,
-        page_name:            pageName,
+        instagram_account_id: selectedPage.instagram_account_id || null,
+        instagram_username:   selectedPage.instagram_username   || null,
+        ad_account_id:        ad_account_id || null,
+        page_id:              selectedPage.page_id  || null,
+        page_name:            selectedPage.page_name || null,
         access_token:         longToken,
         token_expires_at:     tokenExpiresAt,
         updated_at:           new Date(),
       },
     });
 
-    // 7. Redirecionar para o frontend com sucesso
-    res.redirect(`${frontendBase}/techqui?oauth=success&client_id=${client_id}`);
+    oauthSessions.delete(session_id);
+    res.json({ success: true });
   } catch (e: any) {
-    console.error("[OAuth Callback] Erro:", e.response?.data || e.message);
-    const msg = encodeURIComponent(e.response?.data?.error?.message || e.message);
-    res.redirect(`${frontendBase}/techqui?oauth=error&msg=${msg}`);
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -425,7 +426,7 @@ router.get("/ads/campaigns/:connectionId", authenticateJWT, async (req: AuthRequ
       return;
     }
 
-    const fields = "id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(" + date_preset + "){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,cost_per_action_type,roas}";
+    const fields = "id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(" + date_preset + "){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,cost_per_action_type,purchase_roas}";
     const url = `https://graph.facebook.com/v20.0/${conn.ad_account_id}/campaigns`;
     const resp = await axios.get(url, {
       params: { fields, access_token: conn.access_token, limit: 50 },
@@ -547,7 +548,7 @@ export async function runAdsAnalysis(connectionId: string, userId: string, trigg
     if (!openaiKey) { console.warn("[AdsAnalyzer] OpenAI key não configurada"); return; }
 
     // 1. Buscar campanhas + métricas últimos 7 dias via Meta Marketing API
-    const fields = "id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(last_7d){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,roas}";
+    const fields = "id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(last_7d){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,purchase_roas}";
     const campResp = await axios.get(`https://graph.facebook.com/v20.0/${conn.ad_account_id}/campaigns`, {
       params: { fields, access_token: conn.access_token, limit: 50 },
     });

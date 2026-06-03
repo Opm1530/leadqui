@@ -59,6 +59,7 @@ const TechQui = () => {
   const [connections, setConnections] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>(null);
   const [selectedClient, setSelectedClient] = useState<string>("all");
+  const [oauthSelectModal, setOauthSelectModal] = useState<{ sessionId: string; clientId: string } | null>(null);
 
   const loadBase = useCallback(async () => {
     const [cli, conn, sett] = await Promise.all([
@@ -81,7 +82,11 @@ const TechQui = () => {
     const oauth = searchParams.get("oauth");
     if (!oauth) return;
 
-    if (oauth === "success") {
+    if (oauth === "select") {
+      const sessionId = searchParams.get("session") || "";
+      const clientId  = searchParams.get("client_id") || "";
+      setOauthSelectModal({ sessionId, clientId });
+    } else if (oauth === "success") {
       toast({ title: "Conta Meta conectada!", description: "Instagram e Ads configurados automaticamente." });
       loadBase();
     } else if (oauth === "denied") {
@@ -90,7 +95,6 @@ const TechQui = () => {
       const msg = searchParams.get("msg") || "Erro desconhecido";
       toast({ title: "Erro ao conectar", description: decodeURIComponent(msg), variant: "destructive" });
     }
-    // Limpar os parâmetros da URL
     setSearchParams({});
   }, [searchParams]);
 
@@ -139,7 +143,134 @@ const TechQui = () => {
           <SettingsTab settings={settings} onSaved={loadBase} toast={toast} />
         </TabsContent>
       </Tabs>
+
+      {/* Modal de seleção de conta após OAuth */}
+      {oauthSelectModal && (
+        <OAuthSelectModal
+          sessionId={oauthSelectModal.sessionId}
+          clientId={oauthSelectModal.clientId}
+          clients={clients}
+          onClose={() => setOauthSelectModal(null)}
+          onSaved={() => { setOauthSelectModal(null); loadBase(); }}
+          toast={toast}
+        />
+      )}
     </div>
+  );
+};
+
+// ── Modal de seleção de Página/AdAccount após OAuth ───────────────────
+const OAuthSelectModal = ({ sessionId, clientId, clients, onClose, onSaved, toast }: any) => {
+  const [data, setData]             = useState<any>(null);
+  const [selectedPage, setSelectedPage]   = useState("");
+  const [selectedAd, setSelectedAd]       = useState("");
+  const [saving, setSaving]               = useState(false);
+
+  const clientName = clients.find((c: any) => c.id === clientId)?.name || clientId;
+
+  useEffect(() => {
+    api.get(`/api/techqui/oauth/session/${sessionId}`)
+      .then(d => {
+        setData(d);
+        // Pré-selecionar a primeira opção de cada
+        if (d.pages?.length)      setSelectedPage(d.pages[0].page_id);
+        const activeAd = d.adAccounts?.find((a: any) => a.active) || d.adAccounts?.[0];
+        if (activeAd) setSelectedAd(activeAd.id);
+      })
+      .catch(() => toast({ title: "Sessão expirada. Conecte novamente.", variant: "destructive" }));
+  }, [sessionId]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.post("/api/techqui/oauth/finalize", {
+        session_id:     sessionId,
+        page_id:        selectedPage,
+        ad_account_id:  selectedAd,
+      });
+      toast({ title: "Conta Meta conectada!", description: `${clientName} vinculado com sucesso.` });
+      onSaved();
+    } catch (e: any) {
+      toast({ title: "Erro ao salvar", description: e.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Dialog open onOpenChange={v => !v && onClose()}>
+      <DialogContent className="bg-card border-border max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+            Selecionar contas para <span className="text-primary ml-1">{clientName}</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        {!data ? (
+          <div className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" /></div>
+        ) : (
+          <div className="space-y-5 py-2">
+            {/* Páginas / Instagram */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                Página do Facebook + Instagram
+              </Label>
+              {data.pages?.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nenhuma página encontrada nesta conta.</p>
+              ) : (
+                <div className="space-y-2">
+                  {data.pages?.map((p: any) => (
+                    <button key={p.page_id} type="button" onClick={() => setSelectedPage(p.page_id)}
+                      className={`w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-all ${selectedPage === p.page_id ? "border-primary bg-primary/10" : "border-border bg-secondary/30 hover:border-primary/50"}`}>
+                      <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 mt-0.5 ${selectedPage === p.page_id ? "border-primary bg-primary" : "border-muted-foreground"}`} />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{p.page_name}</p>
+                        {p.instagram_username
+                          ? <p className="text-xs text-pink-400 flex items-center gap-1 mt-0.5"><Instagram className="w-3 h-3" /> @{p.instagram_username}</p>
+                          : <p className="text-xs text-muted-foreground mt-0.5">Sem Instagram vinculado</p>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Contas de Anúncios */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                Conta de Anúncios (Ad Account)
+              </Label>
+              {data.adAccounts?.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nenhuma conta de anúncios encontrada.</p>
+              ) : (
+                <div className="space-y-2">
+                  {data.adAccounts?.map((a: any) => (
+                    <button key={a.id} type="button" onClick={() => setSelectedAd(a.id)}
+                      className={`w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-all ${selectedAd === a.id ? "border-primary bg-primary/10" : "border-border bg-secondary/30 hover:border-primary/50"}`}>
+                      <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 mt-0.5 ${selectedAd === a.id ? "border-primary bg-primary" : "border-muted-foreground"}`} />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{a.name}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{a.id}</p>
+                        {a.active
+                          ? <span className="text-[10px] text-green-400">● Ativa</span>
+                          : <span className="text-[10px] text-yellow-400">● Inativa</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button onClick={save} disabled={saving || !data} className="gradient-button">
+            {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-1" />}
+            Vincular
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 
@@ -558,7 +689,7 @@ const AdsTab = ({ connections, clients, selectedClient, toast }: any) => {
       ctr:         parseFloat(ins.ctr || "0"),
       cpc:         parseFloat(ins.cpc || "0"),
       reach:       parseInt(ins.reach || "0"),
-      roas:        parseFloat(ins.roas?.[0]?.value || "0"),
+      roas:        parseFloat(ins.purchase_roas?.[0]?.value || ins.roas?.[0]?.value || "0"),
     };
   };
 
