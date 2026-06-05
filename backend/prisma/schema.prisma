@@ -610,6 +610,8 @@ model TechQuiSettings {
   meta_business_id    String?
   meta_system_token   String?  // System User Token para o MCP de Ads
   openai_api_key      String?  // Chave para o agente de análise (pode reusar UserSettings)
+  instagram_app_id    String?  // Instagram App ID (Instagram Business Login)
+  instagram_app_secret String? // Instagram App Secret
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
 
@@ -628,6 +630,7 @@ model ClientMetaConnection {
   page_name             String?
   access_token          String?  // User token de longa duração (usado para Ads)
   page_access_token     String?  // Page token (usado para publicar/comentar no Instagram)
+  connection_type       String   @default("FACEBOOK")  // FACEBOOK | INSTAGRAM
   token_expires_at      DateTime?
   connected_at          DateTime @default(now())
   updated_at            DateTime @updatedAt

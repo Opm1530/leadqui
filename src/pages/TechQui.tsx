@@ -218,18 +218,29 @@ const OAuthSelectModal = ({ sessionId, clientId, clients, onClose, onSaved, toas
                 <p className="text-xs text-muted-foreground">Nenhuma página encontrada nesta conta.</p>
               ) : (
                 <div className="space-y-2">
-                  {data.pages?.map((p: any) => (
-                    <button key={p.page_id} type="button" onClick={() => setSelectedPage(p.page_id)}
-                      className={`w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-all ${selectedPage === p.page_id ? "border-primary bg-primary/10" : "border-border bg-secondary/30 hover:border-primary/50"}`}>
-                      <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 mt-0.5 ${selectedPage === p.page_id ? "border-primary bg-primary" : "border-muted-foreground"}`} />
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{p.page_name}</p>
-                        {p.instagram_username
-                          ? <p className="text-xs text-pink-400 flex items-center gap-1 mt-0.5"><Instagram className="w-3 h-3" /> @{p.instagram_username}</p>
-                          : <p className="text-xs text-muted-foreground mt-0.5">Sem Instagram vinculado</p>}
-                      </div>
-                    </button>
-                  ))}
+                  {data.pages?.map((p: any) => {
+                    const isBM = p.source === "bm" || !p.page_id;
+                    const canPublish = !isBM && p.instagram_username;
+                    return (
+                      <button key={p.page_id || p.instagram_account_id} type="button"
+                        onClick={() => setSelectedPage(p.page_id)}
+                        className={`w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-all ${selectedPage === p.page_id ? "border-primary bg-primary/10" : "border-border bg-secondary/30 hover:border-primary/50"} ${isBM ? "opacity-60" : ""}`}>
+                        <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 mt-0.5 ${selectedPage === p.page_id ? "border-primary bg-primary" : "border-muted-foreground"}`} />
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-foreground">{p.page_name}</p>
+                          {p.instagram_username
+                            ? <p className="text-xs text-pink-400 flex items-center gap-1 mt-0.5"><Instagram className="w-3 h-3" /> @{p.instagram_username}</p>
+                            : <p className="text-xs text-muted-foreground mt-0.5">Sem Instagram vinculado</p>}
+                          {isBM && (
+                            <p className="text-[10px] text-yellow-400 mt-1">⚠ Conta da BM — não permite publicar/comentar (só leitura)</p>
+                          )}
+                          {canPublish && (
+                            <p className="text-[10px] text-green-400 mt-1">✓ Pode publicar e responder comentários</p>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -278,22 +289,23 @@ const OAuthSelectModal = ({ sessionId, clientId, clients, onClose, onSaved, toas
 const ConnectionsTab = ({ clients, connections, onRefresh, toast }: any) => {
   const [connectingId, setConnectingId] = useState<string | null>(null);
 
-  const startOAuth = async (clientId: string) => {
+  const startOAuth = async (clientId: string, via: "facebook" | "instagram" = "facebook") => {
     setConnectingId(clientId);
     try {
-      const d = await api.get(`/api/techqui/oauth/start?client_id=${clientId}`);
-      // Abrir popup centralizado
+      const endpoint = via === "instagram"
+        ? `/api/techqui/oauth/instagram/start?client_id=${clientId}`
+        : `/api/techqui/oauth/start?client_id=${clientId}`;
+      const d = await api.get(endpoint);
       const w = 600, h = 700;
       const left = window.screenX + (window.outerWidth - w) / 2;
       const top  = window.screenY + (window.outerHeight - h) / 2;
       const popup = window.open(d.url, "meta_oauth", `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`);
 
-      // Monitorar quando o popup fechar
       const timer = setInterval(() => {
         if (!popup || popup.closed) {
           clearInterval(timer);
           setConnectingId(null);
-          onRefresh(); // recarregar conexões quando o popup fechar
+          onRefresh();
         }
       }, 800);
     } catch (e: any) {
@@ -326,9 +338,9 @@ const ConnectionsTab = ({ clients, connections, onRefresh, toast }: any) => {
         <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
           <span className="text-[10px] font-bold text-blue-400">i</span>
         </div>
-        <div className="text-xs text-muted-foreground">
-          <p>Clique em <strong className="text-foreground">Conectar com Meta</strong> ao lado do cliente. Uma janela abrirá para você fazer login no Facebook e autorizar o acesso. O sistema capturará automaticamente o <strong className="text-foreground">Instagram, Página e Conta de Anúncios</strong>.</p>
-          <p className="mt-1">Certifique-se de estar logado na conta do cliente (ou ter acesso de administrador à conta Business dele).</p>
+        <div className="text-xs text-muted-foreground space-y-1">
+          <p><strong className="text-blue-400">Facebook</strong> — para contas com Página do Facebook. Captura Instagram, Página e Conta de Anúncios (necessário para o módulo de Ads).</p>
+          <p><strong className="text-pink-400">Instagram</strong> — para contas que estão só no Instagram (sem Página do Facebook). Permite publicar e responder comentários, mas não acessa Ads.</p>
         </div>
       </div>
 
@@ -352,7 +364,14 @@ const ConnectionsTab = ({ clients, connections, onRefresh, toast }: any) => {
 
               {/* Info do cliente */}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">{client.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-foreground">{client.name}</p>
+                  {conn && (
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${conn.connection_type === "INSTAGRAM" ? "bg-pink-500/10 text-pink-400 border-pink-500/30" : "bg-blue-500/10 text-blue-400 border-blue-500/30"}`}>
+                      via {conn.connection_type === "INSTAGRAM" ? "Instagram" : "Facebook"}
+                    </span>
+                  )}
+                </div>
 
                 {conn ? (
                   <div className="flex flex-wrap gap-3 mt-1">
@@ -407,21 +426,30 @@ const ConnectionsTab = ({ clients, connections, onRefresh, toast }: any) => {
                     </Button>
                   </>
                 ) : (
-                  <Button
-                    onClick={() => startOAuth(client.id)}
-                    disabled={isConnecting}
-                    size="sm"
-                    className="h-8 text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white border-0"
-                  >
-                    {isConnecting ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                    ) : (
-                      <svg className="w-3.5 h-3.5 mr-1.5" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                      </svg>
-                    )}
-                    Conectar com Meta
-                  </Button>
+                  <>
+                    <Button
+                      onClick={() => startOAuth(client.id, "facebook")}
+                      disabled={isConnecting}
+                      size="sm"
+                      title="Para contas com Página do Facebook (inclui Ads)"
+                      className="h-8 text-xs bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white border-0"
+                    >
+                      {isConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : (
+                        <svg className="w-3.5 h-3.5 mr-1.5" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                      )}
+                      Facebook
+                    </Button>
+                    <Button
+                      onClick={() => startOAuth(client.id, "instagram")}
+                      disabled={isConnecting}
+                      size="sm"
+                      title="Para contas só no Instagram (sem Página do Facebook)"
+                      className="h-8 text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0"
+                    >
+                      <Instagram className="w-3.5 h-3.5 mr-1.5" />
+                      Instagram
+                    </Button>
+                  </>
                 )}
               </div>
             </motion.div>
@@ -1171,16 +1199,19 @@ const CommentsTab = ({ connections, clients, selectedClient, toast }: any) => {
 const SettingsTab = ({ settings, onSaved, toast }: any) => {
   const [form, setForm] = useState({
     meta_app_id: "", meta_app_secret: "", meta_business_id: "", meta_system_token: "", openai_api_key: "",
+    instagram_app_id: "", instagram_app_secret: "",
   });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (settings) setForm({
-      meta_app_id:      settings.meta_app_id      || "",
-      meta_app_secret:  settings.meta_app_secret  || "",
-      meta_business_id: settings.meta_business_id || "",
-      meta_system_token: settings.meta_system_token || "",
-      openai_api_key:   settings.openai_api_key   || "",
+      meta_app_id:          settings.meta_app_id      || "",
+      meta_app_secret:      settings.meta_app_secret  || "",
+      meta_business_id:     settings.meta_business_id || "",
+      meta_system_token:    settings.meta_system_token || "",
+      openai_api_key:       settings.openai_api_key   || "",
+      instagram_app_id:     settings.instagram_app_id || "",
+      instagram_app_secret: settings.instagram_app_secret || "",
     });
   }, [settings]);
 
@@ -1221,6 +1252,29 @@ const SettingsTab = ({ settings, onSaved, toast }: any) => {
             <Input value={form.meta_system_token} onChange={e => setForm(f => ({ ...f, meta_system_token: e.target.value }))} type="password" placeholder="EAAxxxxxxxx" className="bg-secondary border-border" />
             <p className="text-[10px] text-muted-foreground">Business Manager → Configurações → Usuários do Sistema → Token</p>
           </div>
+        </div>
+      </div>
+
+      {/* Instagram Business Login */}
+      <div className="glass-card p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <div className="w-6 h-6 rounded bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center"><Instagram className="w-3.5 h-3.5 text-pink-400" /></div>
+          Instagram Business Login
+        </h3>
+        <p className="text-xs text-muted-foreground">Permite conectar contas que estão <strong>só no Instagram</strong> (sem Página do Facebook). Encontre em: App → Casos de uso → "Gerenciar conteúdo no Instagram" → Configuração da API com login do Instagram.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Instagram App ID</Label>
+            <Input value={form.instagram_app_id} onChange={e => setForm(f => ({ ...f, instagram_app_id: e.target.value }))} placeholder="123456789" className="bg-secondary border-border" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Instagram App Secret</Label>
+            <Input value={form.instagram_app_secret} onChange={e => setForm(f => ({ ...f, instagram_app_secret: e.target.value }))} type="password" placeholder="••••••••" className="bg-secondary border-border" />
+          </div>
+        </div>
+        <div className="bg-secondary/50 rounded-lg p-3">
+          <p className="text-[10px] text-muted-foreground mb-1">Registre este Redirect URI nas configurações do Instagram Login:</p>
+          <code className="block text-[10px] font-mono text-primary break-all">https://leadqui.vps.pequi.digital/api/techqui/oauth/instagram/callback</code>
         </div>
       </div>
 

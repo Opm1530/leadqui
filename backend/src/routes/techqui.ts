@@ -260,6 +260,114 @@ router.post("/oauth/finalize", authenticateJWT, async (req: AuthRequest, res: Re
   }
 });
 
+// ── OAuth Instagram Business Login (sem Página do Facebook) ────────────
+
+const IG_SCOPES = [
+  "instagram_business_basic",
+  "instagram_business_content_publish",
+  "instagram_business_manage_comments",
+  "instagram_business_manage_messages",
+].join(",");
+
+// GET /api/techqui/oauth/instagram/start?client_id=xxx
+router.get("/oauth/instagram/start", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  const clientId = String(req.query.client_id || "");
+  if (!clientId) { res.status(400).json({ error: "client_id obrigatório" }); return; }
+  try {
+    const settings = await (prisma as any).techQuiSettings.findUnique({ where: { user_id: req.user!.id } });
+    if (!settings?.instagram_app_id) {
+      res.status(400).json({ error: "Configure o Instagram App ID em TechQui → Configurações." });
+      return;
+    }
+    const state = Buffer.from(JSON.stringify({ client_id: clientId, user_id: req.user!.id })).toString("base64url");
+    const redirectUri = process.env.INSTAGRAM_OAUTH_REDIRECT_URI!;
+    const url = `https://www.instagram.com/oauth/authorize?client_id=${settings.instagram_app_id}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(IG_SCOPES)}&state=${state}`;
+    res.json({ url });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/techqui/oauth/instagram/callback
+router.get("/oauth/instagram/callback", async (req: Request, res: Response): Promise<void> => {
+  const code  = String(req.query.code  || "");
+  const state = String(req.query.state || "");
+  const error = String(req.query.error || "");
+  const frontendBase = process.env.FRONTEND_URL || "http://localhost:8080";
+
+  if (error) { res.redirect(`${frontendBase}/techqui?oauth=denied`); return; }
+  if (!code || !state) { res.redirect(`${frontendBase}/techqui?oauth=error&msg=parametros_invalidos`); return; }
+
+  try {
+    const { client_id, user_id } = JSON.parse(Buffer.from(state, "base64url").toString("utf8"));
+    const settings = await (prisma as any).techQuiSettings.findUnique({ where: { user_id } });
+    if (!settings?.instagram_app_id || !settings?.instagram_app_secret) {
+      res.redirect(`${frontendBase}/techqui?oauth=error&msg=instagram_app_nao_configurado`); return;
+    }
+    const redirectUri = process.env.INSTAGRAM_OAUTH_REDIRECT_URI!;
+
+    // 1. Trocar code por token curto (form-urlencoded)
+    const form = new URLSearchParams({
+      client_id:     settings.instagram_app_id,
+      client_secret: settings.instagram_app_secret,
+      grant_type:    "authorization_code",
+      redirect_uri:  redirectUri,
+      code:          code.replace(/#_$/, ""), // Instagram às vezes anexa "#_"
+    });
+    const tokenRes = await axios.post("https://api.instagram.com/oauth/access_token", form.toString(), {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+    const shortToken: string = tokenRes.data.access_token;
+    const igUserId:  string  = String(tokenRes.data.user_id);
+
+    // 2. Trocar por token de longa duração (60 dias)
+    const longRes = await axios.get("https://graph.instagram.com/access_token", {
+      params: { grant_type: "ig_exchange_token", client_secret: settings.instagram_app_secret, access_token: shortToken },
+    });
+    const longToken: string = longRes.data.access_token;
+    const expiresIn: number = longRes.data.expires_in || 5184000;
+    const tokenExpiresAt    = new Date(Date.now() + expiresIn * 1000);
+
+    // 3. Buscar dados do perfil
+    let username: string | null = null;
+    try {
+      const meRes = await axios.get(`https://graph.instagram.com/${igUserId}`, {
+        params: { fields: "user_id,username", access_token: longToken },
+      });
+      username = meRes.data.username || null;
+    } catch {}
+
+    // 4. Salvar conexão (tipo INSTAGRAM)
+    await (prisma as any).clientMetaConnection.upsert({
+      where:  { client_id },
+      create: {
+        client_id,
+        connection_type:      "INSTAGRAM",
+        instagram_account_id: igUserId,
+        instagram_username:   username,
+        access_token:         longToken,
+        page_access_token:    longToken, // no IG login, o mesmo token publica
+        token_expires_at:     tokenExpiresAt,
+      },
+      update: {
+        connection_type:      "INSTAGRAM",
+        instagram_account_id: igUserId,
+        instagram_username:   username,
+        access_token:         longToken,
+        page_access_token:    longToken,
+        token_expires_at:     tokenExpiresAt,
+        updated_at:           new Date(),
+      },
+    });
+
+    res.redirect(`${frontendBase}/techqui?oauth=success&client_id=${client_id}`);
+  } catch (e: any) {
+    console.error("[Instagram OAuth] Erro:", e.response?.data || e.message);
+    const msg = encodeURIComponent(e.response?.data?.error_message || e.response?.data?.error?.message || e.message);
+    res.redirect(`${frontendBase}/techqui?oauth=error&msg=${msg}`);
+  }
+});
+
 // ── TechQui Settings ─────────────────────────────────────────────────
 router.get("/settings", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -268,9 +376,10 @@ router.get("/settings", authenticateJWT, async (req: AuthRequest, res: Response)
     });
     const masked = settings ? {
       ...settings,
-      meta_app_secret:   settings.meta_app_secret   ? "••••••••" : null,
-      meta_system_token: settings.meta_system_token ? "••••••••" : null,
-      openai_api_key:    settings.openai_api_key    ? "••••••••" : null,
+      meta_app_secret:      settings.meta_app_secret      ? "••••••••" : null,
+      meta_system_token:    settings.meta_system_token    ? "••••••••" : null,
+      openai_api_key:       settings.openai_api_key       ? "••••••••" : null,
+      instagram_app_secret: settings.instagram_app_secret ? "••••••••" : null,
     } : null;
     res.json({ settings: masked });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -357,6 +466,18 @@ router.post("/instagram/posts", authenticateJWT, async (req: AuthRequest, res: R
     return;
   }
   try {
+    // Validar que a conexão pode publicar
+    const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { id: connection_id } });
+    const canPublish = conn?.connection_type === "INSTAGRAM"
+      ? !!conn?.access_token                         // Instagram Login: basta o token
+      : (!!conn?.page_access_token && !!conn?.page_id); // Facebook Login: precisa de página
+    if (!canPublish) {
+      res.status(400).json({
+        error: "Esta conta não pode publicar. Use 'Conectar via Instagram' (para contas sem Página) ou selecione uma conta vinculada a uma Página do Facebook.",
+      });
+      return;
+    }
+
     const post = await (prisma as any).instagramScheduledPost.create({
       data: {
         connection_id,

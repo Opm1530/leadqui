@@ -11,7 +11,6 @@ export async function publishScheduledPosts() {
 
     for (const post of due) {
       const conn = post.connection;
-      // Instagram exige Page Access Token para publicar — fallback ao user token
       const igToken = conn?.page_access_token || conn?.access_token;
       if (!conn?.instagram_account_id || !igToken) {
         await (prisma as any).instagramScheduledPost.update({
@@ -20,6 +19,11 @@ export async function publishScheduledPosts() {
         });
         continue;
       }
+
+      // Instagram Business Login usa graph.instagram.com; Facebook Login usa graph.facebook.com
+      const base = conn.connection_type === "INSTAGRAM"
+        ? "https://graph.instagram.com/v21.0"
+        : "https://graph.facebook.com/v20.0";
 
       try {
         const mediaUrls: string[] = JSON.parse(post.media_urls || "[]");
@@ -30,14 +34,14 @@ export async function publishScheduledPosts() {
           const childIds: string[] = [];
           for (const url of mediaUrls) {
             const isVideo = /\.(mp4|mov|avi)$/i.test(url);
-            const r = await axios.post(`https://graph.facebook.com/v20.0/${conn.instagram_account_id}/media`, {
+            const r = await axios.post(`${base}/${conn.instagram_account_id}/media`, {
               ...(isVideo ? { video_url: url, media_type: "VIDEO", is_carousel_item: true } : { image_url: url, is_carousel_item: true }),
               access_token: igToken,
             });
             childIds.push(r.data.id);
           }
           // 2. Criar container do carrossel
-          const container = await axios.post(`https://graph.facebook.com/v20.0/${conn.instagram_account_id}/media`, {
+          const container = await axios.post(`${base}/${conn.instagram_account_id}/media`, {
             media_type: "CAROUSEL",
             children:   childIds.join(","),
             caption:    post.caption || "",
@@ -45,7 +49,7 @@ export async function publishScheduledPosts() {
           });
           mediaId = container.data.id;
         } else if (post.media_type === "REELS") {
-          const r = await axios.post(`https://graph.facebook.com/v20.0/${conn.instagram_account_id}/media`, {
+          const r = await axios.post(`${base}/${conn.instagram_account_id}/media`, {
             media_type:   "REELS",
             video_url:    mediaUrls[0],
             caption:      post.caption || "",
@@ -53,10 +57,10 @@ export async function publishScheduledPosts() {
           });
           mediaId = r.data.id;
           // Aguardar processamento do vídeo (polling)
-          await waitForVideoReady(conn.instagram_account_id, mediaId, igToken);
+          await waitForVideoReady(base, mediaId, igToken);
         } else {
           // IMAGE
-          const r = await axios.post(`https://graph.facebook.com/v20.0/${conn.instagram_account_id}/media`, {
+          const r = await axios.post(`${base}/${conn.instagram_account_id}/media`, {
             image_url:    mediaUrls[0],
             caption:      post.caption || "",
             access_token: igToken,
@@ -65,7 +69,7 @@ export async function publishScheduledPosts() {
         }
 
         // 3. Publicar
-        const published = await axios.post(`https://graph.facebook.com/v20.0/${conn.instagram_account_id}/media_publish`, {
+        const published = await axios.post(`${base}/${conn.instagram_account_id}/media_publish`, {
           creation_id: mediaId,
           access_token: igToken,
         });
@@ -96,10 +100,10 @@ export async function publishScheduledPosts() {
   }
 }
 
-async function waitForVideoReady(accountId: string, mediaId: string, token: string, maxTries = 15) {
+async function waitForVideoReady(base: string, mediaId: string, token: string, maxTries = 15) {
   for (let i = 0; i < maxTries; i++) {
     await sleep(10000);
-    const r = await axios.get(`https://graph.facebook.com/v20.0/${mediaId}`, {
+    const r = await axios.get(`${base}/${mediaId}`, {
       params: { fields: "status_code", access_token: token },
     });
     if (r.data.status_code === "FINISHED") return;
