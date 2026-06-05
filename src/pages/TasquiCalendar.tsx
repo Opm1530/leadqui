@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Plus, Loader2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Loader2, X, Instagram, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,10 @@ const TasquiCalendar = () => {
     client_id: "", title: "", content: "", type: "POST",
     platform: "INSTAGRAM", scheduled_date: "", status: "PLANEJADO",
   });
+  // Modal de publicação no Instagram
+  const [igModal, setIgModal] = useState<any>(null); // post a publicar
+  const [igForm, setIgForm] = useState({ scheduled_at: "", media_urls: [""] });
+  const [igSaving, setIgSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -121,6 +125,34 @@ const TasquiCalendar = () => {
     } catch {
       toast({ title: "Erro ao atualizar", variant: "destructive" });
     }
+  };
+
+  const openIgModal = (post: any) => {
+    const dt = new Date(post.scheduled_date);
+    dt.setHours(9, 0, 0, 0);
+    const iso = dt.toISOString().slice(0, 16);
+    setIgForm({ scheduled_at: iso, media_urls: [""] });
+    setIgModal(post);
+  };
+
+  const handlePublishInstagram = async () => {
+    if (!igForm.scheduled_at || !igForm.media_urls[0]) {
+      toast({ title: "Informe a data/hora e ao menos uma URL de mídia", variant: "destructive" }); return;
+    }
+    setIgSaving(true);
+    try {
+      await api.post(`/api/tasqui/calendar/${igModal.id}/publish-instagram`, {
+        scheduled_at: igForm.scheduled_at,
+        media_urls:   igForm.media_urls.filter(Boolean),
+        media_type:   igModal.type === "REEL" ? "REELS" : igModal.type === "CARROSSEL" ? "CAROUSEL" : "IMAGE",
+      });
+      toast({ title: "Post agendado no Instagram!", description: `Publicação marcada para ${new Date(igForm.scheduled_at).toLocaleString("pt-BR")}` });
+      setIgModal(null);
+      setDetailPost(null);
+      load();
+    } catch (e: any) {
+      toast({ title: "Erro ao agendar", description: e.message, variant: "destructive" });
+    } finally { setIgSaving(false); }
   };
 
   const handleDelete = async (id: string) => {
@@ -341,6 +373,23 @@ const TasquiCalendar = () => {
                 </div>
               </div>
 
+              {/* Botão publicar no Instagram — só para posts APROVADO na plataforma INSTAGRAM */}
+              {detailPost.status === "APROVADO" && detailPost.platform === "INSTAGRAM" && !detailPost.instagram_post_id && (
+                <Button
+                  onClick={() => { setDetailPost(null); openIgModal(detailPost); }}
+                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0 gap-2"
+                >
+                  <Instagram className="w-4 h-4" /> Publicar no Instagram
+                </Button>
+              )}
+
+              {detailPost.instagram_post_id && (
+                <div className="flex items-center gap-2 text-xs text-green-400 bg-green-500/10 rounded-xl p-3 border border-green-500/20">
+                  <Instagram className="w-3.5 h-3.5" />
+                  Post agendado no Instagram
+                </div>
+              )}
+
               <Button
                 variant="ghost"
                 onClick={() => handleDelete(detailPost.id)}
@@ -352,6 +401,64 @@ const TasquiCalendar = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Modal publicar no Instagram */}
+      <Dialog open={!!igModal} onOpenChange={v => !v && setIgModal(null)}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Instagram className="w-4 h-4 text-pink-400" />
+              Agendar no Instagram — {igModal?.title}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase tracking-wider">Data e hora de publicação</Label>
+              <input
+                type="datetime-local"
+                value={igForm.scheduled_at}
+                onChange={e => setIgForm(f => ({ ...f, scheduled_at: e.target.value }))}
+                className="w-full bg-secondary border border-border rounded-md px-3 py-2 text-sm text-foreground"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">
+                  {igModal?.type === "REEL" ? "URL do Vídeo (MP4)" : igModal?.type === "CARROSSEL" ? "URLs das Mídias" : "URL da Imagem"}
+                </Label>
+                {igModal?.type === "CARROSSEL" && (
+                  <button type="button" onClick={() => setIgForm(f => ({ ...f, media_urls: [...f.media_urls, ""] }))}
+                    className="text-xs text-primary hover:underline">+ Adicionar</button>
+                )}
+              </div>
+              {igForm.media_urls.map((url, i) => (
+                <div key={i} className="flex gap-2">
+                  <input
+                    type="url"
+                    value={url}
+                    onChange={e => { const arr = [...igForm.media_urls]; arr[i] = e.target.value; setIgForm(f => ({ ...f, media_urls: arr })); }}
+                    placeholder="https://example.com/imagem.jpg"
+                    className="flex-1 bg-secondary border border-border rounded-md px-3 py-2 text-xs text-foreground font-mono"
+                  />
+                  {igModal?.type === "CARROSSEL" && igForm.media_urls.length > 1 && (
+                    <button type="button" onClick={() => setIgForm(f => ({ ...f, media_urls: f.media_urls.filter((_, j) => j !== i) }))}
+                      className="px-2 text-destructive hover:bg-destructive/10 rounded">×</button>
+                  )}
+                </div>
+              ))}
+              <p className="text-[10px] text-muted-foreground">As URLs precisam ser publicamente acessíveis (CDN, Google Drive público, etc.)</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIgModal(null)}>Cancelar</Button>
+            <Button onClick={handlePublishInstagram} disabled={igSaving}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0">
+              {igSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Send className="w-4 h-4 mr-1" />}
+              Agendar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

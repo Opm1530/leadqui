@@ -132,6 +132,7 @@ router.get("/oauth/callback", async (req: Request, res: Response): Promise<void>
     const pages = rawPages.map((p: any) => ({
       page_id:              p.id,
       page_name:            p.name,
+      page_access_token:    p.access_token || null,
       instagram_account_id: p.instagram_business_account?.id || null,
       instagram_username:   p.instagram_business_account?.username || p.instagram_business_account?.name || null,
       source:               "page",
@@ -159,6 +160,7 @@ router.get("/oauth/callback", async (req: Request, res: Response): Promise<void>
               pages.push({
                 page_id:              null,
                 page_name:            `${biz.name} (BM)`,
+                page_access_token:    null,
                 instagram_account_id: ig.id,
                 instagram_username:   ig.username || ig.name || null,
                 source:               "bm",
@@ -235,6 +237,7 @@ router.post("/oauth/finalize", authenticateJWT, async (req: AuthRequest, res: Re
         page_id:              selectedPage.page_id  || null,
         page_name:            selectedPage.page_name || null,
         access_token:         longToken,
+        page_access_token:    selectedPage.page_access_token || null,
         token_expires_at:     tokenExpiresAt,
       },
       update: {
@@ -244,6 +247,7 @@ router.post("/oauth/finalize", authenticateJWT, async (req: AuthRequest, res: Re
         page_id:              selectedPage.page_id  || null,
         page_name:            selectedPage.page_name || null,
         access_token:         longToken,
+        page_access_token:    selectedPage.page_access_token || null,
         token_expires_at:     tokenExpiresAt,
         updated_at:           new Date(),
       },
@@ -555,13 +559,14 @@ router.get("/instagram/media/:connectionId", authenticateJWT, async (req: AuthRe
   const { connectionId } = req.params;
   try {
     const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { id: connectionId } });
-    if (!conn?.instagram_account_id || !conn?.access_token) {
+    const igToken = conn?.page_access_token || conn?.access_token;
+    if (!conn?.instagram_account_id || !igToken) {
       res.status(400).json({ error: "Conta Instagram ou token não configurados" });
       return;
     }
     const resp = await axios.get(
       `https://graph.facebook.com/v20.0/${conn.instagram_account_id}/media`,
-      { params: { fields: "id,caption,media_type,thumbnail_url,media_url,timestamp,permalink", limit: 50, access_token: conn.access_token } }
+      { params: { fields: "id,caption,media_type,thumbnail_url,media_url,timestamp,permalink", limit: 50, access_token: igToken } }
     );
     res.json(resp.data);
   } catch (e: any) {
@@ -696,7 +701,8 @@ export async function handleIncomingComment(comment: { comment_id: string; post_
     });
 
     for (const conn of connections) {
-      if (!conn.access_token) continue;
+      const igToken = conn.page_access_token || conn.access_token;
+      if (!igToken) continue;
       const rules: any[] = conn.comment_rules;
       if (!rules.length) continue;
 
@@ -732,7 +738,7 @@ export async function handleIncomingComment(comment: { comment_id: string; post_
       try {
         await axios.post(
           `https://graph.facebook.com/v20.0/${comment.comment_id}/replies`,
-          { message: replyText, access_token: conn.access_token }
+          { message: replyText, access_token: igToken }
         );
       } catch (e: any) {
         status = "ERRO";

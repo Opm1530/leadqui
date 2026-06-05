@@ -11,7 +11,9 @@ export async function publishScheduledPosts() {
 
     for (const post of due) {
       const conn = post.connection;
-      if (!conn?.instagram_account_id || !conn?.access_token) {
+      // Instagram exige Page Access Token para publicar — fallback ao user token
+      const igToken = conn?.page_access_token || conn?.access_token;
+      if (!conn?.instagram_account_id || !igToken) {
         await (prisma as any).instagramScheduledPost.update({
           where: { id: post.id },
           data:  { status: "ERRO", error_message: "Conta Instagram ou token não configurados" },
@@ -30,7 +32,7 @@ export async function publishScheduledPosts() {
             const isVideo = /\.(mp4|mov|avi)$/i.test(url);
             const r = await axios.post(`https://graph.facebook.com/v20.0/${conn.instagram_account_id}/media`, {
               ...(isVideo ? { video_url: url, media_type: "VIDEO", is_carousel_item: true } : { image_url: url, is_carousel_item: true }),
-              access_token: conn.access_token,
+              access_token: igToken,
             });
             childIds.push(r.data.id);
           }
@@ -39,7 +41,7 @@ export async function publishScheduledPosts() {
             media_type: "CAROUSEL",
             children:   childIds.join(","),
             caption:    post.caption || "",
-            access_token: conn.access_token,
+            access_token: igToken,
           });
           mediaId = container.data.id;
         } else if (post.media_type === "REELS") {
@@ -47,17 +49,17 @@ export async function publishScheduledPosts() {
             media_type:   "REELS",
             video_url:    mediaUrls[0],
             caption:      post.caption || "",
-            access_token: conn.access_token,
+            access_token: igToken,
           });
           mediaId = r.data.id;
           // Aguardar processamento do vídeo (polling)
-          await waitForVideoReady(conn.instagram_account_id, mediaId, conn.access_token);
+          await waitForVideoReady(conn.instagram_account_id, mediaId, igToken);
         } else {
           // IMAGE
           const r = await axios.post(`https://graph.facebook.com/v20.0/${conn.instagram_account_id}/media`, {
             image_url:    mediaUrls[0],
             caption:      post.caption || "",
-            access_token: conn.access_token,
+            access_token: igToken,
           });
           mediaId = r.data.id;
         }
@@ -65,12 +67,18 @@ export async function publishScheduledPosts() {
         // 3. Publicar
         const published = await axios.post(`https://graph.facebook.com/v20.0/${conn.instagram_account_id}/media_publish`, {
           creation_id: mediaId,
-          access_token: conn.access_token,
+          access_token: igToken,
         });
 
         await (prisma as any).instagramScheduledPost.update({
           where: { id: post.id },
           data:  { status: "PUBLICADO", instagram_media_id: published.data.id, published_at: new Date() },
+        });
+
+        // Sincronizar status de volta ao CalendarPost vinculado
+        await (prisma as any).calendarPost.updateMany({
+          where: { instagram_post_id: post.id },
+          data:  { status: "PUBLICADO" },
         });
 
         console.log(`[InstagramScheduler] Post ${post.id} publicado — media_id: ${published.data.id}`);

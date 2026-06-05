@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import axios from "axios";
 import prisma from "../lib/prisma";
 import { authenticateJWT, AuthRequest } from "../middlewares/auth";
 
@@ -478,6 +479,100 @@ router.delete("/traffic/:id", authenticateJWT, async (req: AuthRequest, res: Res
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: "Erro ao deletar campanha" });
+  }
+});
+
+// ── Meta Ads: métricas de uma campanha vinculada ──────────────────────
+router.get("/traffic/:id/meta-metrics", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = String(req.params.id);
+  const { date_preset = "last_7d" } = req.query;
+  try {
+    const campaign = await (prisma as any).trafficCampaign.findUnique({
+      where: { id },
+      include: { client: { include: { meta_connection: true } } },
+    });
+    if (!campaign?.meta_campaign_id) {
+      res.status(400).json({ error: "Campanha não vinculada ao Meta Ads" }); return;
+    }
+    const conn = campaign.client?.meta_connection;
+    if (!conn?.access_token) {
+      res.status(400).json({ error: "Cliente sem conexão Meta configurada" }); return;
+    }
+    const fields = `id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(${date_preset}){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,purchase_roas}`;
+    const resp = await axios.get(`https://graph.facebook.com/v20.0/${campaign.meta_campaign_id}`, {
+      params: { fields, access_token: conn.access_token },
+    });
+    res.json(resp.data);
+  } catch (e: any) {
+    res.status(500).json({ error: e.response?.data?.error?.message || e.message });
+  }
+});
+
+// ── Meta Ads: listar campanhas disponíveis para vincular ──────────────
+router.get("/traffic/meta-campaigns/:clientId", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  const clientId = String(req.params.clientId);
+  try {
+    const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { client_id: clientId } });
+    if (!conn?.ad_account_id || !conn?.access_token) {
+      res.status(400).json({ error: "Cliente sem Ad Account configurado" }); return;
+    }
+    const resp = await axios.get(`https://graph.facebook.com/v20.0/${conn.ad_account_id}/campaigns`, {
+      params: { fields: "id,name,status,objective", access_token: conn.access_token, limit: 50 },
+    });
+    res.json(resp.data);
+  } catch (e: any) {
+    res.status(500).json({ error: e.response?.data?.error?.message || e.message });
+  }
+});
+
+// ── Calendário: publicar post no Instagram ────────────────────────────
+router.post("/calendar/:id/publish-instagram", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  if (req.user?.role === "CLIENT") { res.status(403).json({ error: "Acesso negado" }); return; }
+  const id = String(req.params.id);
+  const { scheduled_at, media_urls, media_type } = req.body;
+
+  if (!scheduled_at || !media_urls?.length) {
+    res.status(400).json({ error: "scheduled_at e media_urls são obrigatórios" }); return;
+  }
+
+  try {
+    const post = await (prisma as any).calendarPost.findUnique({
+      where: { id },
+      include: { client: { include: { meta_connection: true } } },
+    });
+    if (!post) { res.status(404).json({ error: "Post não encontrado" }); return; }
+
+    const conn = post.client?.meta_connection;
+    if (!conn?.id) {
+      res.status(400).json({ error: "Cliente sem conta Instagram conectada. Configure em TechQui → Conexões." }); return;
+    }
+
+    // Criar InstagramScheduledPost
+    const igPost = await (prisma as any).instagramScheduledPost.create({
+      data: {
+        connection_id: conn.id,
+        client_id:     post.client_id,
+        caption:       post.content || post.title || null,
+        media_urls:    JSON.stringify(media_urls),
+        media_type:    media_type || (post.type === "REEL" ? "REELS" : post.type === "CARROSSEL" ? "CAROUSEL" : "IMAGE"),
+        scheduled_at:  new Date(scheduled_at),
+        status:        "AGENDADO",
+      },
+    });
+
+    // Vincular ao CalendarPost + salvar media_urls + marcar como agendado
+    await (prisma as any).calendarPost.update({
+      where: { id },
+      data: {
+        instagram_post_id: igPost.id,
+        media_urls:        JSON.stringify(media_urls),
+        status:            "PUBLICADO", // Agendado para publicação
+      },
+    });
+
+    res.status(201).json({ instagram_post: igPost });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
   }
 });
 

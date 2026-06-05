@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Plus, Loader2, Trash2, MousePointerClick, Pencil } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Plus, Loader2, Trash2, MousePointerClick, Pencil, BarChart2, Link2, TrendingUp, TrendingDown, DollarSign, Eye, ChevronDown, ChevronUp, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +35,13 @@ const TasquiTraffic = () => {
   const [editTarget, setEditTarget] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
+  // Meta metrics
+  const [metricsOpen, setMetricsOpen] = useState<string | null>(null);
+  const [metricsData, setMetricsData] = useState<Record<string, any>>({});
+  const [metricsLoading, setMetricsLoading] = useState<string | null>(null);
+  const [linkModal, setLinkModal] = useState<any>(null);
+  const [metaCampaigns, setMetaCampaigns] = useState<any[]>([]);
+  const [linkLoading, setLinkLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -105,6 +112,46 @@ const TasquiTraffic = () => {
       load();
     } catch {
       toast({ title: "Erro ao remover", variant: "destructive" });
+    }
+  };
+
+  const toggleMetrics = async (camp: any) => {
+    if (metricsOpen === camp.id) { setMetricsOpen(null); return; }
+    if (!camp.meta_campaign_id) { toast({ title: "Vincule esta campanha ao Meta Ads primeiro", variant: "destructive" }); return; }
+    setMetricsOpen(camp.id);
+    if (metricsData[camp.id]) return; // já carregou
+    setMetricsLoading(camp.id);
+    try {
+      const d = await api.get(`/api/tasqui/traffic/${camp.id}/meta-metrics`);
+      setMetricsData(prev => ({ ...prev, [camp.id]: d }));
+    } catch (e: any) {
+      toast({ title: "Erro ao buscar métricas", description: e.message, variant: "destructive" });
+      setMetricsOpen(null);
+    } finally { setMetricsLoading(null); }
+  };
+
+  const openLinkModal = async (camp: any) => {
+    setLinkModal(camp);
+    setLinkLoading(true);
+    try {
+      const d = await api.get(`/api/tasqui/traffic/meta-campaigns/${camp.client_id}`);
+      setMetaCampaigns(d.data || []);
+    } catch (e: any) {
+      toast({ title: "Erro ao buscar campanhas Meta", description: e.message, variant: "destructive" });
+      setLinkModal(null);
+    } finally { setLinkLoading(false); }
+  };
+
+  const handleLink = async (metaCampaignId: string) => {
+    if (!linkModal) return;
+    try {
+      await api.patch(`/api/tasqui/traffic/${linkModal.id}`, { meta_campaign_id: metaCampaignId });
+      toast({ title: "Campanha vinculada ao Meta Ads!" });
+      setLinkModal(null);
+      setMetricsData(prev => { const n = { ...prev }; delete n[linkModal.id]; return n; });
+      load();
+    } catch (e: any) {
+      toast({ title: "Erro ao vincular", description: e.message, variant: "destructive" });
     }
   };
 
@@ -186,9 +233,59 @@ const TasquiTraffic = () => {
                   </div>
                 </div>
 
+                {/* Métricas Meta */}
+                <AnimatePresence>
+                  {metricsOpen === camp.id && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden">
+                      {metricsLoading === camp.id ? (
+                        <div className="py-3 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto text-primary" /></div>
+                      ) : metricsData[camp.id] ? (() => {
+                        const ins = metricsData[camp.id].insights?.data?.[0] || {};
+                        const spend = parseFloat(ins.spend || "0");
+                        const ctr   = parseFloat(ins.ctr || "0");
+                        const cpc   = parseFloat(ins.cpc || "0");
+                        const roas  = parseFloat(ins.purchase_roas?.[0]?.value || "0");
+                        const impr  = parseInt(ins.impressions || "0");
+                        const fmt2  = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+                        return (
+                          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/50">
+                            {[
+                              { label: "Gasto", value: `R$ ${fmt2(spend)}`, icon: DollarSign, color: "text-orange-400" },
+                              { label: "Impressões", value: impr.toLocaleString("pt-BR"), icon: Eye, color: "text-blue-400" },
+                              { label: "CTR", value: `${fmt2(ctr)}%`, color: ctr >= 1 ? "text-green-400" : "text-red-400", icon: ctr >= 1 ? TrendingUp : TrendingDown },
+                              { label: "CPC", value: `R$ ${fmt2(cpc)}`, icon: DollarSign, color: "text-yellow-400" },
+                              { label: "ROAS", value: roas > 0 ? `${fmt2(roas)}x` : "—", icon: roas >= 2 ? TrendingUp : TrendingDown, color: roas >= 2 ? "text-green-400" : "text-red-400" },
+                            ].map(m => (
+                              <div key={m.label} className="bg-secondary/40 rounded-lg p-2 text-center">
+                                <m.icon className={`w-3 h-3 mx-auto mb-0.5 ${m.color}`} />
+                                <p className="text-xs font-bold text-foreground">{m.value}</p>
+                                <p className="text-[9px] text-muted-foreground">{m.label}</p>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })() : null}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 <div className="flex gap-2 pt-1 border-t border-border/50">
-                  <Button size="sm" variant="ghost" onClick={() => openEdit(camp)} className="flex-1 gap-1.5 text-muted-foreground hover:text-white h-8 text-xs">
-                    <Pencil className="w-3 h-3" /> Editar
+                  {camp.meta_campaign_id ? (
+                    <Button size="sm" variant="ghost" onClick={() => toggleMetrics(camp)}
+                      className="flex-1 gap-1.5 text-blue-400 hover:text-blue-300 h-8 text-xs">
+                      <BarChart2 className="w-3 h-3" />
+                      {metricsOpen === camp.id ? "Ocultar" : "Ver Métricas"}
+                      {metricsOpen === camp.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="ghost" onClick={() => openLinkModal(camp)}
+                      className="flex-1 gap-1.5 text-muted-foreground hover:text-primary h-8 text-xs">
+                      <Link2 className="w-3 h-3" /> Vincular ao Meta
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => openEdit(camp)} className="text-muted-foreground hover:text-white h-8 w-8 p-0">
+                    <Pencil className="w-3.5 h-3.5" />
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => handleDelete(camp.id)} className="text-muted-foreground hover:text-red-400 h-8 w-8 p-0">
                     <Trash2 className="w-3.5 h-3.5" />
@@ -199,6 +296,40 @@ const TasquiTraffic = () => {
           })}
         </div>
       )}
+
+      {/* Modal vincular ao Meta */}
+      <Dialog open={!!linkModal} onOpenChange={v => !v && setLinkModal(null)}>
+        <DialogContent className="bg-card border-border max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="w-4 h-4 text-primary" />
+              Vincular ao Meta Ads — {linkModal?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {linkLoading ? (
+            <div className="py-8 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-primary" /></div>
+          ) : metaCampaigns.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma campanha encontrada no Meta Ads deste cliente.<br />Certifique-se que o cliente tem conexão Meta configurada em TechQui.</p>
+          ) : (
+            <div className="space-y-2 py-2">
+              <p className="text-xs text-muted-foreground mb-3">Selecione qual campanha do Meta Ads corresponde a <strong className="text-foreground">"{linkModal?.name}"</strong>:</p>
+              {metaCampaigns.map((mc: any) => (
+                <button key={mc.id} type="button" onClick={() => handleLink(mc.id)}
+                  className="w-full flex items-center gap-3 p-3 rounded-lg border border-border bg-secondary/30 hover:border-primary/50 hover:bg-primary/5 text-left transition-all">
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-foreground">{mc.name}</p>
+                    <p className="text-xs text-muted-foreground">{mc.objective} · <span className={mc.status === "ACTIVE" ? "text-green-400" : "text-yellow-400"}>{mc.status}</span></p>
+                  </div>
+                  <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinkModal(null)}>Cancelar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>

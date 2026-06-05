@@ -336,17 +336,18 @@ model TaskTemplateItem {
 }
 
 model TrafficCampaign {
-  id          String   @id @default(uuid())
-  project_id  String?
-  client_id   String
-  name        String
-  objective   String?
-  budget      Float?
-  status      String   @default("ATIVO") // Ativa, Pausada, Finalizada
-  start_date  DateTime?
-  end_date    DateTime?
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  id               String   @id @default(uuid())
+  project_id       String?
+  client_id        String
+  name             String
+  objective        String?
+  budget           Float?
+  status           String   @default("ATIVO")
+  start_date       DateTime?
+  end_date         DateTime?
+  meta_campaign_id String?  // ID da campanha vinculada no Meta Ads
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
 
   project     Project? @relation(fields: [project_id], references: [id], onDelete: SetNull)
   client      Client   @relation(fields: [client_id], references: [id], onDelete: Cascade)
@@ -447,17 +448,19 @@ model InterTransaction {
 }
 
 model CalendarPost {
-  id             String           @id @default(uuid())
-  client_id      String
-  project_id     String?
-  title          String
-  content        String?
-  type           PostType         @default(POST)
-  platform       PostPlatform     @default(INSTAGRAM)
-  scheduled_date DateTime
-  status         PostStatus       @default(PLANEJADO)
-  created_at     DateTime         @default(now())
-  updated_at     DateTime         @updatedAt
+  id                  String           @id @default(uuid())
+  client_id           String
+  project_id          String?
+  title               String
+  content             String?
+  type                PostType         @default(POST)
+  platform            PostPlatform     @default(INSTAGRAM)
+  scheduled_date      DateTime
+  status              PostStatus       @default(PLANEJADO)
+  media_urls          String?          // JSON: string[] — URLs das mídias para publicação
+  instagram_post_id   String?          // ID do InstagramScheduledPost vinculado
+  created_at          DateTime         @default(now())
+  updated_at          DateTime         @updatedAt
 
   client  Client   @relation(fields: [client_id], references: [id], onDelete: Cascade)
   project Project? @relation(fields: [project_id], references: [id], onDelete: SetNull)
@@ -623,7 +626,8 @@ model ClientMetaConnection {
   ad_account_id         String?
   page_id               String?
   page_name             String?
-  access_token          String?  // Long-lived token do cliente
+  access_token          String?  // User token de longa duração (usado para Ads)
+  page_access_token     String?  // Page token (usado para publicar/comentar no Instagram)
   token_expires_at      DateTime?
   connected_at          DateTime @default(now())
   updated_at            DateTime @updatedAt
