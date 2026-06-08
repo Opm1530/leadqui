@@ -1,6 +1,7 @@
 import axios from "axios";
 import OpenAI from "openai";
 import prisma from "./prisma";
+import { getCompanySettings } from "./companySettings";
 
 interface ExtractionParams {
   categoria?: string;
@@ -18,7 +19,7 @@ export const startGoogleMapsExtraction = async (extractionId: string, userId: st
   };
 
   try {
-    const settings = await prisma.userSettings.findUnique({ where: { user_id: userId } });
+    const settings = await getCompanySettings();
     const apiKey = settings?.serper_api_key?.trim();
     if (!apiKey) throw new Error("Serper API Key não configurada em Configurações.");
 
@@ -60,10 +61,9 @@ export const startGoogleMapsExtraction = async (extractionId: string, userId: st
     for (const place of places) {
       const phoneClean = place.phoneNumber ? String(place.phoneNumber).replace(/\D/g, "") : null;
       
-      // Deduplicação básica
+      // Deduplicação básica (global — leads compartilhados pela empresa)
       const exists = await prisma.lead.findFirst({
         where: {
-          user_id: userId,
           OR: [
             { google_place_id: place.placeId || "NONE" },
             { telefone_limpo: phoneClean || "NONE" },
@@ -116,7 +116,7 @@ export const startInstagramExtraction = async (extractionId: string, userId: str
   };
 
   try {
-    const settings = await prisma.userSettings.findUnique({ where: { user_id: userId } });
+    const settings = await getCompanySettings();
     const apifyKey = settings?.apify_api_key?.trim();
     const openaiKey = settings?.openai_api_key?.trim();
 
@@ -168,7 +168,7 @@ export const startInstagramExtraction = async (extractionId: string, userId: str
         } catch {}
 
         const exists = await prisma.lead.findFirst({
-          where: { user_id: userId, OR: [{ username: profile.username }, { telefone_limpo: contato || "NONE" }] }
+          where: { OR: [{ username: profile.username }, { telefone_limpo: contato || "NONE" }] }
         });
 
         if (exists) continue;

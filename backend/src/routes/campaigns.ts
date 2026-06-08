@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import axios from "axios";
 import prisma from "../lib/prisma";
 import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
+import { getCompanySettings } from "../lib/companySettings";
 
 const router = Router();
 router.use(authenticateJWT);
@@ -132,7 +133,7 @@ async function startCampaign(
       data: { status: "EM_ANDAMENTO", erro: null },
     });
 
-    const settings = await prisma.userSettings.findUnique({ where: { user_id: userId } });
+    const settings = await getCompanySettings();
     if (!settings?.evolution_api_url || !settings?.evolution_api_key) throw new Error("Evolution API não configurada");
 
     const instance = await prisma.instance.findUnique({ where: { id: instanceId } });

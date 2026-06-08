@@ -2,14 +2,15 @@ import { Router, Response } from "express";
 import axios from "axios";
 import prisma from "../lib/prisma";
 import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
+import { getCompanySettings } from "../lib/companySettings";
 
 const router = Router();
 router.use(authenticateJWT);
 router.use(requireStaff);
 
-// Helper: busca configs da Evolution API do usuário
-const getEvolutionConfig = async (userId: string) => {
-  const settings = await prisma.userSettings.findUnique({ where: { user_id: userId } });
+// Helper: busca configs da Evolution API compartilhadas da empresa
+const getEvolutionConfig = async (_userId?: string) => {
+  const settings = await getCompanySettings();
   if (!settings?.evolution_api_url || !settings?.evolution_api_key) {
     throw new Error("Evolution API não configurada. Configure nas Configurações.");
   }

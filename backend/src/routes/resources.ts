@@ -3,6 +3,7 @@ import prisma from "../lib/prisma";
 import bcrypt from "bcryptjs";
 import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 import { startGoogleMapsExtraction, startInstagramExtraction } from "../lib/extractionService";
+import { getCompanySettingsUserId } from "../lib/companySettings";
 
 // Helper para automação do Tasqui
 // Cria projetos por serviço e aplica template de tarefas se fornecido
@@ -506,8 +507,9 @@ router.delete("/clients/:id", async (req: AuthRequest, res: Response): Promise<v
 // ─── SETTINGS ─────────────────────────────────────────────────────────
 
 router.get("/settings", async (req: AuthRequest, res: Response): Promise<void> => {
-  const settings = await prisma.userSettings.findUnique({ where: { user_id: req.user!.id } });
-  // Mask API keys
+  // Configurações compartilhadas pela empresa (registro do admin fundador)
+  const ownerId = (await getCompanySettingsUserId()) || req.user!.id;
+  const settings = await prisma.userSettings.findUnique({ where: { user_id: ownerId } });
   const masked = settings ? {
     ...settings,
     serper_api_key: settings.serper_api_key ? "••••••••" : null,
@@ -520,12 +522,13 @@ router.get("/settings", async (req: AuthRequest, res: Response): Promise<void> =
 
 router.put("/settings", async (req: AuthRequest, res: Response): Promise<void> => {
   const data = req.body;
-  // Remove masked values
   Object.keys(data).forEach((k) => { if (data[k] === "••••••••") delete data[k]; });
 
+  // Grava sempre no registro compartilhado da empresa
+  const ownerId = (await getCompanySettingsUserId()) || req.user!.id;
   const settings = await prisma.userSettings.upsert({
-    where: { user_id: req.user!.id },
-    create: { user_id: req.user!.id, ...data },
+    where: { user_id: ownerId },
+    create: { user_id: ownerId, ...data },
     update: data,
   });
   res.json({ settings: { ...settings, serper_api_key: settings.serper_api_key ? "••••••••" : null } });
