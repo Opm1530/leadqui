@@ -1,16 +1,17 @@
 import { Router, Response } from "express";
 import prisma from "../lib/prisma";
-import { authenticateJWT, AuthRequest } from "../middlewares/auth";
+import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
 router.use(authenticateJWT);
+router.use(requireStaff);
 
 // ── GET /api/templates ────────────────────────────────────────────────
 // Lista todos os templates do usuário com seus itens
 router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const templates = await (prisma as any).taskTemplate.findMany({
-      where:   { user_id: req.user!.id },
+      where:   {},
       include: { items: { orderBy: { order: "asc" } } },
       orderBy: { created_at: "desc" },
     });
@@ -58,7 +59,7 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const { name, description, service } = req.body;
   try {
     const existing = await (prisma as any).taskTemplate.findFirst({
-      where: { id, user_id: req.user!.id },
+      where: { id },
     });
     if (!existing) { res.status(404).json({ error: "Template não encontrado" }); return; }
 
@@ -78,7 +79,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => 
   const { id } = req.params;
   try {
     const existing = await (prisma as any).taskTemplate.findFirst({
-      where: { id, user_id: req.user!.id },
+      where: { id },
     });
     if (!existing) { res.status(404).json({ error: "Template não encontrado" }); return; }
     await (prisma as any).taskTemplate.delete({ where: { id } });
@@ -97,7 +98,7 @@ router.post("/:id/items", async (req: AuthRequest, res: Response): Promise<void>
 
   try {
     const template = await (prisma as any).taskTemplate.findFirst({
-      where: { id, user_id: req.user!.id },
+      where: { id },
     });
     if (!template) { res.status(404).json({ error: "Template não encontrado" }); return; }
 
@@ -133,7 +134,7 @@ router.put("/:id/items/:itemId", async (req: AuthRequest, res: Response): Promis
   try {
     // verifica ownership via template
     const template = await (prisma as any).taskTemplate.findFirst({
-      where: { id, user_id: req.user!.id },
+      where: { id },
     });
     if (!template) { res.status(404).json({ error: "Template não encontrado" }); return; }
 
@@ -158,7 +159,7 @@ router.delete("/:id/items/:itemId", async (req: AuthRequest, res: Response): Pro
   const { id, itemId } = req.params;
   try {
     const template = await (prisma as any).taskTemplate.findFirst({
-      where: { id, user_id: req.user!.id },
+      where: { id },
     });
     if (!template) { res.status(404).json({ error: "Template não encontrado" }); return; }
 
@@ -178,13 +179,13 @@ router.post("/:id/apply", async (req: AuthRequest, res: Response): Promise<void>
 
   try {
     const template = await (prisma as any).taskTemplate.findFirst({
-      where:   { id, user_id: req.user!.id },
+      where:   { id },
       include: { items: { orderBy: { order: "asc" } } },
     });
     if (!template) { res.status(404).json({ error: "Template não encontrado" }); return; }
 
     const client = await (prisma as any).client.findFirst({
-      where: { id: client_id, user_id: req.user!.id },
+      where: { id: client_id },
     });
     if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
 

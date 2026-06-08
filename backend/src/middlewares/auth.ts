@@ -47,3 +47,18 @@ export const requireAdmin = (
   }
   next();
 };
+
+// Permite apenas equipe interna (ADMIN, MANAGER, OPERATOR).
+// Bloqueia clientes externos (CLIENT) de acessar dados compartilhados da empresa.
+export const requireStaff = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const staffRoles = ["ADMIN", "MANAGER", "OPERATOR"];
+  if (!req.user || !staffRoles.includes(req.user.role)) {
+    res.status(403).json({ error: "Acesso restrito à equipe interna" });
+    return;
+  }
+  next();
+};

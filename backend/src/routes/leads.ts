@@ -1,16 +1,17 @@
 import { Router, Response } from "express";
 import prisma from "../lib/prisma";
-import { authenticateJWT, AuthRequest } from "../middlewares/auth";
+import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
 router.use(authenticateJWT);
+router.use(requireStaff); // dados compartilhados pela equipe — bloqueia CLIENT
 
 // ── GET /api/leads ────────────────────────────────────────────────────
 router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
   const { status, origem, search, tag_id, limit = "100", offset = "0" } = req.query;
 
   try {
-    const where: any = { user_id: req.user!.id };
+    const where: any = {};
 
     if (status) where.status = status;
     if (origem) where.origem = origem;
@@ -82,7 +83,7 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const { tags, tag_ids, ...data } = req.body;
 
   try {
-    const existing = await prisma.lead.findFirst({ where: { id, user_id: req.user!.id } });
+    const existing = await prisma.lead.findFirst({ where: { id } });
     if (!existing) {
       res.status(404).json({ error: "Lead não encontrado" });
       return;
@@ -127,7 +128,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => 
   const id = String(req.params.id);
 
   try {
-    const existing = await prisma.lead.findFirst({ where: { id, user_id: req.user!.id } });
+    const existing = await prisma.lead.findFirst({ where: { id } });
     if (!existing) {
       res.status(404).json({ error: "Lead não encontrado" });
       return;
@@ -146,7 +147,7 @@ router.post("/:id/tags", async (req: AuthRequest, res: Response): Promise<void> 
   const { tag_ids } = req.body;
 
   try {
-    const lead = await prisma.lead.findFirst({ where: { id, user_id: req.user!.id } });
+    const lead = await prisma.lead.findFirst({ where: { id } });
     if (!lead) {
       res.status(404).json({ error: "Lead não encontrado" });
       return;
@@ -171,11 +172,11 @@ router.post("/:id/tags", async (req: AuthRequest, res: Response): Promise<void> 
 router.get("/stats/summary", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const [total, novo, contatado, qualificado, convertido] = await Promise.all([
-      prisma.lead.count({ where: { user_id: req.user!.id } }),
-      prisma.lead.count({ where: { user_id: req.user!.id, status: "NOVO" } }),
-      prisma.lead.count({ where: { user_id: req.user!.id, status: "CONTATADO" } }),
-      prisma.lead.count({ where: { user_id: req.user!.id, status: "QUALIFICADO" } }),
-      prisma.lead.count({ where: { user_id: req.user!.id, status: "CONVERTIDO" } }),
+      prisma.lead.count(),
+      prisma.lead.count({ where: { status: "NOVO" } }),
+      prisma.lead.count({ where: { status: "CONTATADO" } }),
+      prisma.lead.count({ where: { status: "QUALIFICADO" } }),
+      prisma.lead.count({ where: { status: "CONVERTIDO" } }),
     ]);
 
     res.json({ total, novo, contatado, qualificado, convertido });

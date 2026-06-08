@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import prisma from "../lib/prisma";
 import bcrypt from "bcryptjs";
-import { authenticateJWT, AuthRequest } from "../middlewares/auth";
+import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 import { startGoogleMapsExtraction, startInstagramExtraction } from "../lib/extractionService";
 
 // Helper para automação do Tasqui
@@ -37,7 +37,7 @@ async function createOperationalFlow(
       // 2. Se templateId informado E pertence ao usuário → usar itens do template
       if (templateId && userId) {
         const template = await (prisma as any).taskTemplate.findFirst({
-          where:   { id: templateId, user_id: userId },
+          where:   { id: templateId },
           include: { items: { orderBy: { order: "asc" } } },
         });
 
@@ -72,7 +72,7 @@ async function createOperationalFlow(
       // 3. Fallback: buscar templates auto-associados ao nome do serviço (legado)
       if (userId) {
         const autoTemplates = await (prisma as any).taskTemplate.findMany({
-          where:   { service: serviceName, user_id: userId },
+          where:   { service: serviceName },
           include: { items: { orderBy: { order: "asc" } } },
         });
 
@@ -110,13 +110,17 @@ async function createOperationalFlow(
 
 const router = Router();
 router.use(authenticateJWT);
+// Dados compartilhados pela equipe (bloqueia CLIENT), exceto rotas pessoais
+router.use((req, res, next) => {
+  if (req.path === "/settings" || req.path === "/me/client-profile") return next();
+  return requireStaff(req, res, next);
+});
 
 // ─── TAGS ─────────────────────────────────────────────────────────────
 
 router.get("/tags", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const tags = await prisma.tag.findMany({
-      where: { user_id: req.user!.id },
       orderBy: { nome: "asc" },
     });
     res.json({ tags });
@@ -148,7 +152,7 @@ router.put("/tags/:id", async (req: AuthRequest, res: Response): Promise<void> =
   const { nome, cor } = req.body;
 
   try {
-    const existing = await prisma.tag.findFirst({ where: { id, user_id: req.user!.id } });
+    const existing = await prisma.tag.findFirst({ where: { id } });
     if (!existing) { res.status(404).json({ error: "Tag não encontrada" }); return; }
 
     const tag = await prisma.tag.update({
@@ -164,7 +168,7 @@ router.put("/tags/:id", async (req: AuthRequest, res: Response): Promise<void> =
 router.delete("/tags/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
   try {
-    const existing = await prisma.tag.findFirst({ where: { id, user_id: req.user!.id } });
+    const existing = await prisma.tag.findFirst({ where: { id } });
     if (!existing) { res.status(404).json({ error: "Tag não encontrada" }); return; }
 
     await prisma.tag.delete({ where: { id } });
@@ -178,7 +182,7 @@ router.delete("/tags/:id", async (req: AuthRequest, res: Response): Promise<void
 
 router.get("/clients", async (req: AuthRequest, res: Response): Promise<void> => {
   const { search } = req.query;
-  const where: any = { user_id: req.user!.id };
+  const where: any = {};
   if (search) where.name = { contains: String(search) };
 
   const clients = await (prisma as any).client.findMany({
@@ -300,7 +304,7 @@ router.post("/clients/:id/nova-venda", async (req: AuthRequest, res: Response): 
   try {
     // Verifica ownership do cliente
     const client = await prisma.client.findFirst({
-      where: { id: clientId, user_id: req.user!.id },
+      where: { id: clientId },
     });
     if (!client) {
       res.status(404).json({ error: "Cliente não encontrado" });
@@ -320,7 +324,7 @@ router.post("/clients/:id/nova-venda", async (req: AuthRequest, res: Response): 
     // 2. Aplicar template se informado
     if (template_id) {
       const template = await (prisma as any).taskTemplate.findFirst({
-        where:   { id: template_id, user_id: req.user!.id },
+        where:   { id: template_id },
         include: { items: { orderBy: { order: "asc" } } },
       });
 
@@ -374,7 +378,7 @@ router.post("/clients/:id/nova-venda", async (req: AuthRequest, res: Response): 
 
 router.put("/clients/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
-  const existing = await prisma.client.findFirst({ where: { id, user_id: req.user!.id } });
+  const existing = await prisma.client.findFirst({ where: { id } });
   if (!existing) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
 
   try {
@@ -437,7 +441,7 @@ router.put("/clients/:id", async (req: AuthRequest, res: Response): Promise<void
 
 router.delete("/clients/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
-  const existing = await prisma.client.findFirst({ where: { id, user_id: req.user!.id } });
+  const existing = await prisma.client.findFirst({ where: { id } });
   if (!existing) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
 
   try {
@@ -481,7 +485,7 @@ router.delete("/clients/:id", async (req: AuthRequest, res: Response): Promise<v
     await prisma.contract.deleteMany({ where: { client_id: id } });
     // Cards do CRM que referenciam leads deste cliente
     await (prisma as any).cRMCard.deleteMany({
-      where: { lead: { client_id: null, user_id: req.user!.id } },
+      where: { lead: { client_id: null } },
     });
 
     // 4. Excluir o usuário de acesso do cliente (login ViewQui)
@@ -532,12 +536,11 @@ router.put("/settings", async (req: AuthRequest, res: Response): Promise<void> =
 router.get("/dashboard", async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const [totalLeads, totalClients, totalCampaigns, leadsThisMonth] = await Promise.all([
-    prisma.lead.count({ where: { user_id: userId } }),
-    prisma.client.count({ where: { user_id: userId } }),
-    prisma.campaign.count({ where: { user_id: userId } }),
+    prisma.lead.count(),
+    prisma.client.count(),
+    prisma.campaign.count(),
     prisma.lead.count({
       where: {
-        user_id: userId,
         created_at: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
       },
     }),
@@ -551,7 +554,6 @@ router.get("/dashboard", async (req: AuthRequest, res: Response): Promise<void> 
 router.get("/extractions", async (req: AuthRequest, res: Response): Promise<void> => {
   const limit = parseInt(String(req.query.limit || "20"));
   const extractions = await prisma.extraction.findMany({
-    where: { user_id: req.user!.id },
     orderBy: { created_at: "desc" },
     take: limit,
   });
@@ -560,7 +562,7 @@ router.get("/extractions", async (req: AuthRequest, res: Response): Promise<void
 
 router.get("/extractions/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
-  const extraction = await prisma.extraction.findFirst({ where: { id, user_id: req.user!.id } });
+  const extraction = await prisma.extraction.findFirst({ where: { id } });
   if (!extraction) { res.status(404).json({ error: "Extração não encontrada" }); return; }
   res.json({ extraction });
 });
@@ -597,7 +599,7 @@ router.post("/extractions", async (req: AuthRequest, res: Response): Promise<voi
 router.put("/extractions/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
   const { status } = req.body;
-  const existing = await prisma.extraction.findFirst({ where: { id, user_id: req.user!.id } });
+  const existing = await prisma.extraction.findFirst({ where: { id } });
   if (!existing) { res.status(404).json({ error: "Extração não encontrada" }); return; }
   const extraction = await prisma.extraction.update({
     where: { id },
@@ -608,7 +610,7 @@ router.put("/extractions/:id", async (req: AuthRequest, res: Response): Promise<
 
 router.delete("/extractions/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
-  const existing = await prisma.extraction.findFirst({ where: { id, user_id: req.user!.id } });
+  const existing = await prisma.extraction.findFirst({ where: { id } });
   if (!existing) { res.status(404).json({ error: "Extração não encontrada" }); return; }
   await prisma.extraction.delete({ where: { id } });
   res.json({ message: "Extração excluída do histórico" });

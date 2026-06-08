@@ -1,16 +1,16 @@
 import { Router, Response } from "express";
 import axios from "axios";
 import prisma from "../lib/prisma";
-import { authenticateJWT, AuthRequest } from "../middlewares/auth";
+import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
 router.use(authenticateJWT);
+router.use(requireStaff);
 
 // ── GET /api/campaigns ─────────────────────────────────────────────────
 router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const campaigns = await prisma.campaign.findMany({
-      where: { user_id: req.user!.id },
       include: { instance: { select: { id: true, nome: true } } },
       orderBy: { created_at: "desc" },
     });
@@ -31,7 +31,7 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
 
   try {
     // Count leads that will receive this campaign
-    const leadFilter: any = { user_id: req.user!.id, telefone_limpo: { not: null } };
+    const leadFilter: any = { telefone_limpo: { not: null } };
     if (lead_ids.length > 0) {
       leadFilter.id = { in: lead_ids };
     } else if (tag_ids.length > 0) {
@@ -69,7 +69,7 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
   const { nome, mensagem, instance_id } = req.body;
   try {
-    const existing = await prisma.campaign.findFirst({ where: { id, user_id: req.user!.id } });
+    const existing = await prisma.campaign.findFirst({ where: { id } });
     if (!existing) { res.status(404).json({ error: "Campanha não encontrada" }); return; }
     const campaign = await prisma.campaign.update({
       where: { id },
@@ -85,7 +85,7 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
 router.patch("/:id/stop", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
   try {
-    const existing = await prisma.campaign.findFirst({ where: { id, user_id: req.user!.id } });
+    const existing = await prisma.campaign.findFirst({ where: { id } });
     if (!existing) { res.status(404).json({ error: "Campanha não encontrada" }); return; }
     if (existing.status !== "EM_ANDAMENTO") {
       res.status(400).json({ error: "Só é possível parar campanhas em andamento" });
@@ -105,7 +105,7 @@ router.patch("/:id/stop", async (req: AuthRequest, res: Response): Promise<void>
 router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
   try {
-    const existing = await prisma.campaign.findFirst({ where: { id, user_id: req.user!.id } });
+    const existing = await prisma.campaign.findFirst({ where: { id } });
     if (!existing) { res.status(404).json({ error: "Campanha não encontrada" }); return; }
     await prisma.campaign.delete({ where: { id } });
     res.json({ message: "Campanha excluída" });
@@ -153,7 +153,7 @@ async function startCampaign(
     }
 
     // Prepare filter
-    const leadFilter: any = { user_id: userId, telefone_limpo: { not: null } };
+    const leadFilter: any = { telefone_limpo: { not: null } };
     if (leadIds.length > 0) {
       leadFilter.id = { in: leadIds };
     } else if (tagIds.length > 0) {
@@ -170,7 +170,7 @@ async function startCampaign(
     if (newTagName && newTagName.trim()) {
       const sanitizedName = newTagName.trim();
       let tag = await prisma.tag.findFirst({
-        where: { user_id: userId, nome: { equals: sanitizedName, mode: 'insensitive' } }
+        where: { nome: { equals: sanitizedName, mode: 'insensitive' } }
       });
 
       if (!tag) {

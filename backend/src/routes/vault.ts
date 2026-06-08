@@ -1,10 +1,11 @@
 import { Router, Response } from "express";
 import prisma from "../lib/prisma";
-import { authenticateJWT, AuthRequest } from "../middlewares/auth";
+import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 import { encrypt, decrypt } from "../lib/vault";
 
 const router = Router();
 router.use(authenticateJWT);
+router.use(requireStaff);
 
 // Roles que podem revelar senhas
 const CAN_REVEAL = ["ADMIN", "MANAGER"];
@@ -15,7 +16,7 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
   const { client_id } = req.query;
 
   try {
-    const where: any = { user_id: req.user!.id };
+    const where: any = {};
     if (client_id) where.client_id = String(client_id);
 
     const credentials = await (prisma as any).vaultCredential.findMany({
@@ -54,7 +55,7 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     // Verificar ownership do cliente
     const client = await prisma.client.findFirst({
-      where: { id: client_id, user_id: req.user!.id },
+      where: { id: client_id },
     });
     if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
 
@@ -95,7 +96,7 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
 
   try {
     const existing = await (prisma as any).vaultCredential.findFirst({
-      where: { id, user_id: req.user!.id },
+      where: { id },
     });
     if (!existing) { res.status(404).json({ error: "Credencial não encontrada" }); return; }
 
@@ -138,7 +139,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => 
 
   try {
     const existing = await (prisma as any).vaultCredential.findFirst({
-      where: { id, user_id: req.user!.id },
+      where: { id },
     });
     if (!existing) { res.status(404).json({ error: "Credencial não encontrada" }); return; }
 
@@ -164,7 +165,7 @@ router.post("/:id/reveal", async (req: AuthRequest, res: Response): Promise<void
 
   try {
     const credential = await (prisma as any).vaultCredential.findFirst({
-      where: { id, user_id: req.user!.id },
+      where: { id },
     });
     if (!credential) { res.status(404).json({ error: "Credencial não encontrada" }); return; }
 

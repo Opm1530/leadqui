@@ -1,11 +1,12 @@
 import { Router, Response } from "express";
 import prisma from "../lib/prisma";
-import { authenticateJWT, AuthRequest } from "../middlewares/auth";
+import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 import axios from "axios";
 import https from "https";
 
 const router = Router();
 router.use(authenticateJWT);
+router.use(requireStaff);
 
 // ── Dashboard ─────────────────────────────────────────────────────────
 router.get("/dashboard", async (req: AuthRequest, res: Response): Promise<void> => {
@@ -15,36 +16,24 @@ router.get("/dashboard", async (req: AuthRequest, res: Response): Promise<void> 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-    // Atualizar faturas vencidas automaticamente
+    // Atualizar faturas vencidas automaticamente (toda a empresa)
     await (prisma as any).invoice.updateMany({
-      where: {
-        status: "PENDENTE",
-        due_date: { lt: now },
-        client: { user_id: userId },
-      },
+      where: { status: "PENDENTE", due_date: { lt: now } },
       data: { status: "ATRASADO" },
     });
 
     const [invoices, expenses, clients, contracts] = await Promise.all([
       (prisma as any).invoice.findMany({
-        where: {
-          OR: [
-            { client: { user_id: userId } },
-            { client_id: null, client_name_snapshot: { not: null } },
-          ],
-        },
         include: { client: { select: { name: true } } },
       }),
-      (prisma as any).expense.findMany({
-        where: { user_id: userId },
-      }),
+      (prisma as any).expense.findMany(),
       (prisma as any).client.findMany({
-        where: { user_id: userId, status: "ATIVO" },
+        where: { status: "ATIVO" },
         select: { id: true },
       }),
-      // MRR real: soma dos contratos ativos (recorrentes, duração > 0 ou indefinida)
+      // MRR real: soma dos contratos ativos
       (prisma as any).contract.findMany({
-        where: { client: { user_id: userId, status: "ATIVO" } },
+        where: { client: { status: "ATIVO" } },
         select: { value: true },
       }),
     ]);
@@ -89,23 +78,14 @@ router.get("/invoices", async (req: AuthRequest, res: Response): Promise<void> =
     const userId = req.user!.id;
     const { status, client_id } = req.query;
 
-    // Incluir faturas de clientes ativos E faturas órfãs (cliente excluído, com snapshot)
-    const where: any = {
-      OR: [
-        { client: { user_id: userId } },
-        { client_id: null, client_name_snapshot: { not: null } },
-      ],
-    };
+    // Todas as faturas da empresa (incluindo órfãs de clientes excluídos)
+    const where: any = {};
     if (status) where.status = status;
-    if (client_id) {
-      // Ao filtrar por cliente específico, mostrar só desse cliente
-      where.OR = undefined;
-      where.client_id = client_id;
-    }
+    if (client_id) where.client_id = client_id;
 
-    // Atualizar status de faturas vencidas (só das ativas)
+    // Atualizar status de faturas vencidas
     await (prisma as any).invoice.updateMany({
-      where: { status: "PENDENTE", due_date: { lt: new Date() }, client: { user_id: userId } },
+      where: { status: "PENDENTE", due_date: { lt: new Date() } },
       data: { status: "ATRASADO" },
     });
 
@@ -136,7 +116,7 @@ router.post("/invoices", async (req: AuthRequest, res: Response): Promise<void> 
 
   try {
     const client = await (prisma as any).client.findFirst({
-      where: { id: client_id, user_id: req.user!.id },
+      where: { id: client_id },
     });
     if (!client) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
 
@@ -163,7 +143,7 @@ router.put("/invoices/:id", async (req: AuthRequest, res: Response): Promise<voi
 
   try {
     const invoice = await (prisma as any).invoice.findFirst({
-      where: { id, client: { user_id: req.user!.id } },
+      where: { id },
     });
     if (!invoice) { res.status(404).json({ error: "Fatura não encontrada" }); return; }
 
@@ -215,7 +195,7 @@ router.delete("/invoices/:id", async (req: AuthRequest, res: Response): Promise<
   const { id } = req.params;
   try {
     const invoice = await (prisma as any).invoice.findFirst({
-      where: { id, client: { user_id: req.user!.id } },
+      where: { id },
     });
     if (!invoice) { res.status(404).json({ error: "Fatura não encontrada" }); return; }
 
@@ -230,7 +210,7 @@ router.delete("/invoices/:id", async (req: AuthRequest, res: Response): Promise<
 router.get("/expenses", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { month, year } = req.query;
-    const where: any = { user_id: req.user!.id };
+    const where: any = {};
 
     if (month && year) {
       const start = new Date(Number(year), Number(month) - 1, 1);
@@ -279,7 +259,7 @@ router.put("/expenses/:id", async (req: AuthRequest, res: Response): Promise<voi
 
   try {
     const existing = await (prisma as any).expense.findFirst({
-      where: { id, user_id: req.user!.id },
+      where: { id },
     });
     if (!existing) { res.status(404).json({ error: "Despesa não encontrada" }); return; }
 
@@ -303,7 +283,7 @@ router.delete("/expenses/:id", async (req: AuthRequest, res: Response): Promise<
   const { id } = req.params;
   try {
     const existing = await (prisma as any).expense.findFirst({
-      where: { id, user_id: req.user!.id },
+      where: { id },
     });
     if (!existing) { res.status(404).json({ error: "Despesa não encontrada" }); return; }
 
@@ -328,13 +308,13 @@ router.get("/report", async (req: AuthRequest, res: Response): Promise<void> => 
       const [invoicesPaid, expensesMonth] = await Promise.all([
         (prisma as any).invoice.findMany({
           where: {
-            client: { user_id: userId },
+            isNot: undefined,
             status: "PAGO",
             paid_date: { gte: start, lte: end },
           },
         }),
         (prisma as any).expense.findMany({
-          where: { user_id: userId, date: { gte: start, lte: end } },
+          where: { date: { gte: start, lte: end } },
         }),
       ]);
 
@@ -359,7 +339,6 @@ router.get("/report", async (req: AuthRequest, res: Response): Promise<void> => 
 router.get("/fixed-expenses", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const items = await (prisma as any).fixedExpense.findMany({
-      where: { user_id: req.user!.id },
       orderBy: { due_day: "asc" },
     });
     res.json({ fixed_expenses: items });
@@ -394,7 +373,7 @@ router.put("/fixed-expenses/:id", async (req: AuthRequest, res: Response): Promi
   const { id } = req.params;
   const { description, amount, category, due_day, active } = req.body;
   try {
-    const existing = await (prisma as any).fixedExpense.findFirst({ where: { id, user_id: req.user!.id } });
+    const existing = await (prisma as any).fixedExpense.findFirst({ where: { id } });
     if (!existing) { res.status(404).json({ error: "Não encontrado" }); return; }
     const item = await (prisma as any).fixedExpense.update({
       where: { id },
@@ -415,7 +394,7 @@ router.put("/fixed-expenses/:id", async (req: AuthRequest, res: Response): Promi
 router.delete("/fixed-expenses/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const { id } = req.params;
   try {
-    const existing = await (prisma as any).fixedExpense.findFirst({ where: { id, user_id: req.user!.id } });
+    const existing = await (prisma as any).fixedExpense.findFirst({ where: { id } });
     if (!existing) { res.status(404).json({ error: "Não encontrado" }); return; }
     await (prisma as any).fixedExpense.delete({ where: { id } });
     res.json({ success: true });
@@ -435,7 +414,6 @@ router.post("/inter/credentials", async (req: AuthRequest, res: Response): Promi
   }
   try {
     const creds = await (prisma as any).interCredentials.upsert({
-      where: { user_id: req.user!.id },
       update: {
         client_id,
         client_secret,
@@ -462,7 +440,6 @@ router.post("/inter/credentials", async (req: AuthRequest, res: Response): Promi
 router.get("/inter/credentials", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const creds = await (prisma as any).interCredentials.findUnique({
-      where: { user_id: req.user!.id },
       select: { client_id: true, account_number: true, last_sync: true, cert_content: true, key_content: true },
     });
     res.json({
@@ -484,7 +461,6 @@ router.get("/inter/credentials", async (req: AuthRequest, res: Response): Promis
 router.post("/inter/sync", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const creds = await (prisma as any).interCredentials.findUnique({
-      where: { user_id: req.user!.id },
     });
     if (!creds) { res.status(400).json({ error: "Credenciais Inter não configuradas" }); return; }
     if (!creds.cert_content || !creds.key_content) {
@@ -579,7 +555,6 @@ router.post("/inter/sync", async (req: AuthRequest, res: Response): Promise<void
 
     // 4. Atualizar last_sync
     await (prisma as any).interCredentials.update({
-      where: { user_id: req.user!.id },
       data:  { last_sync: new Date() },
     });
 

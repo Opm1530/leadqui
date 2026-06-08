@@ -1,10 +1,11 @@
 import { Router, Response } from "express";
 import axios from "axios";
 import prisma from "../lib/prisma";
-import { authenticateJWT, AuthRequest } from "../middlewares/auth";
+import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
 router.use(authenticateJWT);
+router.use(requireStaff);
 
 // Helper: busca configs da Evolution API do usuário
 const getEvolutionConfig = async (userId: string) => {
@@ -22,7 +23,6 @@ const getEvolutionConfig = async (userId: string) => {
 router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const instances = await prisma.instance.findMany({
-      where: { user_id: req.user!.id },
       orderBy: { created_at: "desc" },
     });
     res.json({ instances });
@@ -75,7 +75,7 @@ router.get("/:id/qrcode", async (req: AuthRequest, res: Response): Promise<void>
   const id = String(req.params.id);
 
   try {
-    const instance = await prisma.instance.findFirst({ where: { id, user_id: req.user!.id } });
+    const instance = await prisma.instance.findFirst({ where: { id } });
     if (!instance) {
       res.status(404).json({ error: "Instância não encontrada" });
       return;
@@ -102,7 +102,7 @@ router.get("/:id/status", async (req: AuthRequest, res: Response): Promise<void>
   const id = String(req.params.id);
 
   try {
-    const instance = await prisma.instance.findFirst({ where: { id, user_id: req.user!.id } });
+    const instance = await prisma.instance.findFirst({ where: { id } });
     if (!instance) {
       res.status(404).json({ error: "Instância não encontrada" });
       return;
@@ -136,7 +136,7 @@ router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => 
   const id = String(req.params.id);
 
   try {
-    const instance = await prisma.instance.findFirst({ where: { id, user_id: req.user!.id } });
+    const instance = await prisma.instance.findFirst({ where: { id } });
     if (!instance) {
       res.status(404).json({ error: "Instância não encontrada" });
       return;
