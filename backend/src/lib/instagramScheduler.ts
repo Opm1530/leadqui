@@ -56,8 +56,6 @@ export async function publishScheduledPosts() {
             access_token: igToken,
           });
           mediaId = r.data.id;
-          // Aguardar processamento do vídeo (polling)
-          await waitForVideoReady(base, mediaId, igToken);
         } else {
           // IMAGE
           const r = await axios.post(`${base}/${conn.instagram_account_id}/media`, {
@@ -67,6 +65,9 @@ export async function publishScheduledPosts() {
           });
           mediaId = r.data.id;
         }
+
+        // 2.5. Aguardar o container ficar FINISHED antes de publicar (vale para todos os tipos)
+        await waitForMediaReady(base, mediaId, igToken);
 
         // 3. Publicar
         const published = await axios.post(`${base}/${conn.instagram_account_id}/media_publish`, {
@@ -100,16 +101,20 @@ export async function publishScheduledPosts() {
   }
 }
 
-async function waitForVideoReady(base: string, mediaId: string, token: string, maxTries = 15) {
+async function waitForMediaReady(base: string, mediaId: string, token: string, maxTries = 20) {
   for (let i = 0; i < maxTries; i++) {
-    await sleep(10000);
     const r = await axios.get(`${base}/${mediaId}`, {
-      params: { fields: "status_code", access_token: token },
+      params: { fields: "status_code,status", access_token: token },
     });
-    if (r.data.status_code === "FINISHED") return;
-    if (r.data.status_code === "ERROR") throw new Error("Vídeo rejeitado pela Meta");
+    const code = r.data.status_code;
+    if (code === "FINISHED") return;
+    if (code === "ERROR") {
+      throw new Error("Mídia rejeitada pela Meta. Verifique se a URL é pública e o formato é suportado. Detalhe: " + (r.data.status || ""));
+    }
+    // IN_PROGRESS / EXPIRED / PUBLISHED — aguardar
+    await sleep(5000);
   }
-  throw new Error("Timeout aguardando processamento do vídeo");
+  throw new Error("Timeout aguardando processamento da mídia (a URL pode estar inacessível pela Meta)");
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
