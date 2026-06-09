@@ -318,7 +318,6 @@ router.get("/oauth/instagram/callback", async (req: Request, res: Response): Pro
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
     const shortToken: string = tokenRes.data.access_token;
-    const igUserId:  string  = String(tokenRes.data.user_id);
 
     // 2. Trocar por token de longa duração (60 dias)
     const longRes = await axios.get("https://graph.instagram.com/access_token", {
@@ -328,14 +327,19 @@ router.get("/oauth/instagram/callback", async (req: Request, res: Response): Pro
     const expiresIn: number = longRes.data.expires_in || 5184000;
     const tokenExpiresAt    = new Date(Date.now() + expiresIn * 1000);
 
-    // 3. Buscar dados do perfil
+    // 3. Buscar o ID correto para publicação via /me (o user_id do token é app-scoped e NÃO serve)
+    let igUserId: string;
     let username: string | null = null;
     try {
-      const meRes = await axios.get(`https://graph.instagram.com/${igUserId}`, {
+      const meRes = await axios.get("https://graph.instagram.com/v21.0/me", {
         params: { fields: "user_id,username", access_token: longToken },
       });
+      igUserId = String(meRes.data.user_id);
       username = meRes.data.username || null;
-    } catch {}
+    } catch (e: any) {
+      // fallback ao user_id do token se /me falhar
+      igUserId = String(tokenRes.data.user_id);
+    }
 
     // 4. Salvar conexão (tipo INSTAGRAM)
     await (prisma as any).clientMetaConnection.upsert({
