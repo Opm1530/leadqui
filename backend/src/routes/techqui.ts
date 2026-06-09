@@ -651,6 +651,50 @@ router.post("/comments/subscribe/:connectionId", authenticateJWT, async (req: Au
   }
 });
 
+// ── GET /api/techqui/comments/diagnose/:connectionId ──────────────────
+// Diagnóstico: mostra o que a Meta tem registrado sobre a inscrição da conta
+router.get("/comments/diagnose/:connectionId", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  const connectionId = String(req.params.connectionId);
+  try {
+    const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { id: connectionId } });
+    if (!conn?.instagram_account_id) { res.status(400).json({ error: "Conexão inválida" }); return; }
+    const base = conn.connection_type === "INSTAGRAM"
+      ? "https://graph.instagram.com/v21.0"
+      : "https://graph.facebook.com/v20.0";
+    const token = conn.page_access_token || conn.access_token;
+
+    const out: any = {
+      connection_type: conn.connection_type,
+      instagram_account_id: conn.instagram_account_id,
+      instagram_username: conn.instagram_username,
+    };
+
+    // 1. Inscrição da conta nos webhooks
+    try {
+      const sub = await axios.get(`${base}/${conn.instagram_account_id}/subscribed_apps`, {
+        params: { access_token: token },
+      });
+      out.subscribed_apps = sub.data;
+    } catch (e: any) {
+      out.subscribed_apps_error = e.response?.data?.error?.message || e.message;
+    }
+
+    // 2. Permissões do token
+    try {
+      const me = await axios.get(`${base}/me`, {
+        params: { fields: "user_id,username", access_token: token },
+      });
+      out.me = me.data;
+    } catch (e: any) {
+      out.me_error = e.response?.data?.error?.message || e.message;
+    }
+
+    res.json(out);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.post("/comments/rules", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
   const { connection_id, client_id, name, reply_type, fixed_reply, keywords, apply_to, post_ids } = req.body;
   if (!connection_id || !name || !reply_type) {
