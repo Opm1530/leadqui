@@ -24,6 +24,7 @@ router.post("/webhook/instagram", express_json_raw, async (req: Request, res: Re
   res.sendStatus(200); // responder imediatamente à Meta
   try {
     const body = req.body;
+    console.log("[Webhook Instagram] Recebido:", JSON.stringify(body));
     if (body.object !== "instagram") return;
     for (const entry of body.entry || []) {
       const accountId = entry.id; // ID da conta que recebeu o comentário
