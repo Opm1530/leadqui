@@ -910,6 +910,21 @@ const CommentsTab = ({ connections, clients, selectedClient, toast }: any) => {
     fixed_reply: "", keywords: [], apply_to: "TODOS", post_ids: [], active: true,
   });
   const [kwInput, setKwInput] = useState("");
+  const [subscribing, setSubscribing] = useState(false);
+
+  const igConnections = connections.filter((c: any) => c.instagram_account_id &&
+    (selectedClient === "all" || c.client_id === selectedClient));
+
+  const activateWebhooks = async () => {
+    if (igConnections.length === 0) { toast({ title: "Nenhuma conta Instagram conectada", variant: "destructive" }); return; }
+    setSubscribing(true);
+    let ok = 0;
+    for (const conn of igConnections) {
+      try { await api.post(`/api/techqui/comments/subscribe/${conn.id}`, {}); ok++; } catch {}
+    }
+    setSubscribing(false);
+    toast({ title: `${ok} conta(s) ativada(s)`, description: "Comentários novos serão respondidos pelas regras ativas." });
+  };
 
   const load = async () => {
     const cid = selectedClient !== "all" ? selectedClient : undefined;
@@ -1008,9 +1023,15 @@ const CommentsTab = ({ connections, clients, selectedClient, toast }: any) => {
           <Button variant={activeView === "logs" ? "default" : "outline"} size="sm" onClick={() => setActiveView("logs")}>Histórico</Button>
         </div>
         {activeView === "rules" && (
-          <Button onClick={openNew} size="sm" className="gradient-button">
-            <Plus className="w-4 h-4 mr-1" /> Nova Regra
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={activateWebhooks} disabled={subscribing} size="sm" variant="outline" className="border-green-500/30 text-green-400 hover:bg-green-500/10">
+              {subscribing ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+              Ativar Recebimento
+            </Button>
+            <Button onClick={openNew} size="sm" className="gradient-button">
+              <Plus className="w-4 h-4 mr-1" /> Nova Regra
+            </Button>
+          </div>
         )}
       </div>
 

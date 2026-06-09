@@ -3,6 +3,7 @@ import prisma from "../lib/prisma";
 import { authenticateJWT, AuthRequest } from "../middlewares/auth";
 import axios from "axios";
 import OpenAI from "openai";
+import { getCompanySettings } from "../lib/companySettings";
 
 const router = Router();
 
@@ -25,15 +26,19 @@ router.post("/webhook/instagram", express_json_raw, async (req: Request, res: Re
     const body = req.body;
     if (body.object !== "instagram") return;
     for (const entry of body.entry || []) {
+      const accountId = entry.id; // ID da conta que recebeu o comentário
       for (const change of entry.changes || []) {
         if (change.field !== "comments") continue;
         const value = change.value;
         if (!value?.id) continue;
+        // Anti-loop: ignorar comentários feitos pela própria conta (ex: nossas respostas)
+        if (value.from?.id && String(value.from.id) === String(accountId)) continue;
         await handleIncomingComment({
           comment_id: value.id,
           post_id:    value.media?.id || "",
           text:       value.text || "",
           username:   value.from?.username || "",
+          account_id: String(accountId),
         });
       }
     }
@@ -364,6 +369,16 @@ router.get("/oauth/instagram/callback", async (req: Request, res: Response): Pro
       },
     });
 
+    // 5. Inscrever a conta nos webhooks de comentários
+    try {
+      await axios.post(`https://graph.instagram.com/v21.0/${igUserId}/subscribed_apps`, null, {
+        params: { subscribed_fields: "comments", access_token: longToken },
+      });
+      console.log(`[Instagram OAuth] Conta ${igUserId} inscrita nos webhooks de comentários`);
+    } catch (subErr: any) {
+      console.warn("[Instagram OAuth] Falha ao inscrever webhooks:", subErr.response?.data || subErr.message);
+    }
+
     res.redirect(`${frontendBase}/techqui?oauth=success&client_id=${client_id}`);
   } catch (e: any) {
     console.error("[Instagram OAuth] Erro:", e.response?.data || e.message);
@@ -613,6 +628,29 @@ router.get("/comments/rules", authenticateJWT, async (req: AuthRequest, res: Res
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// ── POST /api/techqui/comments/subscribe/:connectionId ────────────────
+// Inscreve manualmente uma conta já conectada nos webhooks de comentários
+router.post("/comments/subscribe/:connectionId", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  const connectionId = String(req.params.connectionId);
+  try {
+    const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { id: connectionId } });
+    if (!conn?.instagram_account_id || !conn?.access_token) {
+      res.status(400).json({ error: "Conexão Instagram inválida" }); return;
+    }
+    const base = conn.connection_type === "INSTAGRAM"
+      ? "https://graph.instagram.com/v21.0"
+      : "https://graph.facebook.com/v20.0";
+    const token = conn.page_access_token || conn.access_token;
+
+    const r = await axios.post(`${base}/${conn.instagram_account_id}/subscribed_apps`, null, {
+      params: { subscribed_fields: "comments", access_token: token },
+    });
+    res.json({ success: true, result: r.data });
+  } catch (e: any) {
+    res.status(500).json({ error: e.response?.data?.error?.message || e.message });
+  }
+});
+
 router.post("/comments/rules", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
   const { connection_id, client_id, name, reply_type, fixed_reply, keywords, apply_to, post_ids } = req.body;
   if (!connection_id || !name || !reply_type) {
@@ -708,8 +746,9 @@ export async function runAdsAnalysis(connectionId: string, userId: string, trigg
     const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { id: connectionId } });
     if (!conn?.ad_account_id || !conn?.access_token) return;
 
-    const settings = await (prisma as any).techQuiSettings.findUnique({ where: { user_id: userId } });
-    const openaiKey = settings?.openai_api_key;
+    const tqSettings = await (prisma as any).techQuiSettings.findUnique({ where: { user_id: userId } });
+    const companySettings = await getCompanySettings();
+    const openaiKey = tqSettings?.openai_api_key || (companySettings as any)?.openai_api_key;
     if (!openaiKey) { console.warn("[AdsAnalyzer] OpenAI key não configurada"); return; }
 
     // 1. Buscar campanhas + métricas últimos 7 dias via Meta Marketing API
@@ -814,78 +853,80 @@ async function executeSuggestion(suggestionId: string) {
   }
 }
 
-export async function handleIncomingComment(comment: { comment_id: string; post_id: string; text: string; username: string }) {
+export async function handleIncomingComment(comment: { comment_id: string; post_id: string; text: string; username: string; account_id?: string }) {
   try {
     // Evitar duplicata
     const already = await (prisma as any).instagramCommentLog.findUnique({ where: { comment_id: comment.comment_id } });
     if (already) return;
 
-    // Encontrar conexão pelo post_id (buscar em qual conta esse post pertence)
-    const connections = await (prisma as any).clientMetaConnection.findMany({
-      include: { comment_rules: { where: { active: true } } },
-    });
+    // Encontrar a conexão dona da conta que recebeu o comentário
+    const conn = comment.account_id
+      ? await (prisma as any).clientMetaConnection.findFirst({
+          where: { instagram_account_id: comment.account_id },
+          include: { comment_rules: { where: { active: true } } },
+        })
+      : null;
+    if (!conn) { console.warn("[CommentHandler] Conexão não encontrada para conta", comment.account_id); return; }
 
-    for (const conn of connections) {
-      const igToken = conn.page_access_token || conn.access_token;
-      if (!igToken) continue;
-      const rules: any[] = conn.comment_rules;
-      if (!rules.length) continue;
+    const igToken = conn.page_access_token || conn.access_token;
+    if (!igToken) return;
+    const rules: any[] = conn.comment_rules || [];
+    if (!rules.length) return;
 
-      // Encontrar regra aplicável
-      const rule = findMatchingRule(rules, comment.post_id, comment.text);
-      if (!rule) continue;
+    // Encontrar regra aplicável
+    const rule = findMatchingRule(rules, comment.post_id, comment.text);
+    if (!rule) return;
 
-      let replyText: string | null = null;
-
-      if (rule.reply_type === "FIXO") {
-        replyText = rule.fixed_reply;
-      } else {
-        // IA — gerar resposta com OpenAI
-        const settings = await (prisma as any).techQuiSettings.findFirst();
-        const openaiKey = settings?.openai_api_key;
-        if (openaiKey) {
-          const openai = new OpenAI({ apiKey: openaiKey });
-          const resp = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-              { role: "system", content: "Você é o assistente da conta de Instagram. Responda ao comentário de forma amigável, natural, em português, em no máximo 2 frases." },
-              { role: "user", content: `Comentário de @${comment.username}: "${comment.text}"` },
-            ],
-          });
-          replyText = resp.choices[0].message.content || null;
-        }
+    let replyText: string | null = null;
+    if (rule.reply_type === "FIXO") {
+      replyText = rule.fixed_reply;
+    } else {
+      const settings = await getCompanySettings();
+      const openaiKey = (settings as any)?.openai_api_key;
+      if (openaiKey) {
+        const openai = new OpenAI({ apiKey: openaiKey });
+        const resp = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "Você é o assistente da conta de Instagram. Responda ao comentário de forma amigável, natural, em português, em no máximo 2 frases." },
+            { role: "user", content: `Comentário de @${comment.username}: "${comment.text}"` },
+          ],
+        });
+        replyText = resp.choices[0].message.content || null;
       }
-
-      if (!replyText) continue;
-
-      // Postar resposta via Graph API
-      let status = "RESPONDIDO";
-      try {
-        await axios.post(
-          `https://graph.facebook.com/v20.0/${comment.comment_id}/replies`,
-          { message: replyText, access_token: igToken }
-        );
-      } catch (e: any) {
-        status = "ERRO";
-        replyText = e.response?.data?.error?.message || e.message;
-      }
-
-      await (prisma as any).instagramCommentLog.create({
-        data: {
-          connection_id:      conn.id,
-          client_id:          conn.client_id,
-          rule_id:            rule.id,
-          comment_id:         comment.comment_id,
-          post_id:            comment.post_id,
-          commenter_username: comment.username,
-          comment_text:       comment.text,
-          reply_text:         replyText,
-          replied_at:         new Date(),
-          status,
-        },
-      });
-      break; // aplica só a primeira regra que bater
     }
+
+    if (!replyText) return;
+
+    // URL correta conforme o tipo de conexão
+    const base = conn.connection_type === "INSTAGRAM"
+      ? "https://graph.instagram.com/v21.0"
+      : "https://graph.facebook.com/v20.0";
+
+    let status = "RESPONDIDO";
+    try {
+      await axios.post(`${base}/${comment.comment_id}/replies`, null, {
+        params: { message: replyText, access_token: igToken },
+      });
+    } catch (e: any) {
+      status = "ERRO";
+      replyText = e.response?.data?.error?.message || e.message;
+    }
+
+    await (prisma as any).instagramCommentLog.create({
+      data: {
+        connection_id:      conn.id,
+        client_id:          conn.client_id,
+        rule_id:            rule.id,
+        comment_id:         comment.comment_id,
+        post_id:            comment.post_id,
+        commenter_username: comment.username,
+        comment_text:       comment.text,
+        reply_text:         replyText,
+        replied_at:         new Date(),
+        status,
+      },
+    });
   } catch (err: any) {
     console.error("[CommentHandler] Erro:", err.message);
   }
