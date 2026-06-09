@@ -15,7 +15,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Plus, Trash2, Edit2, GripVertical, X,
   Phone, User, Kanban, Check, Loader2,
-  Instagram, MapPin
+  Instagram, MapPin, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -184,6 +184,24 @@ const CRM = () => {
     }
   };
 
+  // ── Reordenar colunas ──────────────────────────────────────────────────────
+  const handleMoveColumn = async (col: any, dir: -1 | 1) => {
+    const idx = columns.findIndex((c) => c.id === col.id);
+    const target = idx + dir;
+    if (target < 0 || target >= columns.length) return;
+
+    const reordered = [...columns];
+    [reordered[idx], reordered[target]] = [reordered[target], reordered[idx]];
+    setColumns(reordered); // otimista
+
+    try {
+      await api.put("/api/crm/columns-reorder", { order: reordered.map((c) => c.id) });
+    } catch (error: any) {
+      toast({ title: "Erro ao reordenar", description: error.message, variant: "destructive" });
+      setColumns(columns); // reverte
+    }
+  };
+
   // ── Add lead ─────────────────────────────────────────────────────────────────
   const openAddLead = async (colId: string) => {
     setAddLeadColId(colId);
@@ -313,7 +331,7 @@ const CRM = () => {
       ) : (
         <DndContext sensors={sensors} collisionDetection={rectIntersection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
           <div className="flex gap-4 overflow-x-auto pb-4 min-h-[60vh]">
-            {columns.map((col) => {
+            {columns.map((col, colIdx) => {
               const colCards = cards.filter((c) => c.coluna_id === col.id).sort((a, b) => (a.posicao ?? 0) - (b.posicao ?? 0));
               return (
                 <DroppableColumn key={col.id} col={col} isActive={activeCard?.coluna_id === col.id}>
@@ -335,9 +353,27 @@ const CRM = () => {
                       )}
                       <span className="text-xs text-muted-foreground flex-shrink-0 ml-1">{colCards.length}</span>
                     </div>
-                    <button onClick={() => handleDeleteColumn(col)} className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-0.5 flex-shrink-0">
+                      <button
+                        onClick={() => handleMoveColumn(col, -1)}
+                        disabled={colIdx === 0}
+                        title="Mover para a esquerda"
+                        className="p-1 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleMoveColumn(col, 1)}
+                        disabled={colIdx === columns.length - 1}
+                        title="Mover para a direita"
+                        className="p-1 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDeleteColumn(col)} className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex-1 rounded-b-xl bg-secondary/20 p-2 space-y-2 min-h-[100px]">

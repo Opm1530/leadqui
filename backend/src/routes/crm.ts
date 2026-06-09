@@ -29,14 +29,33 @@ router.post("/columns", async (req: AuthRequest, res: Response): Promise<void> =
 // ── PUT /api/crm/columns/:id ─────────────────────────────────────────
 router.put("/columns/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
-  const { nome, cor } = req.body;
+  const { nome, cor, posicao } = req.body;
   const existing = await prisma.cRMColumn.findFirst({ where: { id } });
   if (!existing) { res.status(404).json({ error: "Coluna não encontrada" }); return; }
   const column = await prisma.cRMColumn.update({
     where: { id },
-    data: { nome: nome || existing.nome, cor: cor || existing.cor },
+    data: {
+      nome: nome || existing.nome,
+      cor:  cor  || existing.cor,
+      ...(posicao !== undefined && { posicao }),
+    },
   });
   res.json({ column });
+});
+
+// ── PUT /api/crm/columns/reorder ─────────────────────────────────────
+// Recebe array de ids na nova ordem e atualiza posicao de cada uma
+router.put("/columns-reorder", async (req: AuthRequest, res: Response): Promise<void> => {
+  const { order } = req.body; // string[] de ids
+  if (!Array.isArray(order)) { res.status(400).json({ error: "order deve ser um array" }); return; }
+  try {
+    await Promise.all(order.map((colId: string, idx: number) =>
+      prisma.cRMColumn.update({ where: { id: colId }, data: { posicao: idx } })
+    ));
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── DELETE /api/crm/columns/:id ──────────────────────────────────────
