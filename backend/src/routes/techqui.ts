@@ -5,6 +5,16 @@ import axios from "axios";
 import OpenAI from "openai";
 import { getCompanySettings } from "../lib/companySettings";
 
+// Escolhe a API/token corretos para operações de Instagram numa conexão.
+// Prioriza Instagram Login (ig_access_token / graph.instagram.com);
+// senão usa Facebook Page token (graph.facebook.com).
+function igContext(conn: any): { base: string; token: string | null } {
+  if (conn?.ig_access_token) {
+    return { base: "https://graph.instagram.com/v21.0", token: conn.ig_access_token };
+  }
+  return { base: "https://graph.facebook.com/v20.0", token: conn?.page_access_token || conn?.access_token || null };
+}
+
 const router = Router();
 
 // ── Webhook Instagram (público — sem auth JWT) ────────────────────────
@@ -233,6 +243,15 @@ router.post("/oauth/finalize", authenticateJWT, async (req: AuthRequest, res: Re
   const selectedPage = pages.find((p: any) => p.page_id === page_id) || pages[0] || {};
 
   try {
+    // Se já há conexão Instagram Login (ig_access_token), não sobrescrever os dados do IG
+    const existing = await (prisma as any).clientMetaConnection.findUnique({ where: { client_id } });
+    const hasIgLogin = !!existing?.ig_access_token;
+
+    const igFields = hasIgLogin ? {} : {
+      instagram_account_id: selectedPage.instagram_account_id || existing?.instagram_account_id || null,
+      instagram_username:   selectedPage.instagram_username   || existing?.instagram_username   || null,
+    };
+
     await (prisma as any).clientMetaConnection.upsert({
       where:  { client_id },
       create: {
@@ -247,8 +266,7 @@ router.post("/oauth/finalize", authenticateJWT, async (req: AuthRequest, res: Re
         token_expires_at:     tokenExpiresAt,
       },
       update: {
-        instagram_account_id: selectedPage.instagram_account_id || null,
-        instagram_username:   selectedPage.instagram_username   || null,
+        ...igFields,
         ad_account_id:        ad_account_id || null,
         page_id:              selectedPage.page_id  || null,
         page_name:            selectedPage.page_name || null,
@@ -347,7 +365,7 @@ router.get("/oauth/instagram/callback", async (req: Request, res: Response): Pro
       igUserId = String(tokenRes.data.user_id);
     }
 
-    // 4. Salvar conexão (tipo INSTAGRAM)
+    // 4. Salvar/mesclar conexão — preenche só a parte Instagram, preserva a do Facebook
     await (prisma as any).clientMetaConnection.upsert({
       where:  { client_id },
       create: {
@@ -355,17 +373,13 @@ router.get("/oauth/instagram/callback", async (req: Request, res: Response): Pro
         connection_type:      "INSTAGRAM",
         instagram_account_id: igUserId,
         instagram_username:   username,
-        access_token:         longToken,
-        page_access_token:    longToken, // no IG login, o mesmo token publica
+        ig_access_token:      longToken,
         token_expires_at:     tokenExpiresAt,
       },
       update: {
-        connection_type:      "INSTAGRAM",
         instagram_account_id: igUserId,
         instagram_username:   username,
-        access_token:         longToken,
-        page_access_token:    longToken,
-        token_expires_at:     tokenExpiresAt,
+        ig_access_token:      longToken,
         updated_at:           new Date(),
       },
     });
@@ -426,7 +440,14 @@ router.get("/connections", authenticateJWT, async (req: AuthRequest, res: Respon
       orderBy: { connected_at: "desc" },
     });
     // Ocultar tokens
-    const safe = connections.map((c: any) => ({ ...c, access_token: c.access_token ? "••••••••" : null }));
+    const safe = connections.map((c: any) => ({
+      ...c,
+      access_token:      c.access_token ? "••••••••" : null,
+      page_access_token: c.page_access_token ? "••••••••" : null,
+      ig_access_token:   c.ig_access_token ? "••••••••" : null,
+      has_facebook:      !!c.page_id || !!c.ad_account_id,
+      has_instagram:     !!c.ig_access_token || (!!c.page_access_token && !!c.instagram_account_id),
+    }));
     res.json({ connections: safe });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
@@ -486,11 +507,10 @@ router.post("/instagram/posts", authenticateJWT, async (req: AuthRequest, res: R
     return;
   }
   try {
-    // Validar que a conexão pode publicar
+    // Validar que a conexão pode publicar (Instagram Login OU Página do Facebook com IG)
     const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { id: connection_id } });
-    const canPublish = conn?.connection_type === "INSTAGRAM"
-      ? !!conn?.access_token                         // Instagram Login: basta o token
-      : (!!conn?.page_access_token && !!conn?.page_id); // Facebook Login: precisa de página
+    const canPublish = !!conn?.ig_access_token
+      || (!!conn?.page_access_token && !!conn?.instagram_account_id);
     if (!canPublish) {
       res.status(400).json({
         error: "Esta conta não pode publicar. Use 'Conectar via Instagram' (para contas sem Página) ou selecione uma conta vinculada a uma Página do Facebook.",
@@ -635,14 +655,10 @@ router.post("/comments/subscribe/:connectionId", authenticateJWT, async (req: Au
   const connectionId = String(req.params.connectionId);
   try {
     const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { id: connectionId } });
-    if (!conn?.instagram_account_id || !conn?.access_token) {
+    const { base, token } = igContext(conn);
+    if (!conn?.instagram_account_id || !token) {
       res.status(400).json({ error: "Conexão Instagram inválida" }); return;
     }
-    const base = conn.connection_type === "INSTAGRAM"
-      ? "https://graph.instagram.com/v21.0"
-      : "https://graph.facebook.com/v20.0";
-    const token = conn.page_access_token || conn.access_token;
-
     const r = await axios.post(`${base}/${conn.instagram_account_id}/subscribed_apps`, null, {
       params: { subscribed_fields: "comments", access_token: token },
     });
@@ -659,10 +675,7 @@ router.get("/comments/diagnose/:connectionId", authenticateJWT, async (req: Auth
   try {
     const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { id: connectionId } });
     if (!conn?.instagram_account_id) { res.status(400).json({ error: "Conexão inválida" }); return; }
-    const base = conn.connection_type === "INSTAGRAM"
-      ? "https://graph.instagram.com/v21.0"
-      : "https://graph.facebook.com/v20.0";
-    const token = conn.page_access_token || conn.access_token;
+    const { base, token } = igContext(conn);
 
     const out: any = {
       connection_type: conn.connection_type,
@@ -767,13 +780,13 @@ router.get("/instagram/media/:connectionId", authenticateJWT, async (req: AuthRe
   const { connectionId } = req.params;
   try {
     const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { id: connectionId } });
-    const igToken = conn?.page_access_token || conn?.access_token;
+    const { base, token: igToken } = igContext(conn);
     if (!conn?.instagram_account_id || !igToken) {
       res.status(400).json({ error: "Conta Instagram ou token não configurados" });
       return;
     }
     const resp = await axios.get(
-      `https://graph.facebook.com/v20.0/${conn.instagram_account_id}/media`,
+      `${base}/${conn.instagram_account_id}/media`,
       { params: { fields: "id,caption,media_type,thumbnail_url,media_url,timestamp,permalink", limit: 50, access_token: igToken } }
     );
     res.json(resp.data);
@@ -913,7 +926,7 @@ export async function handleIncomingComment(comment: { comment_id: string; post_
       : null;
     if (!conn) { console.warn("[CommentHandler] Conexão não encontrada para conta", comment.account_id); return; }
 
-    const igToken = conn.page_access_token || conn.access_token;
+    const { base, token: igToken } = igContext(conn);
     if (!igToken) return;
     const rules: any[] = conn.comment_rules || [];
     if (!rules.length) return;
@@ -942,11 +955,6 @@ export async function handleIncomingComment(comment: { comment_id: string; post_
     }
 
     if (!replyText) return;
-
-    // URL correta conforme o tipo de conexão
-    const base = conn.connection_type === "INSTAGRAM"
-      ? "https://graph.instagram.com/v21.0"
-      : "https://graph.facebook.com/v20.0";
 
     let status = "RESPONDIDO";
     try {

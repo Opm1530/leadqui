@@ -11,7 +11,9 @@ export async function publishScheduledPosts() {
 
     for (const post of due) {
       const conn = post.connection;
-      const igToken = conn?.page_access_token || conn?.access_token;
+      // Prioriza Instagram Login (ig_access_token); senão Facebook Page token
+      const useIg   = !!conn?.ig_access_token;
+      const igToken = useIg ? conn.ig_access_token : (conn?.page_access_token || conn?.access_token);
       if (!conn?.instagram_account_id || !igToken) {
         await (prisma as any).instagramScheduledPost.update({
           where: { id: post.id },
@@ -20,8 +22,7 @@ export async function publishScheduledPosts() {
         continue;
       }
 
-      // Instagram Business Login usa graph.instagram.com; Facebook Login usa graph.facebook.com
-      const base = conn.connection_type === "INSTAGRAM"
+      const base = useIg
         ? "https://graph.instagram.com/v21.0"
         : "https://graph.facebook.com/v20.0";
 

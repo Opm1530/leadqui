@@ -628,9 +628,10 @@ model ClientMetaConnection {
   ad_account_id         String?
   page_id               String?
   page_name             String?
-  access_token          String?  // User token de longa duração (usado para Ads)
-  page_access_token     String?  // Page token (usado para publicar/comentar no Instagram)
-  connection_type       String   @default("FACEBOOK")  // FACEBOOK | INSTAGRAM
+  access_token          String?  // Facebook User token (Ads, páginas) — via Facebook Login
+  page_access_token     String?  // Facebook Page token (publicar/comentar via página)
+  ig_access_token       String?  // Instagram token (publicar/comentar via Instagram Login)
+  connection_type       String   @default("FACEBOOK")  // legado — agora podem coexistir
   token_expires_at      DateTime?
   connected_at          DateTime @default(now())
   updated_at            DateTime @updatedAt

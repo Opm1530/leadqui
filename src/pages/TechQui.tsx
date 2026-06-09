@@ -364,15 +364,7 @@ const ConnectionsTab = ({ clients, connections, onRefresh, toast }: any) => {
 
               {/* Info do cliente */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-foreground">{client.name}</p>
-                  {conn && (
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${conn.connection_type === "INSTAGRAM" ? "bg-pink-500/10 text-pink-400 border-pink-500/30" : "bg-blue-500/10 text-blue-400 border-blue-500/30"}`}>
-                      via {conn.connection_type === "INSTAGRAM" ? "Instagram" : "Facebook"}
-                    </span>
-                  )}
-                </div>
-
+                <p className="text-sm font-semibold text-foreground">{client.name}</p>
                 {conn ? (
                   <div className="flex flex-wrap gap-3 mt-1">
                     {conn.instagram_username && (
@@ -380,19 +372,14 @@ const ConnectionsTab = ({ clients, connections, onRefresh, toast }: any) => {
                         <Instagram className="w-3 h-3" /> @{conn.instagram_username}
                       </span>
                     )}
-                    {conn.ad_account_id && (
-                      <span className="flex items-center gap-1 text-[11px] text-blue-400">
-                        <Target className="w-3 h-3" /> {conn.ad_account_id}
-                      </span>
-                    )}
                     {conn.page_name && (
                       <span className="flex items-center gap-1 text-[11px] text-green-400">
                         <Users className="w-3 h-3" /> {conn.page_name}
                       </span>
                     )}
-                    {conn.token_expires_at && (
-                      <span className="text-[11px] text-muted-foreground">
-                        Token expira {new Date(conn.token_expires_at).toLocaleDateString("pt-BR")}
+                    {conn.ad_account_id && (
+                      <span className="flex items-center gap-1 text-[11px] text-blue-400">
+                        <Target className="w-3 h-3" /> {conn.ad_account_id}
                       </span>
                     )}
                   </div>
@@ -401,55 +388,47 @@ const ConnectionsTab = ({ clients, connections, onRefresh, toast }: any) => {
                 )}
               </div>
 
-              {/* Ações */}
+              {/* Ações — Facebook e Instagram independentes */}
               <div className="flex items-center gap-2 flex-shrink-0">
-                {conn ? (
-                  <>
-                    {/* Reconectar (renovar token) */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => startOAuth(client.id)}
-                      disabled={isConnecting}
-                      className="text-xs h-8 border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
-                    >
-                      {isConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />}
-                      Reconectar
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => remove(conn.id, client.name)}
-                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Unlink className="w-3.5 h-3.5" />
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      onClick={() => startOAuth(client.id, "facebook")}
-                      disabled={isConnecting}
-                      size="sm"
-                      title="Para contas com Página do Facebook (inclui Ads)"
-                      className="h-8 text-xs bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white border-0"
-                    >
-                      {isConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : (
-                        <svg className="w-3.5 h-3.5 mr-1.5" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                      )}
-                      Facebook
-                    </Button>
-                    <Button
-                      onClick={() => startOAuth(client.id, "instagram")}
-                      disabled={isConnecting}
-                      size="sm"
-                      title="Para contas só no Instagram (sem Página do Facebook)"
-                      className="h-8 text-xs bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white border-0"
-                    >
-                      <Instagram className="w-3.5 h-3.5 mr-1.5" />
-                      Instagram
-                    </Button>
-                  </>
+                {/* Facebook */}
+                <Button
+                  onClick={() => startOAuth(client.id, "facebook")}
+                  disabled={isConnecting}
+                  size="sm"
+                  title={conn?.has_facebook ? "Reconectar Facebook" : "Conectar Facebook (Ads + Página)"}
+                  className={`h-8 text-xs border-0 text-white ${conn?.has_facebook
+                    ? "bg-blue-600/40 hover:bg-blue-600/60"
+                    : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"}`}
+                >
+                  {isConnecting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : (
+                    <svg className="w-3.5 h-3.5 mr-1.5" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                  )}
+                  {conn?.has_facebook ? "✓ Facebook" : "Facebook"}
+                </Button>
+                {/* Instagram */}
+                <Button
+                  onClick={() => startOAuth(client.id, "instagram")}
+                  disabled={isConnecting}
+                  size="sm"
+                  title={conn?.has_instagram ? "Reconectar Instagram" : "Conectar Instagram (publicar + comentários)"}
+                  className={`h-8 text-xs border-0 text-white ${conn?.has_instagram
+                    ? "bg-pink-600/40 hover:bg-pink-600/60"
+                    : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"}`}
+                >
+                  <Instagram className="w-3.5 h-3.5 mr-1.5" />
+                  {conn?.has_instagram ? "✓ Instagram" : "Instagram"}
+                </Button>
+                {/* Desvincular tudo */}
+                {conn && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => remove(conn.id, client.name)}
+                    className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    title="Desvincular tudo"
+                  >
+                    <Unlink className="w-3.5 h-3.5" />
+                  </Button>
                 )}
               </div>
             </motion.div>
