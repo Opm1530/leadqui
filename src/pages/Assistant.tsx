@@ -5,10 +5,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
 import {
-  Sparkles, Send, Loader2, CheckCircle, XCircle, Terminal, Bot, User as UserIcon, ArrowLeft,
+  Sparkles, Send, Loader2, CheckCircle, XCircle, Terminal, Bot, User as UserIcon, ArrowLeft, Trash2,
 } from "lucide-react";
 
 interface Msg { role: "user" | "assistant"; content: string; proposals?: any[]; }
+
+const STORAGE_KEY = "pequi_assistant_chat";
 
 const SUGESTOES = [
   "Buscar o cliente Up Fit",
@@ -20,7 +22,12 @@ const SUGESTOES = [
 const Assistant = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const [messages, setMessages] = useState<Msg[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [executing, setExecuting] = useState<string | null>(null);
@@ -28,6 +35,17 @@ const Assistant = () => {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
+
+  // Persiste a conversa no navegador (sobrevive a trocar de aba / recarregar)
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(messages)); } catch {}
+  }, [messages]);
+
+  const limparConversa = () => {
+    setMessages([]);
+    setDoneProposals(new Set());
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+  };
 
   const send = async (text?: string) => {
     const content = (text ?? input).trim();
@@ -76,10 +94,16 @@ const Assistant = () => {
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
           <Sparkles className="w-5 h-5 text-white" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-foreground">Assistente</h1>
           <p className="text-muted-foreground text-sm">Fale o que precisa — o agente executa no ecossistema</p>
         </div>
+        {messages.length > 0 && (
+          <Button variant="outline" size="sm" onClick={limparConversa}
+            className="h-8 text-xs border-border text-muted-foreground hover:text-foreground">
+            <Trash2 className="w-3.5 h-3.5 mr-1" /> Limpar
+          </Button>
+        )}
       </div>
 
       {/* Conversa */}
