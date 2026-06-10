@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users } from "lucide-react";
+import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -72,6 +72,15 @@ const Hub = () => {
       icon: Zap,
       color: "from-orange-500 to-yellow-600",
       route: "/techqui",
+      adminOnly: false,
+    },
+    {
+      id: "assistente",
+      name: "Assistente",
+      description: "Agente de IA que executa ações no ecossistema por comando de voz/texto.",
+      icon: Sparkles,
+      color: "from-violet-500 to-fuchsia-600",
+      route: "/assistente",
       adminOnly: false,
     },
     {

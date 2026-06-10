@@ -612,6 +612,9 @@ model TechQuiSettings {
   openai_api_key      String?  // Chave para o agente de análise (pode reusar UserSettings)
   instagram_app_id    String?  // Instagram App ID (Instagram Business Login)
   instagram_app_secret String? // Instagram App Secret
+  trello_api_key      String?  // Integração Trello — API Key
+  trello_token        String?  // Trello Token
+  trello_list_id      String?  // ID da lista (coluna) onde criar os cards de produção
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
 

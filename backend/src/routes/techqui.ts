@@ -414,6 +414,7 @@ router.get("/settings", authenticateJWT, async (req: AuthRequest, res: Response)
       meta_system_token:    settings.meta_system_token    ? "••••••••" : null,
       openai_api_key:       settings.openai_api_key       ? "••••••••" : null,
       instagram_app_secret: settings.instagram_app_secret ? "••••••••" : null,
+      trello_token:         settings.trello_token ? "••••••••" : null,
     } : null;
     res.json({ settings: masked });
   } catch (e: any) { res.status(500).json({ error: e.message }); }

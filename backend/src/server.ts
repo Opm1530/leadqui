@@ -21,6 +21,7 @@ import { startNotificationChecker } from "./lib/notificationChecker";
 import techquiRoutes from "./routes/techqui";
 import vaultRoutes from "./routes/vault";
 import legalRoutes from "./routes/legal";
+import assistantRoutes from "./routes/assistant";
 import { startInstagramScheduler } from "./lib/instagramScheduler";
 import { startAdsAnalyzerJob } from "./lib/adsAnalyzerJob";
 
@@ -96,6 +97,7 @@ app.use("/api/notifications", notificationsRoutes);
 app.use("/api/techqui", techquiRoutes);
 app.use("/api/vault", vaultRoutes);
 app.use("/api/legal", legalRoutes); // páginas públicas (privacidade, termos, exclusão)
+app.use("/api/assistant", assistantRoutes);
 app.use("/api", resourcesRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────

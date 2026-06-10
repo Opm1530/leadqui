@@ -39,6 +39,7 @@ import TasquiTemplates from "./pages/TasquiTemplates";
 import ViewQui from "./pages/ViewQui";
 import TechQui from "./pages/TechQui";
 import Vault from "./pages/Vault";
+import Assistant from "./pages/Assistant";
 
 const queryClient = new QueryClient();
 
@@ -82,6 +83,7 @@ const App = () => (
                 <Route path="/tasqui-stats" element={<Stats />} />
                 <Route path="/teamqui" element={<Teamqui />} />
                 <Route path="/techqui" element={<TechQui />} />
+                <Route path="/assistente" element={<Assistant />} />
                 <Route path="/techqui/instagram" element={<TechQui />} />
                 <Route path="/techqui/ads" element={<TechQui />} />
                 <Route path="/techqui/comments" element={<TechQui />} />

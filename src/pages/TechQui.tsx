@@ -1200,6 +1200,7 @@ const SettingsTab = ({ settings, onSaved, toast }: any) => {
   const [form, setForm] = useState({
     meta_app_id: "", meta_app_secret: "", meta_business_id: "", meta_system_token: "", openai_api_key: "",
     instagram_app_id: "", instagram_app_secret: "",
+    trello_api_key: "", trello_token: "", trello_list_id: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -1212,6 +1213,9 @@ const SettingsTab = ({ settings, onSaved, toast }: any) => {
       openai_api_key:       settings.openai_api_key   || "",
       instagram_app_id:     settings.instagram_app_id || "",
       instagram_app_secret: settings.instagram_app_secret || "",
+      trello_api_key: settings.trello_api_key || "",
+      trello_token:   settings.trello_token || "",
+      trello_list_id: settings.trello_list_id || "",
     });
   }, [settings]);
 
@@ -1301,6 +1305,30 @@ const SettingsTab = ({ settings, onSaved, toast }: any) => {
         </code>
         <p className="text-xs text-muted-foreground">Token de verificação:</p>
         <code className="block bg-secondary rounded-lg p-2 text-xs font-mono text-primary">pequi_webhook_2026</code>
+      </div>
+
+      {/* Trello (usado pelo Assistente) */}
+      <div className="glass-card p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <div className="w-6 h-6 rounded bg-sky-500/20 flex items-center justify-center"><LayoutGrid className="w-3.5 h-3.5 text-sky-400" /></div>
+          Integração Trello
+        </h3>
+        <p className="text-xs text-muted-foreground">Usada pelo Assistente para criar cards quando um conteúdo vai para produção. Pegue a API Key e Token em <span className="text-primary">trello.com/power-ups/admin</span> ou <span className="text-primary">trello.com/app-key</span>.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Trello API Key</Label>
+            <Input value={form.trello_api_key} onChange={e => setForm(f => ({ ...f, trello_api_key: e.target.value }))} placeholder="abc123..." className="bg-secondary border-border" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">Trello Token</Label>
+            <Input value={form.trello_token} onChange={e => setForm(f => ({ ...f, trello_token: e.target.value }))} type="password" placeholder="••••••••" className="bg-secondary border-border" />
+          </div>
+          <div className="space-y-1.5 col-span-2">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider">ID da Lista (coluna de produção)</Label>
+            <Input value={form.trello_list_id} onChange={e => setForm(f => ({ ...f, trello_list_id: e.target.value }))} placeholder="Ex: 5f2a3b..." className="bg-secondary border-border" />
+            <p className="text-[10px] text-muted-foreground">O ID da lista aparece na URL do Trello ou via API. Os cards serão criados nessa lista.</p>
+          </div>
+        </div>
       </div>
 
       <Button onClick={save} disabled={saving} className="gradient-button w-full">
