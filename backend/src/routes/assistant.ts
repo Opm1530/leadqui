@@ -87,6 +87,30 @@ const TOOLS: Anthropic.Tool[] = [
       required: ["post_id"],
     },
   },
+  {
+    name: "remover_card",
+    description: "Propõe remover (deletar) um card/post específico do calendário editorial. Use listar_calendario antes para obter o post_id. NÃO executa direto — gera proposta para confirmar.",
+    input_schema: {
+      type: "object",
+      properties: {
+        post_id: { type: "string", description: "ID do post a remover" },
+      },
+      required: ["post_id"],
+    },
+  },
+  {
+    name: "limpar_calendario",
+    description: "Propõe APAGAR TODOS os posts do calendário de um cliente dentro de um intervalo de datas. Use quando o usuário quer limpar/zerar o calendário antes de recriar. NÃO executa direto — gera proposta para confirmar. Cuidado: remove vários posts de uma vez.",
+    input_schema: {
+      type: "object",
+      properties: {
+        client_id:    { type: "string" },
+        data_inicio:  { type: "string", description: "Data inicial YYYY-MM-DD (inclusive)" },
+        data_fim:     { type: "string", description: "Data final YYYY-MM-DD (inclusive)" },
+      },
+      required: ["client_id", "data_inicio", "data_fim"],
+    },
+  },
 ];
 
 const SYSTEM_PROMPT = `Você é o assistente operacional da agência Pequi Digital, integrado ao ecossistema.
@@ -129,7 +153,7 @@ async function execReadTool(name: string, args: any, userId: string): Promise<an
 }
 
 // Tools de escrita viram propostas (não executam aqui)
-const WRITE_TOOLS = ["criar_card", "adicionar_conteudo", "preencher_card", "enviar_para_producao"];
+const WRITE_TOOLS = ["criar_card", "adicionar_conteudo", "preencher_card", "enviar_para_producao", "remover_card", "limpar_calendario"];
 
 // ── POST /api/assistant/chat ──────────────────────────────────────────
 router.post("/chat", async (req: AuthRequest, res: Response): Promise<void> => {
@@ -259,6 +283,32 @@ async function buildProposal(fnName: string, args: any): Promise<any> {
       payload: { post_id: args.post_id },
     };
   }
+  if (fnName === "remover_card") {
+    const post = await (prisma as any).calendarPost.findUnique({
+      where: { id: args.post_id }, select: { title: true, scheduled_date: true, type: true },
+    });
+    const quando = post ? new Date(post.scheduled_date).toLocaleDateString("pt-BR") : "";
+    return {
+      id: Math.random().toString(36).slice(2),
+      type: "remover_card",
+      label: `Remover ${post?.type || "post"} "${post?.title || args.post_id}"${quando ? ` (${quando})` : ""}`,
+      payload: { post_id: args.post_id },
+    };
+  }
+  if (fnName === "limpar_calendario") {
+    const client = await prisma.client.findUnique({ where: { id: args.client_id }, select: { name: true } });
+    const inicio = new Date(args.data_inicio);
+    const fim = new Date(args.data_fim); fim.setHours(23, 59, 59, 999);
+    const count = await (prisma as any).calendarPost.count({
+      where: { client_id: args.client_id, scheduled_date: { gte: inicio, lte: fim } },
+    });
+    return {
+      id: Math.random().toString(36).slice(2),
+      type: "limpar_calendario",
+      label: `Apagar ${count} post(s) de ${client?.name || "cliente"} entre ${args.data_inicio} e ${args.data_fim}`,
+      payload: { client_id: args.client_id, data_inicio: args.data_inicio, data_fim: args.data_fim },
+    };
+  }
   return { id: Math.random().toString(36).slice(2), type: fnName, label: "Ação", payload: args };
 }
 
@@ -346,6 +396,23 @@ router.post("/execute", async (req: AuthRequest, res: Response): Promise<void> =
         message: `"${post.title}" enviado para produção${trello ? " e card criado no Trello" : " (Trello não configurado)"}.`,
         trello_url: trello?.shortUrl || null,
       });
+      return;
+    }
+
+    if (type === "remover_card") {
+      const post = await (prisma as any).calendarPost.findUnique({ where: { id: payload.post_id }, select: { title: true } });
+      await (prisma as any).calendarPost.delete({ where: { id: payload.post_id } });
+      res.json({ success: true, message: `Card "${post?.title || payload.post_id}" removido do calendário.` });
+      return;
+    }
+
+    if (type === "limpar_calendario") {
+      const inicio = new Date(payload.data_inicio);
+      const fim = new Date(payload.data_fim); fim.setHours(23, 59, 59, 999);
+      const result = await (prisma as any).calendarPost.deleteMany({
+        where: { client_id: payload.client_id, scheduled_date: { gte: inicio, lte: fim } },
+      });
+      res.json({ success: true, message: `${result.count} post(s) removido(s) do calendário.` });
       return;
     }
 
