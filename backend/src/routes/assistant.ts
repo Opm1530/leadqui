@@ -93,7 +93,9 @@ const SYSTEM_PROMPT = `Você é o assistente operacional da agência Pequi Digit
 Você ajuda a gerenciar o calendário editorial de mídia dos clientes.
 
 Regras:
-- Sempre use buscar_cliente para obter o client_id antes de criar conteúdo. Nunca invente IDs.
+- NUNCA invente, adivinhe ou crie um client_id ou post_id. IDs só podem vir de uma chamada anterior de buscar_cliente ou listar_calendario.
+- SEMPRE chame buscar_cliente ANTES de criar_card ou adicionar_conteudo, e use exatamente o id retornado.
+- Se buscar_cliente não retornar nenhum cliente, NÃO crie nada — avise o usuário que o cliente não foi encontrado e peça o nome correto.
 - Para datas, use o formato YYYY-MM-DD. O ano atual é ${new Date().getFullYear()}.
 - Ações que modificam dados (adicionar_conteudo, enviar_para_producao) geram uma PROPOSTA que o usuário confirma na interface. Após chamá-las, explique de forma curta o que será feito e diga que aguarda a confirmação.
 - Seja conciso e direto, em português do Brasil.
@@ -265,6 +267,19 @@ async function buildProposal(fnName: string, args: any): Promise<any> {
 router.post("/execute", async (req: AuthRequest, res: Response): Promise<void> => {
   const { type, payload } = req.body;
   try {
+    // Valida que o cliente existe antes de criar (evita erro cru de FK quando o ID é inválido)
+    if ((type === "criar_card" || type === "adicionar_conteudo")) {
+      if (!payload.client_id) {
+        res.status(400).json({ error: "Cliente não informado. Peça ao assistente para buscar o cliente primeiro." });
+        return;
+      }
+      const cliente = await prisma.client.findUnique({ where: { id: payload.client_id }, select: { id: true } });
+      if (!cliente) {
+        res.status(400).json({ error: "Cliente não encontrado. Use 'buscar cliente <nome>' para selecionar um cliente válido antes de criar conteúdo." });
+        return;
+      }
+    }
+
     if (type === "criar_card") {
       const datas: string[] = payload.datas || [];
       const created = await Promise.all(datas.map((d: string) =>
