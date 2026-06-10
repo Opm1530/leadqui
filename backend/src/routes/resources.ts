@@ -383,8 +383,8 @@ router.put("/clients/:id", async (req: AuthRequest, res: Response): Promise<void
   if (!existing) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
 
   try {
-    const { name, email, status, contract, services, initial_password } = req.body;
-    
+    const { name, email, status, contract, services, initial_password, wa_instance_id, wa_group_id, wa_group_name } = req.body;
+
     // Sincronizar usuário de acesso se houver e-mail
     let login_user_id = existing.login_user_id;
     if (email && email !== existing.email) {
@@ -409,7 +409,10 @@ router.put("/clients/:id", async (req: AuthRequest, res: Response): Promise<void
         email: email !== undefined ? email : existing.email,
         initial_password: initial_password !== undefined ? initial_password : existing.initial_password,
         status: status || existing.status,
-        login_user_id
+        login_user_id,
+        ...(wa_instance_id !== undefined && { wa_instance_id: wa_instance_id || null }),
+        ...(wa_group_id    !== undefined && { wa_group_id:    wa_group_id || null }),
+        ...(wa_group_name  !== undefined && { wa_group_name:  wa_group_name || null }),
       },
       include: { contract: true, services: true }
     });

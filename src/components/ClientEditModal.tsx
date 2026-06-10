@@ -37,6 +37,14 @@ const ClientEditModal = ({ client, open, onClose, onSaved }: ClientEditModalProp
   const [responsible, setResponsible] = useState("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
 
+  // WhatsApp — vínculo de grupo para aprovação
+  const [instances, setInstances] = useState<any[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [waInstanceId, setWaInstanceId] = useState("");
+  const [waGroupId, setWaGroupId] = useState("");
+  const [waGroupName, setWaGroupName] = useState("");
+  const [loadingGroups, setLoadingGroups] = useState(false);
+
   // Preenche o formulário quando o cliente mudar
   useEffect(() => {
     if (client && open) {
@@ -57,8 +65,24 @@ const ClientEditModal = ({ client, open, onClose, onSaved }: ClientEditModalProp
       }
       // Preenche serviços
       setSelectedServices((client.services || []).map((s: any) => s.service));
+      // WhatsApp
+      setWaInstanceId(client.wa_instance_id || "");
+      setWaGroupId(client.wa_group_id || "");
+      setWaGroupName(client.wa_group_name || "");
+      // Carregar instâncias
+      api.get("/api/instances").then(d => setInstances(d.instances || [])).catch(() => {});
     }
   }, [client, open]);
+
+  // Carregar grupos quando a instância muda
+  useEffect(() => {
+    if (!waInstanceId) { setGroups([]); return; }
+    setLoadingGroups(true);
+    api.get(`/api/instances/${waInstanceId}/groups`)
+      .then(d => setGroups(d.groups || []))
+      .catch(() => setGroups([]))
+      .finally(() => setLoadingGroups(false));
+  }, [waInstanceId]);
 
   const handleSave = async () => {
     if (!name.trim()) return;
@@ -75,6 +99,9 @@ const ClientEditModal = ({ client, open, onClose, onSaved }: ClientEditModalProp
           responsible: responsible || null,
         },
         services: selectedServices,
+        wa_instance_id: waInstanceId || null,
+        wa_group_id: waGroupId || null,
+        wa_group_name: waGroupName || null,
       });
 
       toast({ title: "Cliente atualizado!", description: "Dados, contrato e serviços salvos." });
@@ -170,6 +197,41 @@ const ClientEditModal = ({ client, open, onClose, onSaved }: ClientEditModalProp
                 ))}
               </div>
             </div>
+          </div>
+
+          <hr className="border-border/50" />
+
+          {/* WhatsApp — grupo de aprovação */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-green-400/90 uppercase tracking-widest">Grupo de Aprovação (WhatsApp)</h3>
+            <p className="text-xs text-muted-foreground">Vincule um grupo do WhatsApp. Ao enviar um post para aprovação, a arte será enviada nesse grupo e o cliente responde por lá.</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground uppercase tracking-widest">Instância</Label>
+                <Select value={waInstanceId} onValueChange={v => { setWaInstanceId(v); setWaGroupId(""); setWaGroupName(""); }}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecionar instância" /></SelectTrigger>
+                  <SelectContent>
+                    {instances.map(i => <SelectItem key={i.id} value={i.id}>{i.nome} ({i.status})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground uppercase tracking-widest">Grupo</Label>
+                <Select
+                  value={waGroupId}
+                  onValueChange={v => { setWaGroupId(v); setWaGroupName(groups.find(g => g.id === v)?.name || ""); }}
+                  disabled={!waInstanceId || loadingGroups}
+                >
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue placeholder={loadingGroups ? "Carregando..." : "Selecionar grupo"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {waGroupName && <p className="text-[11px] text-green-400">✓ Grupo vinculado: {waGroupName}</p>}
           </div>
         </div>
 

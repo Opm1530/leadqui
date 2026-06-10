@@ -220,6 +220,9 @@ model Client {
   initial_password String?
   origin_lead_id   String?
   status           ClientStatus @default(ATIVO)
+  wa_instance_id   String?      // instância Evolution para aprovação de posts
+  wa_group_id      String?      // ID do grupo WhatsApp (ex: 123@g.us)
+  wa_group_name    String?      // nome do grupo
   created_at       DateTime     @default(now())
   updated_at       DateTime     @updatedAt
 

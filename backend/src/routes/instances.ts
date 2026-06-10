@@ -132,6 +132,30 @@ router.get("/:id/status", async (req: AuthRequest, res: Response): Promise<void>
   }
 });
 
+// ── GET /api/instances/:id/groups ─────────────────────────────────────
+// Lista os grupos de WhatsApp da instância (via Evolution)
+router.get("/:id/groups", async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = String(req.params.id);
+  try {
+    const instance = await prisma.instance.findFirst({ where: { id } });
+    if (!instance) { res.status(404).json({ error: "Instância não encontrada" }); return; }
+
+    const { baseUrl, apiKey } = await getEvolutionConfig(req.user!.id);
+    const evoRes = await axios.get(
+      `${baseUrl}/group/fetchAllGroups/${instance.evolution_instance_id}`,
+      { headers: { apikey: apiKey }, params: { getParticipants: "false" } }
+    );
+    const raw: any[] = Array.isArray(evoRes.data) ? evoRes.data : (evoRes.data?.groups || []);
+    const groups = raw.map((g: any) => ({
+      id:   g.id || g.jid,
+      name: g.subject || g.name || g.id,
+    })).filter((g: any) => g.id);
+    res.json({ groups });
+  } catch (error: any) {
+    res.status(500).json({ error: error.response?.data?.message || error.message });
+  }
+});
+
 // ── DELETE /api/instances/:id ─────────────────────────────────────────
 router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);

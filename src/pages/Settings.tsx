@@ -6,8 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
-import { Settings as SettingsIcon, Save, Key, Link2, Lock, Globe, Bell, Target, Instagram, LayoutGrid, Loader2 } from "lucide-react";
+import { Settings as SettingsIcon, Save, Key, Link2, Lock, Globe, Bell, Target, Instagram, LayoutGrid, Loader2, Smartphone } from "lucide-react";
 import api from "@/lib/api";
+import WhatsAppSettings from "@/components/WhatsAppSettings";
 
 const Settings = () => {
   const { user } = useAuth();
@@ -139,6 +140,7 @@ const Settings = () => {
       <Tabs defaultValue="geral">
         <TabsList className="bg-secondary border border-border">
           <TabsTrigger value="geral"><Key className="w-4 h-4 mr-1.5" />Geral & APIs</TabsTrigger>
+          <TabsTrigger value="whatsapp"><Smartphone className="w-4 h-4 mr-1.5" />WhatsApp</TabsTrigger>
           <TabsTrigger value="meta"><Target className="w-4 h-4 mr-1.5" />Meta & Instagram</TabsTrigger>
           <TabsTrigger value="trello"><LayoutGrid className="w-4 h-4 mr-1.5" />Trello</TabsTrigger>
           <TabsTrigger value="conta"><Lock className="w-4 h-4 mr-1.5" />Conta</TabsTrigger>
@@ -186,6 +188,11 @@ const Settings = () => {
               <Save className="w-4 h-4" /> {saving ? "Salvando..." : "Salvar Geral"}
             </button>
           </form>
+        </TabsContent>
+
+        {/* ── WHATSAPP ────────────────────────────────────────────── */}
+        <TabsContent value="whatsapp">
+          <WhatsAppSettings />
         </TabsContent>
 
         {/* ── META & INSTAGRAM ───────────────────────────────────── */}
