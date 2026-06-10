@@ -6,7 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
-import { Settings as SettingsIcon, Save, Key, Link2, Lock, Globe, Bell, Target, Instagram, LayoutGrid, Loader2, Smartphone } from "lucide-react";
+import { Settings as SettingsIcon, Save, Key, Link2, Lock, Globe, Bell, Target, Instagram, LayoutGrid, Loader2, Smartphone, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import WhatsAppSettings from "@/components/WhatsAppSettings";
 
@@ -14,6 +15,7 @@ const Settings = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { isAdmin } = useRole();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingMeta, setSavingMeta] = useState(false);
@@ -126,7 +128,14 @@ const Settings = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="min-h-screen bg-background">
+      <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+      <button
+        onClick={() => navigate("/hub")}
+        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" /> Voltar ao Hub
+      </button>
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-secondary flex items-center justify-center">
           <SettingsIcon className="w-5 h-5 text-primary" />
@@ -255,6 +264,7 @@ const Settings = () => {
           </form>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 };

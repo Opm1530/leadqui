@@ -61,6 +61,8 @@ const App = () => (
               <Route element={<ProtectedRoute><Hub /></ProtectedRoute>} path="/hub" />
               <Route element={<ProtectedRoute><ViewQui /></ProtectedRoute>} path="/viewqui" />
               <Route element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} path="/coming-soon" />
+              <Route element={<ProtectedRoute staffOnly><Settings /></ProtectedRoute>} path="/settings" />
+              <Route element={<ProtectedRoute staffOnly><Assistant /></ProtectedRoute>} path="/assistente" />
 
               {/* App Principal (protegido, com sidebar — somente equipe interna) */}
               <Route element={<ProtectedRoute staffOnly><AppLayout /></ProtectedRoute>}>
@@ -69,7 +71,6 @@ const App = () => (
                 <Route path="/campaigns" element={<Campaigns />} />
                 <Route path="/instances" element={<Instances />} />
                 <Route path="/extractions" element={<Extraction />} />
-                <Route path="/settings" element={<Settings />} />
                 <Route path="/crm" element={<CRM />} />
                 <Route path="/tags" element={<Tags />} />
                 <Route path="/clients" element={<Clients />} />
@@ -83,7 +84,6 @@ const App = () => (
                 <Route path="/tasqui-stats" element={<Stats />} />
                 <Route path="/teamqui" element={<Teamqui />} />
                 <Route path="/techqui" element={<TechQui />} />
-                <Route path="/assistente" element={<Assistant />} />
                 <Route path="/techqui/instagram" element={<TechQui />} />
                 <Route path="/techqui/ads" element={<TechQui />} />
                 <Route path="/techqui/comments" element={<TechQui />} />

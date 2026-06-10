@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useModule } from "@/contexts/ModuleContext";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
 import {
-  Sparkles, Send, Loader2, CheckCircle, XCircle, Terminal, Bot, User as UserIcon,
+  Sparkles, Send, Loader2, CheckCircle, XCircle, Terminal, Bot, User as UserIcon, ArrowLeft,
 } from "lucide-react";
 
 interface Msg { role: "user" | "assistant"; content: string; proposals?: any[]; }
@@ -18,7 +18,7 @@ const SUGESTOES = [
 ];
 
 const Assistant = () => {
-  const { setActiveModule } = useModule();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -27,7 +27,6 @@ const Assistant = () => {
   const [doneProposals, setDoneProposals] = useState<Set<string>>(new Set());
   const endRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setActiveModule("tasqui"); }, []);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
 
   const send = async (text?: string) => {
@@ -64,7 +63,14 @@ const Assistant = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-7rem)]">
+    <div className="flex flex-col h-screen max-w-4xl mx-auto px-6 py-6">
+      {/* Voltar ao Hub */}
+      <button
+        onClick={() => navigate("/hub")}
+        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4 w-fit"
+      >
+        <ArrowLeft className="w-4 h-4" /> Voltar ao Hub
+      </button>
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
