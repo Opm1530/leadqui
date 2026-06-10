@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
-import { Settings as SettingsIcon, Save, Key, Link2, Lock, Globe, Bell, Target, Instagram, LayoutGrid, Loader2, Smartphone, ArrowLeft } from "lucide-react";
+import { Settings as SettingsIcon, Save, Key, Link2, Lock, Bell, Target, Instagram, LayoutGrid, Loader2, Smartphone, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import WhatsAppSettings from "@/components/WhatsAppSettings";
@@ -29,8 +29,6 @@ const Settings = () => {
   const [anthropicApiKey, setAnthropicApiKey] = useState("");
   const [notificationPhone, setNotificationPhone] = useState("");
   const [notificationInstance, setNotificationInstance] = useState("");
-  const [centralWiId, setCentralWiId] = useState("");
-  const [centralWiName, setCentralWiName] = useState("");
 
   // ── Meta / Instagram / Trello (TechQuiSettings) ────────────────────
   const [meta, setMeta] = useState<any>({
@@ -60,12 +58,6 @@ const Settings = () => {
       setNotificationPhone(s.notification_phone || "");
       setNotificationInstance(s.notification_instance || "");
 
-      if (isAdmin) {
-        const global = await api.get("/api/settings/global").catch(() => ({}));
-        setCentralWiId(global.central_wi_id || "");
-        setCentralWiName(global.central_wi_name || "");
-      }
-
       const tq = await api.get("/api/techqui/settings").then(d => d.settings).catch(() => null);
       if (tq) setMeta((m: any) => ({
         ...m,
@@ -92,9 +84,6 @@ const Settings = () => {
         notification_phone: notificationPhone || null,
         notification_instance: notificationInstance || null,
       });
-      if (isAdmin) {
-        await api.patch("/api/settings/global", { central_wi_id: centralWiId || null, central_wi_name: centralWiName || null });
-      }
       toast({ title: "Configurações salvas!" });
     } catch (error: any) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
@@ -161,16 +150,6 @@ const Settings = () => {
         {/* ── GERAL ───────────────────────────────────────────────── */}
         <TabsContent value="geral">
           <form onSubmit={saveGeral} className="space-y-6">
-            {isAdmin && (
-              <div className="glass-card p-6 space-y-5 border-orange-500/20">
-                <div className="flex items-center gap-2 mb-2"><Globe className="w-5 h-5 text-orange-500" /><h3 className="text-lg font-semibold text-foreground">Configurações Globais</h3></div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">WhatsApp Central ID</Label><Input value={centralWiId} onChange={e => setCentralWiId(e.target.value)} className="bg-secondary border-border" /></div>
-                  <div className="space-y-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">Nome da Instância</Label><Input value={centralWiName} onChange={e => setCentralWiName(e.target.value)} className="bg-secondary border-border" /></div>
-                </div>
-              </div>
-            )}
-
             <div className="glass-card p-6 space-y-5">
               <div className="flex items-center gap-2 mb-2"><Link2 className="w-5 h-5 text-primary" /><h3 className="text-lg font-semibold text-foreground">Evolution API (WhatsApp)</h3></div>
               <div className="space-y-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">URL da API</Label><Input value={evolutionApiUrl} onChange={e => setEvolutionApiUrl(e.target.value)} placeholder="https://evolution.seudominio.com" className="bg-secondary border-border" /></div>

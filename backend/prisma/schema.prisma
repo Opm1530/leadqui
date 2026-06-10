@@ -51,15 +51,6 @@ model User {
   @@map("users")
 }
 
-model GlobalSettings {
-  id                   String   @id @default(uuid())
-  central_wi_id        String?  // ID da instância do WhatsApp Central (Evolution API)
-  central_wi_name      String?  // Nome da instância
-  created_at           DateTime @default(now())
-  updated_at           DateTime @updatedAt
-
-  @@map("global_settings")
-}
 
 model UserSettings {
   id                    String   @id @default(uuid())
