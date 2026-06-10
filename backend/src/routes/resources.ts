@@ -518,6 +518,7 @@ router.get("/settings", async (req: AuthRequest, res: Response): Promise<void> =
     serper_api_key: settings.serper_api_key ? "••••••••" : null,
     apify_api_key: settings.apify_api_key ? "••••••••" : null,
     openai_api_key: settings.openai_api_key ? "••••••••" : null,
+    anthropic_api_key: (settings as any).anthropic_api_key ? "••••••••" : null,
     evolution_api_key: settings.evolution_api_key ? "••••••••" : null,
   } : null;
   res.json({ settings: masked });

@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../lib/prisma";
 import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 import { getCompanySettings } from "../lib/companySettings";
@@ -9,100 +9,82 @@ const router = Router();
 router.use(authenticateJWT);
 router.use(requireStaff);
 
-// ── Definição das ferramentas (tools) do agente ───────────────────────
-const TOOLS: any[] = [
+// ── Definição das ferramentas (tools) do agente — formato Claude ──────
+const TOOLS: Anthropic.Tool[] = [
   {
-    type: "function",
-    function: {
-      name: "buscar_cliente",
-      description: "Busca clientes pelo nome (ou parte do nome) para obter o ID. Use sempre antes de criar conteúdo.",
-      parameters: {
-        type: "object",
-        properties: { nome: { type: "string", description: "Nome ou parte do nome do cliente" } },
-        required: ["nome"],
-      },
+    name: "buscar_cliente",
+    description: "Busca clientes pelo nome (ou parte do nome) para obter o ID. Use sempre antes de criar conteúdo.",
+    input_schema: {
+      type: "object",
+      properties: { nome: { type: "string", description: "Nome ou parte do nome do cliente" } },
+      required: ["nome"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "listar_calendario",
-      description: "Lista os posts já existentes no calendário editorial de um cliente em um mês/ano.",
-      parameters: {
-        type: "object",
-        properties: {
-          client_id: { type: "string" },
-          mes:  { type: "integer", description: "1-12" },
-          ano:  { type: "integer" },
-        },
-        required: ["client_id"],
+    name: "listar_calendario",
+    description: "Lista os posts já existentes no calendário editorial de um cliente em um mês/ano.",
+    input_schema: {
+      type: "object",
+      properties: {
+        client_id: { type: "string" },
+        mes:  { type: "integer", description: "1-12" },
+        ano:  { type: "integer" },
       },
+      required: ["client_id"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "criar_card",
-      description: "Propõe criar um card VAZIO no calendário editorial — só define cliente, formato e dia. O conteúdo é preenchido depois. Use quando o usuário quer reservar/planejar dias do calendário. Aceita vários dias de uma vez.",
-      parameters: {
-        type: "object",
-        properties: {
-          client_id: { type: "string" },
-          tipo:      { type: "string", enum: ["POST", "STORY", "REEL", "CARROSSEL", "AD"], description: "Formato do conteúdo" },
-          plataforma:{ type: "string", enum: ["INSTAGRAM", "FACEBOOK", "TIKTOK", "LINKEDIN"] },
-          datas:     { type: "array", items: { type: "string" }, description: "Lista de datas YYYY-MM-DD para criar um card em cada" },
-        },
-        required: ["client_id", "tipo", "datas"],
+    name: "criar_card",
+    description: "Propõe criar um card VAZIO no calendário editorial — só define cliente, formato e dia. O conteúdo é preenchido depois. Use quando o usuário quer reservar/planejar dias do calendário. Aceita vários dias de uma vez.",
+    input_schema: {
+      type: "object",
+      properties: {
+        client_id: { type: "string" },
+        tipo:      { type: "string", enum: ["POST", "STORY", "REEL", "CARROSSEL", "AD"], description: "Formato do conteúdo" },
+        plataforma:{ type: "string", enum: ["INSTAGRAM", "FACEBOOK", "TIKTOK", "LINKEDIN"] },
+        datas:     { type: "array", items: { type: "string" }, description: "Lista de datas YYYY-MM-DD para criar um card em cada" },
       },
+      required: ["client_id", "tipo", "datas"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "adicionar_conteudo",
-      description: "Propõe adicionar um conteúdo JÁ COMPLETO (com título e legenda) no calendário de um cliente numa data. Use quando o usuário já dá o conteúdo pronto. NÃO executa direto — gera proposta para confirmar.",
-      parameters: {
-        type: "object",
-        properties: {
-          client_id: { type: "string" },
-          titulo:    { type: "string" },
-          legenda:   { type: "string", description: "Legenda/briefing do conteúdo" },
-          tipo:      { type: "string", enum: ["POST", "STORY", "REEL", "CARROSSEL", "AD"] },
-          plataforma:{ type: "string", enum: ["INSTAGRAM", "FACEBOOK", "TIKTOK", "LINKEDIN"] },
-          data:      { type: "string", description: "Data no formato YYYY-MM-DD" },
-        },
-        required: ["client_id", "titulo", "tipo", "data"],
+    name: "adicionar_conteudo",
+    description: "Propõe adicionar um conteúdo JÁ COMPLETO (com título e legenda) no calendário de um cliente numa data. Use quando o usuário já dá o conteúdo pronto. NÃO executa direto — gera proposta para confirmar.",
+    input_schema: {
+      type: "object",
+      properties: {
+        client_id: { type: "string" },
+        titulo:    { type: "string" },
+        legenda:   { type: "string", description: "Legenda/briefing do conteúdo" },
+        tipo:      { type: "string", enum: ["POST", "STORY", "REEL", "CARROSSEL", "AD"] },
+        plataforma:{ type: "string", enum: ["INSTAGRAM", "FACEBOOK", "TIKTOK", "LINKEDIN"] },
+        data:      { type: "string", description: "Data no formato YYYY-MM-DD" },
       },
+      required: ["client_id", "titulo", "tipo", "data"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "preencher_card",
-      description: "Propõe preencher um card existente (vazio ou não) com título e legenda. Use listar_calendario antes para obter o post_id do card.",
-      parameters: {
-        type: "object",
-        properties: {
-          post_id: { type: "string", description: "ID do card a preencher" },
-          titulo:  { type: "string" },
-          legenda: { type: "string" },
-        },
-        required: ["post_id", "titulo"],
+    name: "preencher_card",
+    description: "Propõe preencher um card existente (vazio ou não) com título e legenda. Use listar_calendario antes para obter o post_id do card.",
+    input_schema: {
+      type: "object",
+      properties: {
+        post_id: { type: "string", description: "ID do card a preencher" },
+        titulo:  { type: "string" },
+        legenda: { type: "string" },
       },
+      required: ["post_id", "titulo"],
     },
   },
   {
-    type: "function",
-    function: {
-      name: "enviar_para_producao",
-      description: "Propõe enviar um post do calendário para produção (muda status para PRODUZINDO e cria um card no Trello). NÃO executa direto — gera proposta para confirmar.",
-      parameters: {
-        type: "object",
-        properties: {
-          post_id: { type: "string", description: "ID do post do calendário (obtido via listar_calendario)" },
-        },
-        required: ["post_id"],
+    name: "enviar_para_producao",
+    description: "Propõe enviar um post do calendário para produção (muda status para PRODUZINDO e cria um card no Trello). NÃO executa direto — gera proposta para confirmar.",
+    input_schema: {
+      type: "object",
+      properties: {
+        post_id: { type: "string", description: "ID do post do calendário (obtido via listar_calendario)" },
       },
+      required: ["post_id"],
     },
   },
 ];
@@ -154,50 +136,63 @@ router.post("/chat", async (req: AuthRequest, res: Response): Promise<void> => {
 
   try {
     const settings = await getCompanySettings();
-    const apiKey = (settings as any)?.openai_api_key;
-    if (!apiKey) { res.status(400).json({ error: "OpenAI API Key não configurada nas Configurações." }); return; }
+    const apiKey = (settings as any)?.anthropic_api_key;
+    if (!apiKey) { res.status(400).json({ error: "Anthropic API Key não configurada nas Configurações." }); return; }
 
-    const openai = new OpenAI({ apiKey });
-    const convo: any[] = [{ role: "system", content: SYSTEM_PROMPT }, ...messages];
+    const anthropic = new Anthropic({ apiKey });
+    // Normaliza o histórico para o formato Claude (content como string)
+    const convo: Anthropic.MessageParam[] = (messages as any[])
+      .filter(m => m.role === "user" || m.role === "assistant")
+      .map(m => ({ role: m.role, content: String(m.content ?? "") }));
     const proposals: any[] = [];
 
     // Loop de tool calling (máx 6 iterações para segurança)
     for (let i = 0; i < 6; i++) {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: convo,
+      const response = await anthropic.messages.create({
+        model: "claude-opus-4-8",
+        max_tokens: 4096,
+        system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         tools: TOOLS,
-        tool_choice: "auto",
+        messages: convo,
       });
-      const msg = completion.choices[0].message;
-      convo.push(msg);
 
-      if (!msg.tool_calls || msg.tool_calls.length === 0) {
-        // Resposta final
-        res.json({ reply: msg.content || "", proposals });
+      // Anexa a resposta do assistente (blocos de conteúdo) ao histórico
+      convo.push({ role: "assistant", content: response.content });
+
+      const toolUses = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+
+      if (toolUses.length === 0) {
+        // Resposta final — extrai texto
+        const reply = response.content
+          .filter((b): b is Anthropic.TextBlock => b.type === "text")
+          .map(b => b.text)
+          .join("\n")
+          .trim();
+        res.json({ reply, proposals });
         return;
       }
 
-      // Processar cada tool call
-      for (const tc of msg.tool_calls as any[]) {
-        const fnName = tc.function.name;
-        let args: any = {};
-        try { args = JSON.parse(tc.function.arguments || "{}"); } catch {}
+      // Processa cada tool_use e devolve tool_result como mensagem do usuário
+      const toolResults: Anthropic.ToolResultBlockParam[] = [];
+      for (const tu of toolUses) {
+        const fnName = tu.name;
+        const args: any = tu.input || {};
 
         if (WRITE_TOOLS.includes(fnName)) {
           // Gera proposta — não executa
           const proposal = await buildProposal(fnName, args);
           proposals.push(proposal);
-          convo.push({
-            role: "tool",
-            tool_call_id: tc.id,
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: tu.id,
             content: JSON.stringify({ status: "proposta_criada_aguardando_confirmacao", resumo: proposal.label }),
           });
         } else {
           const result = await execReadTool(fnName, args, req.user!.id);
-          convo.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) });
+          toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: JSON.stringify(result) });
         }
       }
+      convo.push({ role: "user", content: toolResults });
     }
 
     res.json({ reply: "Não consegui concluir — muitas etapas. Tente reformular.", proposals });

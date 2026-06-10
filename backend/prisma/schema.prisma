@@ -69,6 +69,7 @@ model UserSettings {
   serper_api_key        String?
   apify_api_key         String?
   openai_api_key        String?
+  anthropic_api_key     String?  // Claude API (assistente do sistema)
   notification_phone    String?  // Número WhatsApp para alertas (ex: 5511999999999)
   notification_instance String?  // Nome da instância Evolution para enviar alertas
   created_at            DateTime @default(now())

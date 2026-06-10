@@ -26,6 +26,7 @@ const Settings = () => {
   const [serperApiKey, setSerperApiKey] = useState("");
   const [apifyApiKey, setApifyApiKey] = useState("");
   const [openaiApiKey, setOpenaiApiKey] = useState("");
+  const [anthropicApiKey, setAnthropicApiKey] = useState("");
   const [notificationPhone, setNotificationPhone] = useState("");
   const [notificationInstance, setNotificationInstance] = useState("");
   const [centralWiId, setCentralWiId] = useState("");
@@ -55,6 +56,7 @@ const Settings = () => {
       setSerperApiKey(s.serper_api_key || "");
       setApifyApiKey(s.apify_api_key || "");
       setOpenaiApiKey(s.openai_api_key || "");
+      setAnthropicApiKey(s.anthropic_api_key || "");
       setNotificationPhone(s.notification_phone || "");
       setNotificationInstance(s.notification_instance || "");
 
@@ -86,6 +88,7 @@ const Settings = () => {
         serper_api_key: serperApiKey || null,
         apify_api_key: apifyApiKey || null,
         openai_api_key: openaiApiKey || null,
+        anthropic_api_key: anthropicApiKey || null,
         notification_phone: notificationPhone || null,
         notification_instance: notificationInstance || null,
       });
@@ -187,7 +190,8 @@ const Settings = () => {
               {[
                 { label: "Serper API Key (Google Maps)", value: serperApiKey, set: setSerperApiKey },
                 { label: "Apify API Key (Instagram)", value: apifyApiKey, set: setApifyApiKey },
-                { label: "OpenAI API Key (IA / Assistente)", value: openaiApiKey, set: setOpenaiApiKey },
+                { label: "OpenAI API Key (IA / outras integrações)", value: openaiApiKey, set: setOpenaiApiKey },
+                { label: "Anthropic API Key (Claude — Assistente)", value: anthropicApiKey, set: setAnthropicApiKey },
               ].map(f => (
                 <div key={f.label} className="space-y-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">{f.label}</Label><Input type="password" value={f.value} onChange={e => f.set(e.target.value)} className="bg-secondary border-border" /></div>
               ))}
