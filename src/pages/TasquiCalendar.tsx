@@ -54,6 +54,28 @@ const TasquiCalendar = () => {
   const [igModal, setIgModal] = useState<any>(null); // post a publicar
   const [igForm, setIgForm] = useState({ scheduled_at: "", media_urls: [""] });
   const [igSaving, setIgSaving] = useState(false);
+  // Preenchimento de conteúdo no detalhe
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [savingContent, setSavingContent] = useState(false);
+
+  useEffect(() => {
+    if (detailPost) { setEditTitle(detailPost.title || ""); setEditContent(detailPost.content || ""); }
+  }, [detailPost]);
+
+  const salvarConteudo = async () => {
+    if (!detailPost) return;
+    setSavingContent(true);
+    try {
+      await api.patch(`/api/tasqui/calendar/${detailPost.id}`, { title: editTitle, content: editContent });
+      toast({ title: "Conteúdo salvo!" });
+      setDetailPost((p: any) => ({ ...p, title: editTitle, content: editContent }));
+      load();
+    } catch {
+      toast({ title: "Erro ao salvar", variant: "destructive" });
+    }
+    setSavingContent(false);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -99,19 +121,20 @@ const TasquiCalendar = () => {
   };
 
   const handleCreate = async () => {
-    if (!form.client_id || !form.title || !form.scheduled_date) {
-      toast({ title: "Preencha cliente, título e data.", variant: "destructive" });
+    // Card vazio: exige só cliente + formato + dia (título e conteúdo entram depois)
+    if (!form.client_id || !form.scheduled_date) {
+      toast({ title: "Selecione o cliente e o dia.", variant: "destructive" });
       return;
     }
     setSaving(true);
     try {
       await api.post("/api/tasqui/calendar", form);
-      toast({ title: "Post adicionado ao calendário!" });
+      toast({ title: "Card criado no calendário!", description: "Clique nele para preencher o conteúdo." });
       setModalOpen(false);
       setForm({ client_id: "", title: "", content: "", type: "POST", platform: "INSTAGRAM", scheduled_date: "", status: "PLANEJADO" });
       load();
     } catch {
-      toast({ title: "Erro ao criar post", variant: "destructive" });
+      toast({ title: "Erro ao criar card", variant: "destructive" });
     }
     setSaving(false);
   };
@@ -238,16 +261,23 @@ const TasquiCalendar = () => {
                         {day}
                       </div>
                       <div className="space-y-1">
-                        {dayPosts.slice(0, 3).map(post => (
-                          <div
-                            key={post.id}
-                            onClick={e => { e.stopPropagation(); setDetailPost(post); }}
-                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80 border ${STATUS_CONFIG[post.status]?.color}`}
-                          >
-                            <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${TYPE_COLOR[post.type]}`} />
-                            {post.title}
-                          </div>
-                        ))}
+                        {dayPosts.slice(0, 3).map(post => {
+                          const vazio = !post.title;
+                          return (
+                            <div
+                              key={post.id}
+                              onClick={e => { e.stopPropagation(); setDetailPost(post); }}
+                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80 border ${
+                                vazio
+                                  ? "border-dashed border-muted-foreground/40 text-muted-foreground bg-transparent"
+                                  : STATUS_CONFIG[post.status]?.color
+                              }`}
+                            >
+                              <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${TYPE_COLOR[post.type]}`} />
+                              {vazio ? `${post.type} · a preencher` : post.title}
+                            </div>
+                          );
+                        })}
                         {dayPosts.length > 3 && (
                           <p className="text-[9px] text-muted-foreground font-bold pl-1">+{dayPosts.length - 3} mais</p>
                         )}
@@ -271,11 +301,14 @@ const TasquiCalendar = () => {
         ))}
       </div>
 
-      {/* Modal criar post */}
+      {/* Modal criar card */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="bg-card border-border max-w-md">
-          <DialogHeader><DialogTitle>Novo Post no Calendário</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Novo Card no Calendário</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">
+            <p className="text-xs text-muted-foreground bg-secondary/40 rounded-lg p-2.5">
+              Crie o card com <strong>cliente, formato e dia</strong>. O conteúdo (título, legenda, mídia) você preenche depois clicando no card.
+            </p>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground uppercase tracking-widest">Cliente *</Label>
               <Select value={form.client_id} onValueChange={v => setForm(f => ({ ...f, client_id: v }))}>
@@ -283,13 +316,9 @@ const TasquiCalendar = () => {
                 <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase tracking-widest">Título *</Label>
-              <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Ex: Post Dia das Mães" className="bg-secondary border-border" />
-            </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground uppercase tracking-widest">Tipo</Label>
+                <Label className="text-xs text-muted-foreground uppercase tracking-widest">Formato *</Label>
                 <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
                   <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
                   <SelectContent>{TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
@@ -303,19 +332,28 @@ const TasquiCalendar = () => {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground uppercase tracking-widest">Data *</Label>
+                <Label className="text-xs text-muted-foreground uppercase tracking-widest">Dia *</Label>
                 <Input type="date" value={form.scheduled_date} onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))} className="bg-secondary border-border" />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase tracking-widest">Legenda / Briefing</Label>
-              <Textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} className="bg-secondary border-border resize-none" rows={3} placeholder="Descreva o conteúdo do post..." />
-            </div>
+            <details className="text-xs">
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Já quer preencher o conteúdo agora? (opcional)</summary>
+              <div className="space-y-3 mt-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-widest">Título</Label>
+                  <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Ex: Post Dia das Mães" className="bg-secondary border-border" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-widest">Legenda / Briefing</Label>
+                  <Textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} className="bg-secondary border-border resize-none" rows={3} placeholder="Descreva o conteúdo..." />
+                </div>
+              </div>
+            </details>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setModalOpen(false)} className="border-border">Cancelar</Button>
             <Button onClick={handleCreate} disabled={saving} className="gradient-button">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Adicionar"}
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Criar Card"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -344,7 +382,6 @@ const TasquiCalendar = () => {
                     <span className={`w-2 h-2 rounded-full ${TYPE_COLOR[detailPost.type]}`} />
                     <span className="text-xs font-bold text-muted-foreground">{detailPost.type} · {detailPost.platform}</span>
                   </div>
-                  <h3 className="text-lg font-black text-foreground">{detailPost.title}</h3>
                   <p className="text-xs text-muted-foreground mt-0.5">{detailPost.client?.name} · {new Date(detailPost.scheduled_date).toLocaleDateString("pt-BR")}</p>
                 </div>
                 <button onClick={() => setDetailPost(null)} className="p-1 hover:bg-white/10 rounded-lg transition-colors">
@@ -352,9 +389,31 @@ const TasquiCalendar = () => {
                 </button>
               </div>
 
-              {detailPost.content && (
-                <p className="text-sm text-muted-foreground bg-secondary/50 rounded-xl p-3">{detailPost.content}</p>
-              )}
+              {/* Preencher conteúdo */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-widest">Conteúdo do card</Label>
+                <Input
+                  value={editTitle}
+                  onChange={e => setEditTitle(e.target.value)}
+                  placeholder="Título do conteúdo"
+                  className="bg-secondary border-border"
+                />
+                <Textarea
+                  value={editContent}
+                  onChange={e => setEditContent(e.target.value)}
+                  placeholder="Legenda / briefing do conteúdo..."
+                  className="bg-secondary border-border resize-none"
+                  rows={4}
+                />
+                <Button
+                  onClick={salvarConteudo}
+                  disabled={savingContent}
+                  size="sm"
+                  className="gradient-button w-full"
+                >
+                  {savingContent ? <Loader2 className="w-4 h-4 animate-spin" /> : "Salvar conteúdo"}
+                </Button>
+              </div>
 
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground uppercase tracking-widest">Status</Label>

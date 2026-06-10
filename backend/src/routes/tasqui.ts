@@ -330,8 +330,9 @@ router.post("/calendar", authenticateJWT, async (req: AuthRequest, res: Response
   if (req.user?.role === "CLIENT") { res.status(403).json({ error: "Acesso negado" }); return; }
 
   const { client_id, project_id, title, content, type, platform, scheduled_date, status } = req.body;
-  if (!client_id || !title || !scheduled_date) {
-    res.status(400).json({ error: "client_id, title e scheduled_date são obrigatórios" });
+  // Card vazio: exige só cliente + formato + dia. Título e conteúdo são opcionais.
+  if (!client_id || !scheduled_date) {
+    res.status(400).json({ error: "client_id e scheduled_date são obrigatórios" });
     return;
   }
 
@@ -340,7 +341,7 @@ router.post("/calendar", authenticateJWT, async (req: AuthRequest, res: Response
       data: {
         client_id,
         project_id: project_id || null,
-        title,
+        title: title || null,
         content: content || null,
         type: type || "POST",
         platform: platform || "INSTAGRAM",

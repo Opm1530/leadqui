@@ -42,8 +42,25 @@ const TOOLS: any[] = [
   {
     type: "function",
     function: {
+      name: "criar_card",
+      description: "Propõe criar um card VAZIO no calendário editorial — só define cliente, formato e dia. O conteúdo é preenchido depois. Use quando o usuário quer reservar/planejar dias do calendário. Aceita vários dias de uma vez.",
+      parameters: {
+        type: "object",
+        properties: {
+          client_id: { type: "string" },
+          tipo:      { type: "string", enum: ["POST", "STORY", "REEL", "CARROSSEL", "AD"], description: "Formato do conteúdo" },
+          plataforma:{ type: "string", enum: ["INSTAGRAM", "FACEBOOK", "TIKTOK", "LINKEDIN"] },
+          datas:     { type: "array", items: { type: "string" }, description: "Lista de datas YYYY-MM-DD para criar um card em cada" },
+        },
+        required: ["client_id", "tipo", "datas"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "adicionar_conteudo",
-      description: "Propõe adicionar um conteúdo no calendário editorial de um cliente numa data. NÃO executa direto — gera uma proposta para o usuário confirmar.",
+      description: "Propõe adicionar um conteúdo JÁ COMPLETO (com título e legenda) no calendário de um cliente numa data. Use quando o usuário já dá o conteúdo pronto. NÃO executa direto — gera proposta para confirmar.",
       parameters: {
         type: "object",
         properties: {
@@ -55,6 +72,22 @@ const TOOLS: any[] = [
           data:      { type: "string", description: "Data no formato YYYY-MM-DD" },
         },
         required: ["client_id", "titulo", "tipo", "data"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "preencher_card",
+      description: "Propõe preencher um card existente (vazio ou não) com título e legenda. Use listar_calendario antes para obter o post_id do card.",
+      parameters: {
+        type: "object",
+        properties: {
+          post_id: { type: "string", description: "ID do card a preencher" },
+          titulo:  { type: "string" },
+          legenda: { type: "string" },
+        },
+        required: ["post_id", "titulo"],
       },
     },
   },
@@ -112,7 +145,7 @@ async function execReadTool(name: string, args: any, userId: string): Promise<an
 }
 
 // Tools de escrita viram propostas (não executam aqui)
-const WRITE_TOOLS = ["adicionar_conteudo", "enviar_para_producao"];
+const WRITE_TOOLS = ["criar_card", "adicionar_conteudo", "preencher_card", "enviar_para_producao"];
 
 // ── POST /api/assistant/chat ──────────────────────────────────────────
 router.post("/chat", async (req: AuthRequest, res: Response): Promise<void> => {
@@ -176,6 +209,31 @@ router.post("/chat", async (req: AuthRequest, res: Response): Promise<void> => {
 
 // Monta a proposta legível + payload resolvido
 async function buildProposal(fnName: string, args: any): Promise<any> {
+  if (fnName === "criar_card") {
+    const client = await prisma.client.findUnique({ where: { id: args.client_id }, select: { name: true } });
+    const datas: string[] = Array.isArray(args.datas) ? args.datas : [args.datas].filter(Boolean);
+    return {
+      id: Math.random().toString(36).slice(2),
+      type: "criar_card",
+      label: `Criar ${datas.length} card(s) de ${args.tipo} para ${client?.name || "cliente"} (${datas.join(", ")})`,
+      payload: {
+        client_id: args.client_id,
+        type: args.tipo,
+        platform: args.plataforma || "INSTAGRAM",
+        datas,
+      },
+    };
+  }
+  if (fnName === "preencher_card") {
+    const post = await (prisma as any).calendarPost.findUnique({ where: { id: args.post_id }, select: { scheduled_date: true } });
+    const quando = post ? new Date(post.scheduled_date).toLocaleDateString("pt-BR") : "";
+    return {
+      id: Math.random().toString(36).slice(2),
+      type: "preencher_card",
+      label: `Preencher card de ${quando} com "${args.titulo}"`,
+      payload: { post_id: args.post_id, title: args.titulo, content: args.legenda || null },
+    };
+  }
   if (fnName === "adicionar_conteudo") {
     const client = await prisma.client.findUnique({ where: { id: args.client_id }, select: { name: true } });
     return {
@@ -212,6 +270,33 @@ async function buildProposal(fnName: string, args: any): Promise<any> {
 router.post("/execute", async (req: AuthRequest, res: Response): Promise<void> => {
   const { type, payload } = req.body;
   try {
+    if (type === "criar_card") {
+      const datas: string[] = payload.datas || [];
+      const created = await Promise.all(datas.map((d: string) =>
+        (prisma as any).calendarPost.create({
+          data: {
+            client_id: payload.client_id,
+            title: null,
+            type: payload.type || "POST",
+            platform: payload.platform || "INSTAGRAM",
+            scheduled_date: new Date(d),
+            status: "PLANEJADO",
+          },
+        })
+      ));
+      res.json({ success: true, message: `${created.length} card(s) criado(s) no calendário. Agora é só preencher o conteúdo.` });
+      return;
+    }
+
+    if (type === "preencher_card") {
+      const post = await (prisma as any).calendarPost.update({
+        where: { id: payload.post_id },
+        data: { title: payload.title, content: payload.content || null },
+      });
+      res.json({ success: true, message: `Card preenchido com "${post.title}".` });
+      return;
+    }
+
     if (type === "adicionar_conteudo") {
       const post = await (prisma as any).calendarPost.create({
         data: {

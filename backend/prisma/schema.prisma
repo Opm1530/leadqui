@@ -451,7 +451,7 @@ model CalendarPost {
   id                  String           @id @default(uuid())
   client_id           String
   project_id          String?
-  title               String
+  title               String?          // opcional — card pode ser criado vazio (só formato + dia)
   content             String?
   type                PostType         @default(POST)
   platform            PostPlatform     @default(INSTAGRAM)
