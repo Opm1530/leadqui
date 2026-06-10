@@ -46,7 +46,6 @@ const routeToTab: Record<string, string> = {
   "/techqui/instagram": "instagram",
   "/techqui/ads":       "ads",
   "/techqui/comments":  "comments",
-  "/techqui/settings":  "settings",
 };
 
 const TechQui = () => {
@@ -138,9 +137,6 @@ const TechQui = () => {
         </TabsContent>
         <TabsContent value="comments">
           <CommentsTab connections={connections} clients={clients} selectedClient={selectedClient} toast={toast} />
-        </TabsContent>
-        <TabsContent value="settings">
-          <SettingsTab settings={settings} onSaved={loadBase} toast={toast} />
         </TabsContent>
       </Tabs>
 

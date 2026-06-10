@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles } from "lucide-react";
+import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -137,8 +137,17 @@ const Hub = () => {
             <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Usuário Logado</p>
             <p className="text-sm text-gray-300 font-medium">{user?.email}</p>
           </div>
-          <button 
-            onClick={signOut} 
+          {user?.role !== "CLIENT" && (
+            <button
+              onClick={() => navigate("/settings")}
+              title="Configurações"
+              className="flex items-center justify-center w-10 h-10 rounded-full border border-white/10 hover:bg-white/5 transition-all text-gray-400 hover:text-white"
+            >
+              <SettingsIcon className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={signOut}
             className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 hover:bg-white/5 transition-all text-sm text-gray-400 hover:text-white"
           >
             <LogOut className="w-4 h-4" />

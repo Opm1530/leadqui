@@ -62,11 +62,10 @@ const teamquiItems = [
 ];
 
 const techquiItems = [
-  { to: "/techqui",          icon: Link2,        label: "Conexões Meta"    },
-  { to: "/techqui/instagram",icon: Instagram,    label: "Instagram"        },
-  { to: "/techqui/ads",      icon: BarChart2,    label: "Meta Ads"         },
-  { to: "/techqui/comments", icon: MessageSquare,label: "Auto-reply"       },
-  { to: "/techqui/settings", icon: Settings,     label: "Configurações"    },
+  { to: "/techqui",          icon: Link2,        label: "Conexões Meta" },
+  { to: "/techqui/instagram",icon: Instagram,    label: "Instagram"     },
+  { to: "/techqui/ads",      icon: BarChart2,    label: "Meta Ads"      },
+  { to: "/techqui/comments", icon: MessageSquare,label: "Auto-reply"    },
 ];
 
 const cashquiItems = [

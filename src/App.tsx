@@ -87,7 +87,6 @@ const App = () => (
                 <Route path="/techqui/instagram" element={<TechQui />} />
                 <Route path="/techqui/ads" element={<TechQui />} />
                 <Route path="/techqui/comments" element={<TechQui />} />
-                <Route path="/techqui/settings" element={<TechQui />} />
                 <Route path="/roles" element={<Roles />} />
                 {/* CashQui */}
                 <Route path="/cashqui" element={<CashQuiDashboard />} />
