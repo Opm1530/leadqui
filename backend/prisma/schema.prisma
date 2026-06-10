@@ -454,6 +454,9 @@ model CalendarPost {
   status              PostStatus       @default(PLANEJADO)
   media_urls          String?          // JSON: string[] — URLs das mídias para publicação
   instagram_post_id   String?          // ID do InstagramScheduledPost vinculado
+  trello_card_id      String?          // ID do card criado no Trello ao enviar para produção
+  trello_card_url     String?          // URL curta do card no Trello
+  task_id             String?          // ID da Task do Tasqui criada ao enviar para produção
   created_at          DateTime         @default(now())
   updated_at          DateTime         @updatedAt
 
@@ -609,7 +612,8 @@ model TechQuiSettings {
   instagram_app_secret String? // Instagram App Secret
   trello_api_key      String?  // Integração Trello — API Key
   trello_token        String?  // Trello Token
-  trello_list_id      String?  // ID da lista (coluna) onde criar os cards de produção
+  trello_board_id     String?  // ID do quadro (board) padrão para produção
+  trello_list_id      String?  // ID da lista (coluna) padrão onde criar os cards de produção
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
 

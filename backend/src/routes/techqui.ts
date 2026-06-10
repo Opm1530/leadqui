@@ -4,6 +4,7 @@ import { authenticateJWT, AuthRequest } from "../middlewares/auth";
 import axios from "axios";
 import OpenAI from "openai";
 import { getCompanySettings } from "../lib/companySettings";
+import { getTrelloBoards, getTrelloLists, getTrelloLabels, getTrelloMembers } from "../lib/trello";
 
 // Escolhe a API/token corretos para operações de Instagram numa conexão.
 // Prioriza Instagram Login (ig_access_token / graph.instagram.com);
@@ -431,6 +432,27 @@ router.put("/settings", authenticateJWT, async (req: AuthRequest, res: Response)
     });
     res.json({ settings });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Trello — leitura para dropdowns ───────────────────────────────────
+router.get("/trello/boards", authenticateJWT, async (_req: AuthRequest, res: Response): Promise<void> => {
+  try { res.json({ boards: await getTrelloBoards() }); }
+  catch (e: any) { res.status(500).json({ error: e.response?.data || e.message }); }
+});
+
+router.get("/trello/lists", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  try { res.json({ lists: await getTrelloLists(req.query.board_id as string | undefined) }); }
+  catch (e: any) { res.status(500).json({ error: e.response?.data || e.message }); }
+});
+
+router.get("/trello/labels", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  try { res.json({ labels: await getTrelloLabels(req.query.board_id as string | undefined) }); }
+  catch (e: any) { res.status(500).json({ error: e.response?.data || e.message }); }
+});
+
+router.get("/trello/members", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  try { res.json({ members: await getTrelloMembers(req.query.board_id as string | undefined) }); }
+  catch (e: any) { res.status(500).json({ error: e.response?.data || e.message }); }
 });
 
 // ── Client Meta Connections ───────────────────────────────────────────

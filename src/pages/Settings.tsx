@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -34,7 +35,7 @@ const Settings = () => {
   const [meta, setMeta] = useState<any>({
     meta_app_id: "", meta_app_secret: "", meta_business_id: "", meta_system_token: "",
     instagram_app_id: "", instagram_app_secret: "",
-    trello_api_key: "", trello_token: "", trello_list_id: "",
+    trello_api_key: "", trello_token: "", trello_board_id: "", trello_list_id: "",
   });
 
   // ── Senha ───────────────────────────────────────────────────────────
@@ -64,7 +65,7 @@ const Settings = () => {
         meta_app_id: tq.meta_app_id || "", meta_app_secret: tq.meta_app_secret || "",
         meta_business_id: tq.meta_business_id || "", meta_system_token: tq.meta_system_token || "",
         instagram_app_id: tq.instagram_app_id || "", instagram_app_secret: tq.instagram_app_secret || "",
-        trello_api_key: tq.trello_api_key || "", trello_token: tq.trello_token || "", trello_list_id: tq.trello_list_id || "",
+        trello_api_key: tq.trello_api_key || "", trello_token: tq.trello_token || "", trello_board_id: tq.trello_board_id || "", trello_list_id: tq.trello_list_id || "",
       }));
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -114,6 +115,32 @@ const Settings = () => {
   };
 
   const setM = (k: string, v: string) => setMeta((m: any) => ({ ...m, [k]: v }));
+
+  // ── Trello: carregar quadros e listas para dropdowns ────────────────
+  const [trelloBoards, setTrelloBoards] = useState<any[]>([]);
+  const [trelloLists, setTrelloLists] = useState<any[]>([]);
+  const [loadingTrello, setLoadingTrello] = useState(false);
+
+  const carregarQuadros = async () => {
+    setLoadingTrello(true);
+    try {
+      const d = await api.get("/api/techqui/trello/boards");
+      setTrelloBoards(d.boards || []);
+      if (!d.boards?.length) toast({ title: "Nenhum quadro encontrado", description: "Confirme API Key e Token e salve antes.", variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: "Erro ao carregar quadros", description: "Salve a API Key e o Token do Trello primeiro.", variant: "destructive" });
+    } finally { setLoadingTrello(false); }
+  };
+
+  const carregarListas = async (boardId: string) => {
+    if (!boardId) { setTrelloLists([]); return; }
+    try {
+      const d = await api.get(`/api/techqui/trello/lists?board_id=${boardId}`);
+      setTrelloLists(d.lists || []);
+    } catch { setTrelloLists([]); }
+  };
+
+  useEffect(() => { if (meta.trello_board_id) carregarListas(meta.trello_board_id); }, [meta.trello_board_id]);
 
   if (loading) {
     return <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
@@ -224,11 +251,35 @@ const Settings = () => {
           <div className="space-y-6">
             <div className="glass-card p-6 space-y-5">
               <div className="flex items-center gap-2 mb-2"><LayoutGrid className="w-5 h-5 text-sky-400" /><h3 className="text-lg font-semibold text-foreground">Integração Trello</h3></div>
-              <p className="text-xs text-muted-foreground">Usada pelo Assistente para criar cards quando um conteúdo vai para produção. Pegue as chaves em <span className="text-primary">trello.com/app-key</span>.</p>
+              <p className="text-xs text-muted-foreground">Ao enviar um conteúdo para produção, é criado um card no Trello e uma tarefa no Tasqui. Pegue as chaves em <span className="text-primary">trello.com/app-key</span>. Salve a API Key e o Token, depois carregue os quadros.</p>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">API Key</Label><Input value={meta.trello_api_key} onChange={e => setM("trello_api_key", e.target.value)} className="bg-secondary border-border" /></div>
                 <div className="space-y-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">Token</Label><Input type="password" value={meta.trello_token} onChange={e => setM("trello_token", e.target.value)} className="bg-secondary border-border" /></div>
-                <div className="space-y-2 col-span-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">ID da Lista (coluna de produção)</Label><Input value={meta.trello_list_id} onChange={e => setM("trello_list_id", e.target.value)} className="bg-secondary border-border" /></div>
+              </div>
+
+              <div className="space-y-3 pt-2 border-t border-border/50">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Quadro padrão</Label>
+                  <button type="button" onClick={carregarQuadros} disabled={loadingTrello}
+                    className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50">
+                    {loadingTrello ? <Loader2 className="w-3 h-3 animate-spin" /> : <LayoutGrid className="w-3 h-3" />} Carregar quadros
+                  </button>
+                </div>
+                <Select value={meta.trello_board_id} onValueChange={v => { setM("trello_board_id", v); setM("trello_list_id", ""); }}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione um quadro (carregue primeiro)" /></SelectTrigger>
+                  <SelectContent>
+                    {trelloBoards.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Lista padrão (coluna de produção)</Label>
+                <Select value={meta.trello_list_id} onValueChange={v => setM("trello_list_id", v)} disabled={!meta.trello_board_id}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione a lista padrão" /></SelectTrigger>
+                  <SelectContent>
+                    {trelloLists.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Essa é a lista usada por padrão. No momento de enviar para produção você poderá escolher outra lista, o responsável e as etiquetas.</p>
               </div>
             </div>
             <button onClick={saveMeta} disabled={savingMeta} className="gradient-button px-6 py-3 flex items-center gap-2 text-sm disabled:opacity-50">

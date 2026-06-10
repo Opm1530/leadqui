@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import axios from "axios";
 import prisma from "../lib/prisma";
 import { authenticateJWT, AuthRequest } from "../middlewares/auth";
+import { sendPostToProduction } from "../lib/production";
 
 const router = Router();
 
@@ -388,6 +389,24 @@ router.delete("/calendar/:id", authenticateJWT, async (req: AuthRequest, res: Re
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: "Erro ao deletar post" });
+  }
+});
+
+// ── POST /api/tasqui/calendar/:id/send-production ─────────────────────
+// Envia para produção: status PRODUZINDO + card Trello + tarefa Tasqui
+router.post("/calendar/:id/send-production", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { id } = req.params;
+  const { trello_list_id, trello_member_ids, trello_label_ids, responsible_id } = req.body || {};
+  try {
+    const { post, trello, task } = await sendPostToProduction(String(id), {
+      trello_list_id,
+      trello_member_ids,
+      trello_label_ids,
+      responsible_id,
+    });
+    res.json({ success: true, post, trello, task, trello_url: trello?.shortUrl || null });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
   }
 });
 

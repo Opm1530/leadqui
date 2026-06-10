@@ -3,7 +3,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import prisma from "../lib/prisma";
 import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 import { getCompanySettings } from "../lib/companySettings";
-import { createTrelloCard, isTrelloConfigured } from "../lib/trello";
+import { isTrelloConfigured } from "../lib/trello";
+import { sendPostToProduction } from "../lib/production";
 
 const router = Router();
 router.use(authenticateJWT);
@@ -375,25 +376,14 @@ router.post("/execute", async (req: AuthRequest, res: Response): Promise<void> =
     }
 
     if (type === "enviar_para_producao") {
-      const post = await (prisma as any).calendarPost.update({
-        where: { id: payload.post_id },
-        data: { status: "PRODUZINDO" },
-        include: { client: { select: { name: true } } },
-      });
-      // Criar card no Trello (se configurado)
-      let trello = null;
-      try {
-        trello = await createTrelloCard(
-          `${post.client?.name || "Cliente"} — ${post.title}`,
-          `Tipo: ${post.type} · Plataforma: ${post.platform}\nData: ${new Date(post.scheduled_date).toLocaleDateString("pt-BR")}\n\n${post.content || ""}`,
-          new Date(post.scheduled_date).toISOString(),
-        );
-      } catch (e: any) {
-        console.warn("[Assistant] Trello falhou:", e.message);
-      }
+      const { post, trello, task } = await sendPostToProduction(payload.post_id);
+      const extras = [
+        trello ? "card no Trello" : null,
+        task ? "tarefa no Tasqui" : null,
+      ].filter(Boolean).join(" + ");
       res.json({
         success: true,
-        message: `"${post.title}" enviado para produção${trello ? " e card criado no Trello" : " (Trello não configurado)"}.`,
+        message: `"${post.title || "Post"}" enviado para produção${extras ? ` (${extras})` : " (Trello não configurado)"}.`,
         trello_url: trello?.shortUrl || null,
       });
       return;

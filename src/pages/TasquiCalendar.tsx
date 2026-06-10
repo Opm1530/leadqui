@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Plus, Loader2, X, Instagram, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Loader2, X, Instagram, Send, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -58,6 +58,58 @@ const TasquiCalendar = () => {
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
   const [savingContent, setSavingContent] = useState(false);
+  // Modal "Enviar para produção"
+  const [prodModal, setProdModal] = useState<any>(null); // post a enviar
+  const [prodLists, setProdLists] = useState<any[]>([]);
+  const [prodMembers, setProdMembers] = useState<any[]>([]);
+  const [prodLabels, setProdLabels] = useState<any[]>([]);
+  const [prodListId, setProdListId] = useState("");
+  const [prodMemberId, setProdMemberId] = useState("");
+  const [prodLabelIds, setProdLabelIds] = useState<string[]>([]);
+  const [prodLoading, setProdLoading] = useState(false);
+  const [prodSending, setProdSending] = useState(false);
+
+  const abrirProducao = async (post: any) => {
+    setDetailPost(null);
+    setProdModal(post);
+    setProdListId(""); setProdMemberId(""); setProdLabelIds([]);
+    setProdLoading(true);
+    try {
+      const [l, m, lb] = await Promise.all([
+        api.get("/api/techqui/trello/lists").catch(() => ({ lists: [] })),
+        api.get("/api/techqui/trello/members").catch(() => ({ members: [] })),
+        api.get("/api/techqui/trello/labels").catch(() => ({ labels: [] })),
+      ]);
+      setProdLists(l.lists || []);
+      setProdMembers(m.members || []);
+      setProdLabels(lb.labels || []);
+    } catch {
+      toast({ title: "Não foi possível carregar dados do Trello", description: "Configure o quadro nas Configurações.", variant: "destructive" });
+    } finally { setProdLoading(false); }
+  };
+
+  const toggleLabel = (id: string) =>
+    setProdLabelIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const enviarProducao = async () => {
+    if (!prodModal) return;
+    setProdSending(true);
+    try {
+      const d = await api.post(`/api/tasqui/calendar/${prodModal.id}/send-production`, {
+        trello_list_id: prodListId || undefined,
+        trello_member_ids: prodMemberId ? [prodMemberId] : undefined,
+        trello_label_ids: prodLabelIds.length ? prodLabelIds : undefined,
+      });
+      toast({
+        title: "Enviado para produção! 🎬",
+        description: `${d.trello ? "Card no Trello" : "Trello não configurado"}${d.task ? " + tarefa no Tasqui criada" : ""}.`,
+      });
+      setProdModal(null);
+      load();
+    } catch (e: any) {
+      toast({ title: "Erro ao enviar", description: e.message, variant: "destructive" });
+    } finally { setProdSending(false); }
+  };
 
   useEffect(() => {
     if (detailPost) { setEditTitle(detailPost.title || ""); setEditContent(detailPost.content || ""); }
@@ -263,6 +315,7 @@ const TasquiCalendar = () => {
                       <div className="space-y-1">
                         {dayPosts.slice(0, 3).map(post => {
                           const vazio = !post.title;
+                          const produzindo = post.status === "PRODUZINDO";
                           return (
                             <div
                               key={post.id}
@@ -271,9 +324,11 @@ const TasquiCalendar = () => {
                                 vazio
                                   ? "border-dashed border-muted-foreground/40 text-muted-foreground bg-transparent"
                                   : STATUS_CONFIG[post.status]?.color
-                              }`}
+                              } ${produzindo ? "ring-2 ring-blue-400/60 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]" : ""}`}
                             >
-                              <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${TYPE_COLOR[post.type]}`} />
+                              {produzindo
+                                ? <span className="mr-1">🎬</span>
+                                : <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${TYPE_COLOR[post.type]}`} />}
                               {vazio ? `${post.type} · a preencher` : post.title}
                             </div>
                           );
@@ -432,6 +487,24 @@ const TasquiCalendar = () => {
                 </div>
               </div>
 
+              {/* Enviar para produção — para posts ainda PLANEJADOS */}
+              {detailPost.status === "PLANEJADO" && (
+                <Button
+                  onClick={() => abrirProducao(detailPost)}
+                  className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white border-0 gap-2"
+                >
+                  🎬 Enviar para Produção
+                </Button>
+              )}
+
+              {/* Link do card no Trello, se já enviado */}
+              {detailPost.trello_card_url && (
+                <a href={detailPost.trello_card_url} target="_blank" rel="noreferrer"
+                  className="flex items-center gap-2 text-xs text-sky-400 bg-sky-500/10 rounded-xl p-3 border border-sky-500/20 hover:bg-sky-500/20 transition-colors">
+                  <LayoutGrid className="w-3.5 h-3.5" /> Ver card no Trello
+                </a>
+              )}
+
               {/* Botão publicar no Instagram — só para posts APROVADO na plataforma INSTAGRAM */}
               {detailPost.status === "APROVADO" && detailPost.platform === "INSTAGRAM" && !detailPost.instagram_post_id && (
                 <Button
@@ -460,6 +533,68 @@ const TasquiCalendar = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Modal enviar para produção */}
+      <Dialog open={!!prodModal} onOpenChange={v => !v && setProdModal(null)}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">🎬 Enviar para Produção</DialogTitle>
+          </DialogHeader>
+          {prodLoading ? (
+            <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <p className="text-xs text-muted-foreground">
+                Cria um card no Trello e uma tarefa no Tasqui para <span className="text-foreground font-semibold">{prodModal?.title || prodModal?.type}</span>.
+              </p>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground uppercase tracking-widest">Lista (coluna)</Label>
+                <Select value={prodListId} onValueChange={setProdListId}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Lista padrão" /></SelectTrigger>
+                  <SelectContent>
+                    {prodLists.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground uppercase tracking-widest">Responsável</Label>
+                <Select value={prodMemberId} onValueChange={setProdMemberId}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Sem responsável" /></SelectTrigger>
+                  <SelectContent>
+                    {prodMembers.map(m => <SelectItem key={m.id} value={m.id}>{m.fullName || m.username}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {prodLabels.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-widest">Etiquetas</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {prodLabels.map(lb => (
+                      <button key={lb.id} type="button" onClick={() => toggleLabel(lb.id)}
+                        className={`text-xs px-2.5 py-1 rounded-full border transition-all ${
+                          prodLabelIds.includes(lb.id)
+                            ? "border-primary bg-primary/20 text-foreground"
+                            : "border-border text-muted-foreground hover:border-white/20"
+                        }`}>
+                        {lb.name || lb.color || "etiqueta"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProdModal(null)} disabled={prodSending} className="border-border">Cancelar</Button>
+            <Button onClick={enviarProducao} disabled={prodSending || prodLoading} className="gradient-button gap-2">
+              {prodSending ? <Loader2 className="w-4 h-4 animate-spin" /> : "🎬"} Enviar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal publicar no Instagram */}
       <Dialog open={!!igModal} onOpenChange={v => !v && setIgModal(null)}>
