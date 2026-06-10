@@ -149,7 +149,7 @@ router.post("/chat", async (req: AuthRequest, res: Response): Promise<void> => {
     // Loop de tool calling (máx 6 iterações para segurança)
     for (let i = 0; i < 6; i++) {
       const response = await anthropic.messages.create({
-        model: "claude-opus-4-8",
+        model: "claude-haiku-4-5",
         max_tokens: 4096,
         system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         tools: TOOLS,
