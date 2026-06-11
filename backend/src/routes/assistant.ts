@@ -106,13 +106,64 @@ const TOOLS: Anthropic.Tool[] = [
       type: "object",
       properties: {
         client_id:    { type: "string" },
-        data_inicio:  { type: "string", description: "Data inicial YYYY-MM-DD (inclusive)" },
-        data_fim:     { type: "string", description: "Data final YYYY-MM-DD (inclusive)" },
+        data_inicio:  { type: "string", description: "Data inicial YYYY-MM-DD (inclusive). Opcional: se omitir junto com data_fim, apaga TODOS os posts do cliente." },
+        data_fim:     { type: "string", description: "Data final YYYY-MM-DD (inclusive). Opcional." },
       },
-      required: ["client_id", "data_inicio", "data_fim"],
+      required: ["client_id"],
+    },
+  },
+  {
+    name: "criar_calendario_recorrente",
+    description: "Cria cards VAZIOS no calendário seguindo uma regra semanal recorrente (ex: toda segunda um Reels, toda terça um Carrossel). VOCÊ NÃO PRECISA calcular as datas — informe apenas o dia da semana de cada regra e o período; o sistema calcula automaticamente as datas corretas. SEMPRE prefira esta ferramenta quando o usuário descrever um padrão por dia da semana. NÃO executa direto — gera proposta para confirmar.",
+    input_schema: {
+      type: "object",
+      properties: {
+        client_id:   { type: "string" },
+        plataforma:  { type: "string", enum: ["INSTAGRAM", "FACEBOOK", "TIKTOK", "LINKEDIN"], description: "Padrão INSTAGRAM" },
+        data_inicio: { type: "string", description: "Início do período YYYY-MM-DD (inclusive)" },
+        data_fim:    { type: "string", description: "Fim do período YYYY-MM-DD (inclusive)" },
+        regras: {
+          type: "array",
+          description: "Uma regra por dia da semana desejado",
+          items: {
+            type: "object",
+            properties: {
+              dia_semana: { type: "string", enum: ["SEGUNDA", "TERCA", "QUARTA", "QUINTA", "SEXTA", "SABADO", "DOMINGO"] },
+              tipo:       { type: "string", enum: ["POST", "STORY", "REEL", "CARROSSEL", "AD"] },
+            },
+            required: ["dia_semana", "tipo"],
+          },
+        },
+      },
+      required: ["client_id", "data_inicio", "data_fim", "regras"],
     },
   },
 ];
+
+// Mapa de dia da semana PT -> índice JS (0=domingo)
+const DIA_SEMANA: Record<string, number> = {
+  DOMINGO: 0, SEGUNDA: 1, TERCA: 2, QUARTA: 3, QUINTA: 4, SEXTA: 5, SABADO: 6,
+};
+
+// Calcula todas as datas (YYYY-MM-DD) entre início e fim que caem nas regras informadas.
+// Retorna lista de { data, tipo }. Cálculo feito em UTC para não sofrer com fuso.
+function expandirRecorrencia(dataInicio: string, dataFim: string, regras: any[]): { data: string; tipo: string }[] {
+  const out: { data: string; tipo: string }[] = [];
+  const start = new Date(dataInicio + "T00:00:00Z");
+  const end = new Date(dataFim + "T00:00:00Z");
+  const porDia: Record<number, string> = {};
+  for (const r of regras) {
+    const idx = DIA_SEMANA[String(r.dia_semana).toUpperCase()];
+    if (idx !== undefined) porDia[idx] = r.tipo;
+  }
+  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    const dow = d.getUTCDay();
+    if (porDia[dow]) {
+      out.push({ data: d.toISOString().slice(0, 10), tipo: porDia[dow] });
+    }
+  }
+  return out;
+}
 
 const SYSTEM_PROMPT = `Você é o assistente operacional da agência Pequi Digital, integrado ao ecossistema.
 Você ajuda a gerenciar o calendário editorial de mídia dos clientes.
@@ -121,10 +172,11 @@ Regras:
 - NUNCA invente, adivinhe ou crie um client_id ou post_id. IDs só podem vir de uma chamada anterior de buscar_cliente ou listar_calendario.
 - SEMPRE chame buscar_cliente ANTES de criar_card ou adicionar_conteudo, e use exatamente o id retornado.
 - Se buscar_cliente não retornar nenhum cliente, NÃO crie nada — avise o usuário que o cliente não foi encontrado e peça o nome correto.
-- Para datas, use o formato YYYY-MM-DD. O ano atual é ${new Date().getFullYear()}.
-- Ações que modificam dados (adicionar_conteudo, enviar_para_producao) geram uma PROPOSTA que o usuário confirma na interface. Após chamá-las, explique de forma curta o que será feito e diga que aguarda a confirmação.
-- Seja conciso e direto, em português do Brasil.
-- Se o usuário pedir "criar calendário de X para o mês Y", confirme o cliente e pergunte quais conteúdos ele quer, ou adicione os que ele listar.`;
+- Para datas, use o formato YYYY-MM-DD. A data de hoje é ${new Date().toISOString().slice(0, 10)}.
+- NUNCA calcule manualmente quais datas caem em determinado dia da semana — você erra. Quando o usuário descrever um padrão semanal (ex: "toda segunda Reels, toda terça Carrossel, toda quinta Reels, toda sexta Post"), use SEMPRE a ferramenta criar_calendario_recorrente, passando só as regras (dia_semana + tipo) e o período. O sistema calcula as datas certas.
+- Para limpar o calendário inteiro de um cliente, chame limpar_calendario só com o client_id (sem datas).
+- Ações que modificam dados geram uma PROPOSTA que o usuário confirma na interface. Após chamá-las, explique de forma curta o que será feito e diga que aguarda a confirmação. Não afirme que algo foi feito antes da confirmação.
+- Seja conciso e direto, em português do Brasil.`;
 
 // ── Executores das tools de LEITURA ───────────────────────────────────
 async function execReadTool(name: string, args: any, userId: string): Promise<any> {
@@ -154,7 +206,7 @@ async function execReadTool(name: string, args: any, userId: string): Promise<an
 }
 
 // Tools de escrita viram propostas (não executam aqui)
-const WRITE_TOOLS = ["criar_card", "adicionar_conteudo", "preencher_card", "enviar_para_producao", "remover_card", "limpar_calendario"];
+const WRITE_TOOLS = ["criar_card", "adicionar_conteudo", "preencher_card", "enviar_para_producao", "remover_card", "limpar_calendario", "criar_calendario_recorrente"];
 
 // ── POST /api/assistant/chat ──────────────────────────────────────────
 router.post("/chat", async (req: AuthRequest, res: Response): Promise<void> => {
@@ -298,16 +350,41 @@ async function buildProposal(fnName: string, args: any): Promise<any> {
   }
   if (fnName === "limpar_calendario") {
     const client = await prisma.client.findUnique({ where: { id: args.client_id }, select: { name: true } });
-    const inicio = new Date(args.data_inicio);
-    const fim = new Date(args.data_fim); fim.setHours(23, 59, 59, 999);
-    const count = await (prisma as any).calendarPost.count({
-      where: { client_id: args.client_id, scheduled_date: { gte: inicio, lte: fim } },
-    });
+    const where: any = { client_id: args.client_id };
+    let periodo = "(todo o calendário)";
+    if (args.data_inicio && args.data_fim) {
+      const inicio = new Date(args.data_inicio + "T00:00:00Z");
+      const fim = new Date(args.data_fim + "T23:59:59Z");
+      where.scheduled_date = { gte: inicio, lte: fim };
+      periodo = `entre ${args.data_inicio} e ${args.data_fim}`;
+    }
+    const count = await (prisma as any).calendarPost.count({ where });
     return {
       id: Math.random().toString(36).slice(2),
       type: "limpar_calendario",
-      label: `Apagar ${count} post(s) de ${client?.name || "cliente"} entre ${args.data_inicio} e ${args.data_fim}`,
-      payload: { client_id: args.client_id, data_inicio: args.data_inicio, data_fim: args.data_fim },
+      label: `Apagar ${count} post(s) de ${client?.name || "cliente"} ${periodo}`,
+      payload: { client_id: args.client_id, data_inicio: args.data_inicio || null, data_fim: args.data_fim || null },
+    };
+  }
+  if (fnName === "criar_calendario_recorrente") {
+    const client = await prisma.client.findUnique({ where: { id: args.client_id }, select: { name: true } });
+    const itens = expandirRecorrencia(args.data_inicio, args.data_fim, args.regras || []);
+    // Resumo por tipo
+    const porTipo: Record<string, number> = {};
+    for (const it of itens) porTipo[it.tipo] = (porTipo[it.tipo] || 0) + 1;
+    const resumo = (args.regras || [])
+      .map((r: any) => `${r.dia_semana.toLowerCase()} → ${r.tipo}`)
+      .join(", ");
+    const totais = Object.entries(porTipo).map(([t, n]) => `${n} ${t}`).join(", ");
+    return {
+      id: Math.random().toString(36).slice(2),
+      type: "criar_calendario_recorrente",
+      label: `Criar ${itens.length} card(s) para ${client?.name || "cliente"} (${resumo}) — ${totais} — de ${args.data_inicio} a ${args.data_fim}`,
+      payload: {
+        client_id: args.client_id,
+        platform: args.plataforma || "INSTAGRAM",
+        itens, // datas já calculadas no backend
+      },
     };
   }
   return { id: Math.random().toString(36).slice(2), type: fnName, label: "Ação", payload: args };
@@ -319,7 +396,7 @@ router.post("/execute", async (req: AuthRequest, res: Response): Promise<void> =
   const { type, payload } = req.body;
   try {
     // Valida que o cliente existe antes de criar (evita erro cru de FK quando o ID é inválido)
-    if ((type === "criar_card" || type === "adicionar_conteudo")) {
+    if ((type === "criar_card" || type === "adicionar_conteudo" || type === "criar_calendario_recorrente")) {
       if (!payload.client_id) {
         res.status(400).json({ error: "Cliente não informado. Peça ao assistente para buscar o cliente primeiro." });
         return;
@@ -397,12 +474,31 @@ router.post("/execute", async (req: AuthRequest, res: Response): Promise<void> =
     }
 
     if (type === "limpar_calendario") {
-      const inicio = new Date(payload.data_inicio);
-      const fim = new Date(payload.data_fim); fim.setHours(23, 59, 59, 999);
-      const result = await (prisma as any).calendarPost.deleteMany({
-        where: { client_id: payload.client_id, scheduled_date: { gte: inicio, lte: fim } },
-      });
+      const where: any = { client_id: payload.client_id };
+      if (payload.data_inicio && payload.data_fim) {
+        const inicio = new Date(payload.data_inicio + "T00:00:00Z");
+        const fim = new Date(payload.data_fim + "T23:59:59Z");
+        where.scheduled_date = { gte: inicio, lte: fim };
+      }
+      const result = await (prisma as any).calendarPost.deleteMany({ where });
       res.json({ success: true, message: `${result.count} post(s) removido(s) do calendário.` });
+      return;
+    }
+
+    if (type === "criar_calendario_recorrente") {
+      const itens: { data: string; tipo: string }[] = payload.itens || [];
+      if (!itens.length) { res.json({ success: true, message: "Nenhuma data correspondente às regras no período." }); return; }
+      const result = await (prisma as any).calendarPost.createMany({
+        data: itens.map(it => ({
+          client_id: payload.client_id,
+          title: null,
+          type: it.tipo,
+          platform: payload.platform || "INSTAGRAM",
+          scheduled_date: new Date(it.data + "T12:00:00Z"),
+          status: "PLANEJADO",
+        })),
+      });
+      res.json({ success: true, message: `${result.count} card(s) criado(s) nos dias corretos. Agora é só preencher o conteúdo.` });
       return;
     }
 
