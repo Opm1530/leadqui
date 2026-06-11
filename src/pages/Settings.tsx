@@ -35,7 +35,7 @@ const Settings = () => {
   const [meta, setMeta] = useState<any>({
     meta_app_id: "", meta_app_secret: "", meta_business_id: "", meta_system_token: "",
     instagram_app_id: "", instagram_app_secret: "",
-    trello_api_key: "", trello_token: "", trello_board_id: "", trello_list_id: "",
+    trello_api_key: "", trello_token: "", trello_board_id: "", trello_list_id: "", trello_done_list_id: "",
   });
 
   // ── Senha ───────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ const Settings = () => {
         meta_app_id: tq.meta_app_id || "", meta_app_secret: tq.meta_app_secret || "",
         meta_business_id: tq.meta_business_id || "", meta_system_token: tq.meta_system_token || "",
         instagram_app_id: tq.instagram_app_id || "", instagram_app_secret: tq.instagram_app_secret || "",
-        trello_api_key: tq.trello_api_key || "", trello_token: tq.trello_token || "", trello_board_id: tq.trello_board_id || "", trello_list_id: tq.trello_list_id || "",
+        trello_api_key: tq.trello_api_key || "", trello_token: tq.trello_token || "", trello_board_id: tq.trello_board_id || "", trello_list_id: tq.trello_list_id || "", trello_done_list_id: tq.trello_done_list_id || "",
       }));
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -141,6 +141,17 @@ const Settings = () => {
   };
 
   useEffect(() => { if (meta.trello_board_id) carregarListas(meta.trello_board_id); }, [meta.trello_board_id]);
+
+  const [registrandoWebhook, setRegistrandoWebhook] = useState(false);
+  const registrarWebhook = async () => {
+    setRegistrandoWebhook(true);
+    try {
+      const d = await api.post("/api/techqui/trello/register-webhook", {});
+      toast({ title: "Webhook registrado! ✅", description: `Trello vai avisar em ${d.callbackURL}` });
+    } catch (e: any) {
+      toast({ title: "Erro ao registrar webhook", description: e.message, variant: "destructive" });
+    } finally { setRegistrandoWebhook(false); }
+  };
 
   if (loading) {
     return <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
@@ -280,6 +291,26 @@ const Settings = () => {
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-muted-foreground">Essa é a lista usada por padrão. No momento de enviar para produção você poderá escolher outra lista, o responsável e as etiquetas.</p>
+
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider pt-2">Lista "Concluído" (arte pronta)</Label>
+                <Select value={meta.trello_done_list_id} onValueChange={v => setM("trello_done_list_id", v)} disabled={!meta.trello_board_id}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione a lista de concluído" /></SelectTrigger>
+                  <SelectContent>
+                    {trelloLists.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Quando o designer mover o card para esta lista, o sistema puxa a arte anexada e marca como "Arte pronta" no calendário.</p>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-border/50">
+                <div>
+                  <p className="text-sm text-foreground font-medium">Webhook do Trello</p>
+                  <p className="text-[11px] text-muted-foreground">Registre uma vez para o Trello avisar quando uma arte ficar pronta.</p>
+                </div>
+                <button type="button" onClick={registrarWebhook} disabled={registrandoWebhook || !meta.trello_board_id}
+                  className="text-xs px-3 py-2 rounded-lg border border-primary/40 text-primary hover:bg-primary/10 flex items-center gap-1 disabled:opacity-50">
+                  {registrandoWebhook ? <Loader2 className="w-3 h-3 animate-spin" /> : "🔗"} Registrar webhook
+                </button>
               </div>
             </div>
             <button onClick={saveMeta} disabled={savingMeta} className="gradient-button px-6 py-3 flex items-center gap-2 text-sm disabled:opacity-50">

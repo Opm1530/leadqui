@@ -59,6 +59,29 @@ export async function getTrelloMembers(boardId?: string): Promise<any[]> {
   return resp.data || [];
 }
 
+// Busca os anexos de um card (a arte enviada pelo designer).
+export async function getCardAttachments(cardId: string): Promise<any[]> {
+  const c = await trelloCreds();
+  if (!c) return [];
+  const resp = await axios.get(`https://api.trello.com/1/cards/${cardId}/attachments`, {
+    params: { key: c.key, token: c.token, fields: "id,name,url,mimeType,isUpload" },
+  });
+  return resp.data || [];
+}
+
+// Retorna só as URLs de anexos que são imagem/vídeo.
+export async function getCardMediaUrls(cardId: string): Promise<string[]> {
+  const atts = await getCardAttachments(cardId);
+  return atts
+    .filter(a => a.url && (/\.(jpg|jpeg|png|gif|mp4|mov|webp)(\?|$)/i.test(a.url) || /^image|^video/.test(a.mimeType || "")))
+    .map(a => a.url);
+}
+
+// Lista raw de credenciais para uso externo (registrar webhook etc.)
+export async function getTrelloCreds() {
+  return trelloCreds();
+}
+
 // ── Criação de card ──────────────────────────────────────────────────
 interface CreateCardOpts {
   name: string;

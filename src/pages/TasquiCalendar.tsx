@@ -15,10 +15,12 @@ const TYPES = ["POST", "STORY", "REEL", "CARROSSEL", "AD"];
 const PLATFORMS = ["INSTAGRAM", "FACEBOOK", "TIKTOK", "LINKEDIN"];
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  PLANEJADO:  { label: "Planejado",  color: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" },
-  PRODUZINDO: { label: "Produzindo", color: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
-  APROVADO:   { label: "Aprovado",   color: "bg-purple-500/20 text-purple-300 border-purple-500/30" },
-  PUBLICADO:  { label: "Publicado",  color: "bg-green-500/20 text-green-300 border-green-500/30" },
+  PLANEJADO:            { label: "Planejado",  color: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" },
+  PRODUZINDO:           { label: "Produzindo", color: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
+  ARTE_PRONTA:          { label: "Arte pronta", color: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30" },
+  AGUARDANDO_APROVACAO: { label: "Aguardando cliente", color: "bg-amber-500/20 text-amber-300 border-amber-500/30" },
+  APROVADO:             { label: "Aprovado",   color: "bg-purple-500/20 text-purple-300 border-purple-500/30" },
+  PUBLICADO:            { label: "Publicado",  color: "bg-green-500/20 text-green-300 border-green-500/30" },
 };
 
 const TYPE_COLOR: Record<string, string> = {
@@ -90,6 +92,19 @@ const TasquiCalendar = () => {
 
   const toggleLabel = (id: string) =>
     setProdLabelIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const [sendingApproval, setSendingApproval] = useState(false);
+  const enviarAprovacao = async (post: any) => {
+    setSendingApproval(true);
+    try {
+      await api.post(`/api/tasqui/calendar/${post.id}/send-approval`, {});
+      toast({ title: "Enviado para o cliente! 📲", description: "Arte + enquete enviadas no grupo do WhatsApp." });
+      setDetailPost(null);
+      load();
+    } catch (e: any) {
+      toast({ title: "Erro ao enviar para aprovação", description: e.message, variant: "destructive" });
+    } finally { setSendingApproval(false); }
+  };
 
   const enviarProducao = async () => {
     if (!prodModal) return;
@@ -495,6 +510,32 @@ const TasquiCalendar = () => {
                 >
                   🎬 Enviar para Produção
                 </Button>
+              )}
+
+              {/* Enviar para aprovação do cliente — quando a arte está pronta */}
+              {detailPost.status === "ARTE_PRONTA" && (
+                <Button
+                  onClick={() => enviarAprovacao(detailPost)}
+                  disabled={sendingApproval}
+                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white border-0 gap-2"
+                >
+                  {sendingApproval ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Enviar para aprovação do cliente
+                </Button>
+              )}
+
+              {/* Aguardando o cliente responder */}
+              {detailPost.status === "AGUARDANDO_APROVACAO" && (
+                <div className="flex items-center gap-2 text-xs text-amber-300 bg-amber-500/10 rounded-xl p-3 border border-amber-500/20">
+                  ⏳ Aguardando o cliente aprovar no grupo do WhatsApp
+                </div>
+              )}
+
+              {/* Motivo da reprovação, se houver */}
+              {detailPost.rejection_reason && (
+                <div className="text-xs text-red-300 bg-red-500/10 rounded-xl p-3 border border-red-500/20">
+                  <span className="font-bold">Cliente pediu ajuste:</span> {detailPost.rejection_reason}
+                </div>
               )}
 
               {/* Link do card no Trello, se já enviado */}

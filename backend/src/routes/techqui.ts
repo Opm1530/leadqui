@@ -3,8 +3,8 @@ import prisma from "../lib/prisma";
 import { authenticateJWT, AuthRequest } from "../middlewares/auth";
 import axios from "axios";
 import OpenAI from "openai";
-import { getCompanySettings } from "../lib/companySettings";
-import { getTrelloBoards, getTrelloLists, getTrelloLabels, getTrelloMembers } from "../lib/trello";
+import { getCompanySettings, getCompanySettingsUserId } from "../lib/companySettings";
+import { getTrelloBoards, getTrelloLists, getTrelloLabels, getTrelloMembers, getCardMediaUrls, getTrelloCreds } from "../lib/trello";
 
 // Escolhe a API/token corretos para operações de Instagram numa conexão.
 // Prioriza Instagram Login (ig_access_token / graph.instagram.com);
@@ -17,6 +17,74 @@ function igContext(conn: any): { base: string; token: string | null } {
 }
 
 const router = Router();
+
+// ── Webhook Trello (público) ──────────────────────────────────────────
+// Trello faz um HEAD/GET para validar a URL na criação do webhook.
+router.head("/webhook/trello", (_req: Request, res: Response) => { res.sendStatus(200); });
+router.get("/webhook/trello", (_req: Request, res: Response) => { res.sendStatus(200); });
+
+router.post("/webhook/trello", async (req: Request, res: Response) => {
+  res.sendStatus(200); // responde imediatamente ao Trello
+  try {
+    const action = req.body?.action;
+    if (action?.type !== "updateCard") return;
+    const listAfter = action.data?.listAfter?.id;
+    const cardId = action.data?.card?.id;
+    if (!listAfter || !cardId) return;
+
+    // Descobre a lista "Concluído" configurada
+    const ownerId = await getCompanySettingsUserId();
+    if (!ownerId) return;
+    const tq = await (prisma as any).techQuiSettings.findUnique({ where: { user_id: ownerId } });
+    if (!tq?.trello_done_list_id || tq.trello_done_list_id !== listAfter) return;
+
+    // Acha o post pelo trello_card_id
+    const post = await (prisma as any).calendarPost.findFirst({ where: { trello_card_id: cardId } });
+    if (!post) return;
+
+    // Puxa a arte anexada ao card
+    let medias: string[] = [];
+    try { medias = await getCardMediaUrls(cardId); } catch {}
+
+    await (prisma as any).calendarPost.update({
+      where: { id: post.id },
+      data: {
+        status: "ARTE_PRONTA",
+        ...(medias.length ? { media_urls: JSON.stringify(medias) } : {}),
+      },
+    });
+    console.log(`[Webhook Trello] Card ${cardId} concluído → post ${post.id} ARTE_PRONTA (${medias.length} mídia(s))`);
+  } catch (e: any) {
+    console.error("[Webhook Trello] erro:", e.message);
+  }
+});
+
+// Registra (ou atualiza) o webhook do Trello apontando para nosso callback.
+router.post("/trello/register-webhook", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const creds = await getTrelloCreds();
+    if (!creds) { res.status(400).json({ error: "Trello não configurado." }); return; }
+    if (!creds.settings.trello_board_id) { res.status(400).json({ error: "Selecione o quadro do Trello primeiro." }); return; }
+
+    const base = process.env.PUBLIC_URL || `https://${req.get("host")}`;
+    const callbackURL = `${base.replace(/\/$/, "")}/api/techqui/webhook/trello`;
+
+    const resp = await axios.post("https://api.trello.com/1/webhooks", null, {
+      params: {
+        key: creds.key, token: creds.token,
+        callbackURL, idModel: creds.settings.trello_board_id,
+        description: "Leadqui — aprovação de conteúdo",
+      },
+    });
+    const ownerId = await getCompanySettingsUserId();
+    await (prisma as any).techQuiSettings.update({
+      where: { user_id: ownerId! }, data: { trello_webhook_id: resp.data.id },
+    });
+    res.json({ success: true, webhook_id: resp.data.id, callbackURL });
+  } catch (e: any) {
+    res.status(500).json({ error: e.response?.data || e.message });
+  }
+});
 
 // ── Webhook Instagram (público — sem auth JWT) ────────────────────────
 router.get("/webhook/instagram", (req: Request, res: Response) => {

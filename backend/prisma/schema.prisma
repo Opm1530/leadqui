@@ -457,6 +457,9 @@ model CalendarPost {
   trello_card_id      String?          // ID do card criado no Trello ao enviar para produção
   trello_card_url     String?          // URL curta do card no Trello
   task_id             String?          // ID da Task do Tasqui criada ao enviar para produção
+  rejection_reason    String?          // Motivo informado pelo cliente ao reprovar a arte
+  awaiting_reason     Boolean  @default(false) // true enquanto aguarda o cliente digitar o motivo da reprovação
+  approval_sent_at    DateTime?        // quando a arte foi enviada para aprovação no grupo
   created_at          DateTime         @default(now())
   updated_at          DateTime         @updatedAt
 
@@ -484,6 +487,8 @@ enum PostPlatform {
 enum PostStatus {
   PLANEJADO
   PRODUZINDO
+  ARTE_PRONTA
+  AGUARDANDO_APROVACAO
   APROVADO
   PUBLICADO
 }
@@ -614,6 +619,8 @@ model TechQuiSettings {
   trello_token        String?  // Trello Token
   trello_board_id     String?  // ID do quadro (board) padrão para produção
   trello_list_id      String?  // ID da lista (coluna) padrão onde criar os cards de produção
+  trello_done_list_id String?  // lista de "Concluído" — ao mover o card pra cá, a arte fica pronta
+  trello_webhook_id   String?  // ID do webhook do Trello registrado (para evitar duplicar)
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
 

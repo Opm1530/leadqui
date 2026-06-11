@@ -21,6 +21,7 @@ import techquiRoutes from "./routes/techqui";
 import vaultRoutes from "./routes/vault";
 import legalRoutes from "./routes/legal";
 import assistantRoutes from "./routes/assistant";
+import whatsappRoutes from "./routes/whatsapp";
 import { startInstagramScheduler } from "./lib/instagramScheduler";
 import { startAdsAnalyzerJob } from "./lib/adsAnalyzerJob";
 
@@ -96,6 +97,7 @@ app.use("/api/techqui", techquiRoutes);
 app.use("/api/vault", vaultRoutes);
 app.use("/api/legal", legalRoutes); // páginas públicas (privacidade, termos, exclusão)
 app.use("/api/assistant", assistantRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api", resourcesRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────

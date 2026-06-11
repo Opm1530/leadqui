@@ -3,6 +3,7 @@ import axios from "axios";
 import prisma from "../lib/prisma";
 import { authenticateJWT, AuthRequest } from "../middlewares/auth";
 import { sendPostToProduction } from "../lib/production";
+import { sendApprovalToGroup } from "../lib/approval";
 
 const router = Router();
 
@@ -407,6 +408,17 @@ router.post("/calendar/:id/send-production", authenticateJWT, async (req: AuthRe
     res.json({ success: true, post, trello, task, trello_url: trello?.shortUrl || null });
   } catch (e: any) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ── POST /api/tasqui/calendar/:id/send-approval ───────────────────────
+// Envia a arte + legenda + enquete para o grupo do cliente no WhatsApp
+router.post("/calendar/:id/send-approval", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await sendApprovalToGroup(String(req.params.id));
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
   }
 });
 
