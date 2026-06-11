@@ -92,11 +92,7 @@ export async function sendApprovalToGroup(postId: string): Promise<boolean> {
     data: { status: "AGUARDANDO_APROVACAO", approval_sent_at: new Date(), awaiting_reason: false },
   });
 
-  // Move o card no Trello para a coluna "Em aprovação", se configurada
-  if (post.trello_card_id) {
-    const lists = await trelloFlowLists();
-    if (lists.trello_approval_list_id) await moveCardToList(post.trello_card_id, lists.trello_approval_list_id);
-  }
+  // O card já está na coluna "Em Aprovação" (o designer o moveu para lá).
   return true;
 }
 

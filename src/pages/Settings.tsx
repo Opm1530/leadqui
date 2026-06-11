@@ -292,32 +292,23 @@ const Settings = () => {
                 </Select>
                 <p className="text-[11px] text-muted-foreground">Essa é a lista usada por padrão. No momento de enviar para produção você poderá escolher outra lista, o responsável e as etiquetas.</p>
 
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider pt-2">Lista "Concluído" (arte pronta)</Label>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider pt-2">Lista "Em Aprovação" (designer terminou)</Label>
                 <Select value={meta.trello_done_list_id} onValueChange={v => setM("trello_done_list_id", v)} disabled={!meta.trello_board_id}>
-                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione a lista de concluído" /></SelectTrigger>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione a lista de aprovação" /></SelectTrigger>
                   <SelectContent>
                     {trelloLists.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground">Quando o designer mover o card para esta lista, o sistema puxa a arte anexada e marca como "Arte pronta" no calendário.</p>
+                <p className="text-[11px] text-muted-foreground">Quando o designer terminar e mover o card para esta coluna, o sistema puxa a arte anexada e marca como "Arte pronta", pronta para enviar ao cliente. O card fica aqui enquanto aguarda a aprovação.</p>
 
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider pt-2">Lista "Em aprovação"</Label>
-                <Select value={meta.trello_approval_list_id} onValueChange={v => setM("trello_approval_list_id", v)} disabled={!meta.trello_board_id}>
-                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="(opcional) lista de aprovação" /></SelectTrigger>
-                  <SelectContent>
-                    {trelloLists.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <p className="text-[11px] text-muted-foreground">Ao enviar a arte para o cliente, o card se move para cá automaticamente.</p>
-
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider pt-2">Lista "Aprovado / Concluída"</Label>
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider pt-2">Lista "Concluído" (cliente aprovou)</Label>
                 <Select value={meta.trello_approved_list_id} onValueChange={v => setM("trello_approved_list_id", v)} disabled={!meta.trello_board_id}>
-                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="(opcional) lista de aprovado" /></SelectTrigger>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="(opcional) lista de concluído" /></SelectTrigger>
                   <SelectContent>
                     {trelloLists.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground">Quando o cliente aprova, o card vai para cá. Se reprovar, ele volta para a lista de produção com o motivo escrito como comentário.</p>
+                <p className="text-[11px] text-muted-foreground">Quando o cliente aprova, o card vai para cá. Se reprovar, ele volta para "A Fazer" com o motivo escrito como comentário.</p>
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-border/50">
