@@ -620,6 +620,8 @@ model TechQuiSettings {
   trello_board_id     String?  // ID do quadro (board) padrão para produção
   trello_list_id      String?  // ID da lista (coluna) padrão onde criar os cards de produção
   trello_done_list_id String?  // lista de "Concluído" — ao mover o card pra cá, a arte fica pronta
+  trello_approval_list_id String? // lista "Em aprovação" — card vai pra cá ao enviar pro cliente
+  trello_approved_list_id String? // lista "Aprovado/Concluída" — card vai pra cá quando o cliente aprova
   trello_webhook_id   String?  // ID do webhook do Trello registrado (para evitar duplicar)
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt

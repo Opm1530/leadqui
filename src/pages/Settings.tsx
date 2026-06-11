@@ -35,7 +35,7 @@ const Settings = () => {
   const [meta, setMeta] = useState<any>({
     meta_app_id: "", meta_app_secret: "", meta_business_id: "", meta_system_token: "",
     instagram_app_id: "", instagram_app_secret: "",
-    trello_api_key: "", trello_token: "", trello_board_id: "", trello_list_id: "", trello_done_list_id: "",
+    trello_api_key: "", trello_token: "", trello_board_id: "", trello_list_id: "", trello_done_list_id: "", trello_approval_list_id: "", trello_approved_list_id: "",
   });
 
   // ── Senha ───────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ const Settings = () => {
         meta_app_id: tq.meta_app_id || "", meta_app_secret: tq.meta_app_secret || "",
         meta_business_id: tq.meta_business_id || "", meta_system_token: tq.meta_system_token || "",
         instagram_app_id: tq.instagram_app_id || "", instagram_app_secret: tq.instagram_app_secret || "",
-        trello_api_key: tq.trello_api_key || "", trello_token: tq.trello_token || "", trello_board_id: tq.trello_board_id || "", trello_list_id: tq.trello_list_id || "", trello_done_list_id: tq.trello_done_list_id || "",
+        trello_api_key: tq.trello_api_key || "", trello_token: tq.trello_token || "", trello_board_id: tq.trello_board_id || "", trello_list_id: tq.trello_list_id || "", trello_done_list_id: tq.trello_done_list_id || "", trello_approval_list_id: tq.trello_approval_list_id || "", trello_approved_list_id: tq.trello_approved_list_id || "",
       }));
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -300,6 +300,24 @@ const Settings = () => {
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-muted-foreground">Quando o designer mover o card para esta lista, o sistema puxa a arte anexada e marca como "Arte pronta" no calendário.</p>
+
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider pt-2">Lista "Em aprovação"</Label>
+                <Select value={meta.trello_approval_list_id} onValueChange={v => setM("trello_approval_list_id", v)} disabled={!meta.trello_board_id}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="(opcional) lista de aprovação" /></SelectTrigger>
+                  <SelectContent>
+                    {trelloLists.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Ao enviar a arte para o cliente, o card se move para cá automaticamente.</p>
+
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider pt-2">Lista "Aprovado / Concluída"</Label>
+                <Select value={meta.trello_approved_list_id} onValueChange={v => setM("trello_approved_list_id", v)} disabled={!meta.trello_board_id}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="(opcional) lista de aprovado" /></SelectTrigger>
+                  <SelectContent>
+                    {trelloLists.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Quando o cliente aprova, o card vai para cá. Se reprovar, ele volta para a lista de produção com o motivo escrito como comentário.</p>
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-border/50">

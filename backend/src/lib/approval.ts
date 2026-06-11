@@ -1,6 +1,14 @@
 import axios from "axios";
 import prisma from "./prisma";
-import { getCompanySettings } from "./companySettings";
+import { getCompanySettings, getCompanySettingsUserId } from "./companySettings";
+import { moveCardToList, addCardComment } from "./trello";
+
+// Carrega os ids de lista configurados no Trello (fluxo de colunas).
+async function trelloFlowLists(): Promise<any> {
+  const ownerId = await getCompanySettingsUserId();
+  if (!ownerId) return {};
+  return (await (prisma as any).techQuiSettings.findUnique({ where: { user_id: ownerId } })) || {};
+}
 
 // Resolve URL/key do Evolution + o id da instância vinculada ao cliente.
 async function evolutionForClient(client: any): Promise<{ baseUrl: string; apiKey: string; instance: string } | null> {
@@ -83,7 +91,29 @@ export async function sendApprovalToGroup(postId: string): Promise<boolean> {
     where: { id: postId },
     data: { status: "AGUARDANDO_APROVACAO", approval_sent_at: new Date(), awaiting_reason: false },
   });
+
+  // Move o card no Trello para a coluna "Em aprovação", se configurada
+  if (post.trello_card_id) {
+    const lists = await trelloFlowLists();
+    if (lists.trello_approval_list_id) await moveCardToList(post.trello_card_id, lists.trello_approval_list_id);
+  }
   return true;
+}
+
+// Move o card e comenta conforme a decisão do cliente (chamado pelo webhook).
+export async function onClientApproved(post: any): Promise<void> {
+  if (!post?.trello_card_id) return;
+  const lists = await trelloFlowLists();
+  if (lists.trello_approved_list_id) await moveCardToList(post.trello_card_id, lists.trello_approved_list_id);
+  await addCardComment(post.trello_card_id, "✅ Cliente aprovou a arte.");
+}
+
+export async function onClientRejected(post: any, motivo: string): Promise<void> {
+  if (!post?.trello_card_id) return;
+  const lists = await trelloFlowLists();
+  // Volta para a coluna de produção/design
+  if (lists.trello_list_id) await moveCardToList(post.trello_card_id, lists.trello_list_id);
+  await addCardComment(post.trello_card_id, `❌ Cliente pediu ajuste:\n${motivo}`);
 }
 
 // Envia uma mensagem de texto simples para o grupo de um cliente.

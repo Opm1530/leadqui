@@ -82,6 +82,52 @@ export async function getTrelloCreds() {
   return trelloCreds();
 }
 
+// Move um card para outra lista (coluna).
+export async function moveCardToList(cardId: string, listId: string): Promise<void> {
+  const c = await trelloCreds();
+  if (!c || !cardId || !listId) return;
+  try {
+    await axios.put(`https://api.trello.com/1/cards/${cardId}`, null, {
+      params: { key: c.key, token: c.token, idList: listId },
+    });
+  } catch (e: any) {
+    console.warn("[Trello] mover card falhou:", e.response?.data || e.message);
+  }
+}
+
+// Adiciona um comentário ao card.
+export async function addCardComment(cardId: string, text: string): Promise<void> {
+  const c = await trelloCreds();
+  if (!c || !cardId || !text) return;
+  try {
+    await axios.post(`https://api.trello.com/1/cards/${cardId}/actions/comments`, null, {
+      params: { key: c.key, token: c.token, text },
+    });
+  } catch (e: any) {
+    console.warn("[Trello] comentar card falhou:", e.response?.data || e.message);
+  }
+}
+
+// Registra o webhook de forma idempotente: se já existir um com o mesmo
+// callbackURL + idModel, reaproveita; senão cria. Retorna o id.
+export async function ensureTrelloWebhook(callbackURL: string, idModel: string): Promise<string | null> {
+  const c = await trelloCreds();
+  if (!c) return null;
+  // Procura webhooks existentes do token
+  try {
+    const existing = await axios.get(`https://api.trello.com/1/tokens/${c.token}/webhooks`, {
+      params: { key: c.key, token: c.token },
+    });
+    const match = (existing.data || []).find((w: any) => w.callbackURL === callbackURL && w.idModel === idModel);
+    if (match) return match.id;
+  } catch { /* segue para criar */ }
+
+  const resp = await axios.post("https://api.trello.com/1/webhooks", null, {
+    params: { key: c.key, token: c.token, callbackURL, idModel, description: "Leadqui — aprovação de conteúdo" },
+  });
+  return resp.data.id;
+}
+
 // ── Criação de card ──────────────────────────────────────────────────
 interface CreateCardOpts {
   name: string;

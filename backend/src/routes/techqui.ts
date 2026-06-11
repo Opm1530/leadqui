@@ -4,7 +4,7 @@ import { authenticateJWT, AuthRequest } from "../middlewares/auth";
 import axios from "axios";
 import OpenAI from "openai";
 import { getCompanySettings, getCompanySettingsUserId } from "../lib/companySettings";
-import { getTrelloBoards, getTrelloLists, getTrelloLabels, getTrelloMembers, getCardMediaUrls, getTrelloCreds } from "../lib/trello";
+import { getTrelloBoards, getTrelloLists, getTrelloLabels, getTrelloMembers, getCardMediaUrls, getTrelloCreds, ensureTrelloWebhook } from "../lib/trello";
 
 // Escolhe a API/token corretos para operações de Instagram numa conexão.
 // Prioriza Instagram Login (ig_access_token / graph.instagram.com);
@@ -69,18 +69,12 @@ router.post("/trello/register-webhook", authenticateJWT, async (req: AuthRequest
     const base = process.env.PUBLIC_URL || `https://${req.get("host")}`;
     const callbackURL = `${base.replace(/\/$/, "")}/api/techqui/webhook/trello`;
 
-    const resp = await axios.post("https://api.trello.com/1/webhooks", null, {
-      params: {
-        key: creds.key, token: creds.token,
-        callbackURL, idModel: creds.settings.trello_board_id,
-        description: "Leadqui — aprovação de conteúdo",
-      },
-    });
+    const webhookId = await ensureTrelloWebhook(callbackURL, creds.settings.trello_board_id);
     const ownerId = await getCompanySettingsUserId();
     await (prisma as any).techQuiSettings.update({
-      where: { user_id: ownerId! }, data: { trello_webhook_id: resp.data.id },
+      where: { user_id: ownerId! }, data: { trello_webhook_id: webhookId },
     });
-    res.json({ success: true, webhook_id: resp.data.id, callbackURL });
+    res.json({ success: true, webhook_id: webhookId, callbackURL, message: "Webhook ativo." });
   } catch (e: any) {
     res.status(500).json({ error: e.response?.data || e.message });
   }

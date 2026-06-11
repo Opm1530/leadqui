@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import prisma from "../lib/prisma";
-import { sendTextToClientGroup } from "../lib/approval";
+import { sendTextToClientGroup, onClientApproved, onClientRejected } from "../lib/approval";
 
 const router = Router();
 
@@ -61,6 +61,7 @@ router.post("/webhook", async (req: Request, res: Response) => {
         where: { id: post.id },
         data: { status: "PRODUZINDO", rejection_reason: text, awaiting_reason: false },
       });
+      await onClientRejected(post, text);
       await sendTextToClientGroup(client, "Anotado! Vamos ajustar e te enviar de novo. 🙏");
       console.log(`[WhatsApp] Post ${post.id} reprovado. Motivo: ${text}`);
       return;
@@ -71,6 +72,7 @@ router.post("/webhook", async (req: Request, res: Response) => {
       await (prisma as any).calendarPost.update({
         where: { id: post.id }, data: { status: "APROVADO" },
       });
+      await onClientApproved(post);
       await sendTextToClientGroup(client, "Aprovado! ✅ Vamos agendar a publicação.");
       console.log(`[WhatsApp] Post ${post.id} APROVADO`);
       return;
@@ -84,6 +86,7 @@ router.post("/webhook", async (req: Request, res: Response) => {
           where: { id: post.id },
           data: { status: "PRODUZINDO", rejection_reason: semKeyword, awaiting_reason: false },
         });
+        await onClientRejected(post, semKeyword);
         await sendTextToClientGroup(client, "Anotado! Vamos ajustar e te enviar de novo. 🙏");
         console.log(`[WhatsApp] Post ${post.id} reprovado. Motivo: ${semKeyword}`);
       } else {
