@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon } from "lucide-react";
+import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -81,6 +81,15 @@ const Hub = () => {
       icon: Sparkles,
       color: "from-violet-500 to-fuchsia-600",
       route: "/assistente",
+      adminOnly: false,
+    },
+    {
+      id: "demandas",
+      name: "Caixa de Demandas",
+      description: "Demandas captadas pela IA nos grupos de WhatsApp dos clientes. Vire tarefa com 1 clique.",
+      icon: Inbox,
+      color: "from-amber-500 to-orange-600",
+      route: "/demandas",
       adminOnly: false,
     },
     {

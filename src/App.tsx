@@ -40,6 +40,7 @@ import ViewQui from "./pages/ViewQui";
 import TechQui from "./pages/TechQui";
 import Vault from "./pages/Vault";
 import Assistant from "./pages/Assistant";
+import Demandas from "./pages/Demandas";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +64,7 @@ const App = () => (
               <Route element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} path="/coming-soon" />
               <Route element={<ProtectedRoute staffOnly><Settings /></ProtectedRoute>} path="/settings" />
               <Route element={<ProtectedRoute staffOnly><Assistant /></ProtectedRoute>} path="/assistente" />
+              <Route element={<ProtectedRoute staffOnly><Demandas /></ProtectedRoute>} path="/demandas" />
 
               {/* App Principal (protegido, com sidebar — somente equipe interna) */}
               <Route element={<ProtectedRoute staffOnly><AppLayout /></ProtectedRoute>}>

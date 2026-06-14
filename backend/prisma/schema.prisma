@@ -231,8 +231,35 @@ model Client {
   calendar_posts   CalendarPost[]
   meta_connection  ClientMetaConnection?
   vault_credentials VaultCredential[]
+  demands          Demand[]
 
   @@map("clients")
+}
+
+// Demanda captada automaticamente nos grupos de WhatsApp dos clientes
+model Demand {
+  id            String       @id @default(uuid())
+  client_id     String
+  group_jid     String       // grupo de onde veio
+  sender        String?      // quem mandou (nome/numero)
+  original_text String       // mensagem original
+  summary       String       // resumo/objetivo limpo pela IA
+  category      String?      // ex: ARTE, SITE, TRAFEGO, ATENDIMENTO, OUTRO
+  status        DemandStatus @default(NOVA)
+  task_id       String?      // tarefa do Tasqui criada a partir desta demanda
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
+
+  client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@map("demands")
+}
+
+enum DemandStatus {
+  NOVA
+  EM_ANDAMENTO
+  RESOLVIDA
+  DESCARTADA
 }
 
 enum ProjectType {

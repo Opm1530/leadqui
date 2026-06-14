@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import prisma from "../lib/prisma";
 import { sendTextToClientGroup, onClientApproved, onClientRejected } from "../lib/approval";
+import { classifyDemand } from "../lib/demandClassifier";
 
 const router = Router();
 
@@ -53,51 +54,69 @@ router.post("/webhook", async (req: Request, res: Response) => {
       where: { client_id: client.id, status: "AGUARDANDO_APROVACAO" },
       orderBy: { approval_sent_at: "desc" },
     });
-    if (!post) return;
-
-    // 1. Já estávamos aguardando o MOTIVO da reprovação → esta msg é o motivo
-    if (post.awaiting_reason) {
-      await (prisma as any).calendarPost.update({
-        where: { id: post.id },
-        data: { status: "PRODUZINDO", rejection_reason: text, awaiting_reason: false },
-      });
-      await onClientRejected(post, text);
-      await sendTextToClientGroup(client, "Anotado! Vamos ajustar e te enviar de novo. 🙏");
-      console.log(`[WhatsApp] Post ${post.id} reprovado. Motivo: ${text}`);
-      return;
-    }
-
-    // 2. Decisão de aprovação
-    if (isApprove(text) && !isReject(text)) {
-      await (prisma as any).calendarPost.update({
-        where: { id: post.id }, data: { status: "APROVADO" },
-      });
-      await onClientApproved(post);
-      await sendTextToClientGroup(client, "Aprovado! ✅ Vamos agendar a publicação.");
-      console.log(`[WhatsApp] Post ${post.id} APROVADO`);
-      return;
-    }
-
-    if (isReject(text)) {
-      // Se a mensagem de reprovação já traz um motivo embutido, captura direto
-      const semKeyword = text.replace(/reprov\w*|n[ãa]o|❌|👎/gi, "").trim();
-      if (semKeyword.length > 4) {
+    // ── A) Contexto de aprovação de post ──────────────────────────────
+    if (post) {
+      // 1. Já estávamos aguardando o MOTIVO da reprovação → esta msg é o motivo
+      if (post.awaiting_reason) {
         await (prisma as any).calendarPost.update({
           where: { id: post.id },
-          data: { status: "PRODUZINDO", rejection_reason: semKeyword, awaiting_reason: false },
+          data: { status: "PRODUZINDO", rejection_reason: text, awaiting_reason: false },
         });
-        await onClientRejected(post, semKeyword);
+        await onClientRejected(post, text);
         await sendTextToClientGroup(client, "Anotado! Vamos ajustar e te enviar de novo. 🙏");
-        console.log(`[WhatsApp] Post ${post.id} reprovado. Motivo: ${semKeyword}`);
-      } else {
-        // Pede o motivo e passa a aguardar a próxima mensagem
-        await (prisma as any).calendarPost.update({
-          where: { id: post.id }, data: { awaiting_reason: true },
-        });
-        await sendTextToClientGroup(client, "Sem problema! Pode me dizer o que você gostaria de ajustar? ✍️");
-        console.log(`[WhatsApp] Post ${post.id} reprovado, aguardando motivo`);
+        console.log(`[WhatsApp] Post ${post.id} reprovado. Motivo: ${text}`);
+        return;
       }
-      return;
+
+      // 2. Decisão de aprovação
+      if (isApprove(text) && !isReject(text)) {
+        await (prisma as any).calendarPost.update({
+          where: { id: post.id }, data: { status: "APROVADO" },
+        });
+        await onClientApproved(post);
+        await sendTextToClientGroup(client, "Aprovado! ✅ Vamos agendar a publicação.");
+        console.log(`[WhatsApp] Post ${post.id} APROVADO`);
+        return;
+      }
+
+      if (isReject(text)) {
+        const semKeyword = text.replace(/reprov\w*|n[ãa]o|❌|👎/gi, "").trim();
+        if (semKeyword.length > 4) {
+          await (prisma as any).calendarPost.update({
+            where: { id: post.id },
+            data: { status: "PRODUZINDO", rejection_reason: semKeyword, awaiting_reason: false },
+          });
+          await onClientRejected(post, semKeyword);
+          await sendTextToClientGroup(client, "Anotado! Vamos ajustar e te enviar de novo. 🙏");
+          console.log(`[WhatsApp] Post ${post.id} reprovado. Motivo: ${semKeyword}`);
+        } else {
+          await (prisma as any).calendarPost.update({
+            where: { id: post.id }, data: { awaiting_reason: true },
+          });
+          await sendTextToClientGroup(client, "Sem problema! Pode me dizer o que você gostaria de ajustar? ✍️");
+          console.log(`[WhatsApp] Post ${post.id} reprovado, aguardando motivo`);
+        }
+        return;
+      }
+    }
+
+    // ── B) Captação de demandas (bot atendente silencioso) ────────────
+    // Mensagem não consumida pela aprovação → IA decide se é demanda.
+    const sender = data?.pushName || data?.key?.participant || "";
+    const result = await classifyDemand(text);
+    if (result?.is_demand && result.summary) {
+      await (prisma as any).demand.create({
+        data: {
+          client_id: client.id,
+          group_jid: groupJid,
+          sender: String(sender).slice(0, 80),
+          original_text: text.slice(0, 2000),
+          summary: result.summary.slice(0, 500),
+          category: result.category || "OUTRO",
+          status: "NOVA",
+        },
+      });
+      console.log(`[Demanda] ${client.name}: ${result.summary}`);
     }
   } catch (e: any) {
     console.error("[WhatsApp Webhook] erro:", e.message);

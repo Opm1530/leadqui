@@ -17,11 +17,13 @@ import templatesRoutes from "./routes/templates";
 import notificationsRoutes from "./routes/notifications";
 import { startRecurringInvoicesJob } from "./lib/recurringInvoices";
 import { startNotificationChecker } from "./lib/notificationChecker";
+import { startDemandDigest } from "./lib/demandDigest";
 import techquiRoutes from "./routes/techqui";
 import vaultRoutes from "./routes/vault";
 import legalRoutes from "./routes/legal";
 import assistantRoutes from "./routes/assistant";
 import whatsappRoutes from "./routes/whatsapp";
+import demandsRoutes from "./routes/demands";
 import { startInstagramScheduler } from "./lib/instagramScheduler";
 import { startAdsAnalyzerJob } from "./lib/adsAnalyzerJob";
 
@@ -98,6 +100,7 @@ app.use("/api/vault", vaultRoutes);
 app.use("/api/legal", legalRoutes); // páginas públicas (privacidade, termos, exclusão)
 app.use("/api/assistant", assistantRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/demands", demandsRoutes);
 app.use("/api", resourcesRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────
@@ -119,6 +122,7 @@ app.listen(PORT, () => {
   startNotificationChecker();
   startInstagramScheduler();
   startAdsAnalyzerJob();
+  startDemandDigest();
 });
 
 export default app;
