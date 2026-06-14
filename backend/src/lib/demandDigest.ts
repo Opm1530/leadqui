@@ -45,13 +45,17 @@ export async function sendDemandDigest(): Promise<void> {
 let lastSentDay = "";
 export function startDemandDigest() {
   const tick = () => {
+    // Usa horário de São Paulo (o container roda em UTC)
     const now = new Date();
-    const day = now.toISOString().slice(0, 10);
-    if (now.getHours() === 9 && lastSentDay !== day) {
+    const hour = Number(new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Sao_Paulo", hour: "2-digit", hour12: false,
+    }).format(now)) % 24;
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(now);
+    if (hour === 9 && lastSentDay !== day) {
       lastSentDay = day;
       sendDemandDigest();
     }
   };
   tick();
-  setInterval(tick, 60 * 60 * 1000); // a cada hora
+  setInterval(tick, 30 * 60 * 1000); // a cada 30 min (garante pegar a janela das 9h)
 }

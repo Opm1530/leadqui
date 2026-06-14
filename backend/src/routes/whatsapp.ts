@@ -103,6 +103,18 @@ router.post("/webhook", async (req: Request, res: Response) => {
     // ── B) Captação de demandas (bot atendente silencioso) ────────────
     // Mensagem não consumida pela aprovação → IA decide se é demanda.
     const sender = data?.pushName || data?.key?.participant || "";
+
+    // Dedup: ignora reenvios do Evolution (mesmo texto do mesmo cliente nos últimos 30 min)
+    const recente = await (prisma as any).demand.findFirst({
+      where: {
+        client_id: client.id,
+        original_text: text.slice(0, 2000),
+        created_at: { gte: new Date(Date.now() - 30 * 60 * 1000) },
+      },
+      select: { id: true },
+    });
+    if (recente) return;
+
     const result = await classifyDemand(text);
     if (result?.is_demand && result.summary) {
       await (prisma as any).demand.create({
