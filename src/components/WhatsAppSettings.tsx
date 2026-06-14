@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Smartphone, Plus, Wifi, WifiOff, Trash2, QrCode, RefreshCw, Loader2 } from "lucide-react";
+import { Smartphone, Plus, Wifi, WifiOff, Trash2, QrCode, RefreshCw, Loader2, Link2 } from "lucide-react";
 import api from "@/lib/api";
 
 const WhatsAppSettings = () => {
@@ -64,6 +64,17 @@ const WhatsAppSettings = () => {
     catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };
 
+  const [webhooking, setWebhooking] = useState<string | null>(null);
+  const configurarWebhook = async (inst: any) => {
+    setWebhooking(inst.id);
+    try {
+      const d = await api.post(`/api/instances/${inst.id}/set-webhook`, {});
+      toast({ title: "Webhook configurado! ✅", description: `Evolution vai avisar em ${d.url}` });
+    } catch (e: any) {
+      toast({ title: "Erro ao configurar webhook", description: e.message, variant: "destructive" });
+    } finally { setWebhooking(null); }
+  };
+
   return (
     <div className="space-y-5">
       <div className="glass-card p-6 space-y-5">
@@ -97,6 +108,9 @@ const WhatsAppSettings = () => {
                 {inst.status !== "CONECTADO" && (
                   <Button variant="ghost" size="sm" onClick={() => verQr(inst)} className="h-8 text-xs"><QrCode className="w-3.5 h-3.5 mr-1" /> QR</Button>
                 )}
+                <Button variant="ghost" size="sm" onClick={() => configurarWebhook(inst)} disabled={webhooking === inst.id} className="h-8 text-xs" title="Configurar webhook (aprovação/demandas)">
+                  {webhooking === inst.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                </Button>
                 <Button variant="ghost" size="sm" onClick={() => remover(inst.id)} className="h-8 w-8 p-0 text-destructive hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></Button>
               </div>
             </div>

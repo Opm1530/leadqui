@@ -71,6 +71,44 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   }
 });
 
+// ── POST /api/instances/:id/set-webhook ───────────────────────────────
+// Configura o webhook da instância no Evolution apontando para nós.
+router.post("/:id/set-webhook", async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const instance = await prisma.instance.findUnique({ where: { id: String(req.params.id) } });
+    if (!instance) { res.status(404).json({ error: "Instância não encontrada" }); return; }
+    const { baseUrl, apiKey } = await getEvolutionConfig(req.user!.id);
+
+    const base = process.env.PUBLIC_URL || `https://${req.get("host")}`;
+    const url = `${base.replace(/\/$/, "")}/api/whatsapp/webhook`;
+    const events = ["MESSAGES_UPSERT"];
+
+    // Evolution v2: { webhook: { enabled, url, events, byEvents, base64 } }
+    let ok = false; let lastErr: any = null;
+    try {
+      await axios.post(`${baseUrl}/webhook/set/${instance.evolution_instance_id}`,
+        { webhook: { enabled: true, url, events, byEvents: false, base64: false } },
+        { headers: { apikey: apiKey, "Content-Type": "application/json" } });
+      ok = true;
+    } catch (e: any) { lastErr = e; }
+
+    // Fallback Evolution v1: { url, webhook_by_events, events }
+    if (!ok) {
+      try {
+        await axios.post(`${baseUrl}/webhook/set/${instance.evolution_instance_id}`,
+          { url, webhook_by_events: false, events },
+          { headers: { apikey: apiKey, "Content-Type": "application/json" } });
+        ok = true;
+      } catch (e: any) { lastErr = e; }
+    }
+
+    if (!ok) throw lastErr || new Error("Falha ao configurar webhook");
+    res.json({ success: true, url });
+  } catch (e: any) {
+    res.status(500).json({ error: e.response?.data?.message || e.response?.data || e.message });
+  }
+});
+
 // ── GET /api/instances/:id/qrcode ─────────────────────────────────────
 router.get("/:id/qrcode", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
