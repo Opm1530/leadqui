@@ -17,7 +17,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Trash2, User, Briefcase, Tag } from "lucide-react";
+import { Calendar, Trash2, User, Briefcase, Tag, Archive } from "lucide-react";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -52,6 +52,20 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, team }: TaskD
       onClose();
     } catch (error) {
       toast({ title: "Erro", description: "Não foi possível salvar as alterações.", variant: "destructive" });
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    setEditing(true);
+    try {
+      await api.patch(`/api/tasqui/tasks/${task.id}`, { archived: true });
+      toast({ title: "Tarefa arquivada", description: "Ela some do quadro, mas não foi excluída." });
+      onUpdate();
+      onClose();
+    } catch {
+      toast({ title: "Erro", description: "Não foi possível arquivar.", variant: "destructive" });
     } finally {
       setEditing(false);
     }
@@ -168,16 +182,25 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, team }: TaskD
           </div>
         </div>
 
-        <DialogFooter className="pt-8 border-t border-white/5 gap-3">
-          <button 
-            type="button" 
+        <DialogFooter className="pt-8 border-t border-white/5 gap-3 flex-col sm:flex-row">
+          <button
+            type="button"
+            onClick={handleArchive}
+            disabled={editing}
+            className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-white/10 text-gray-400 font-bold hover:bg-white/5 disabled:opacity-50"
+            title="Arquivar — some do quadro sem excluir"
+          >
+            <Archive className="w-4 h-4" /> ARQUIVAR
+          </button>
+          <button
+            type="button"
             onClick={onClose}
             className="flex-1 py-3 rounded-xl border border-white/10 text-gray-400 font-bold hover:bg-white/5"
           >
             CANCELAR
           </button>
-          <button 
-            onClick={handleSave} 
+          <button
+            onClick={handleSave}
             disabled={editing}
             className="flex-1 gradient-button py-3 rounded-xl font-bold shadow-lg shadow-orange-500/20 disabled:opacity-50"
           >

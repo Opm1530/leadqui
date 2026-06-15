@@ -302,6 +302,7 @@ model Task {
   priority       Priority   @default(MEDIA)
   due_date       DateTime?
   completed_at   DateTime?
+  archived       Boolean   @default(false)
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
 

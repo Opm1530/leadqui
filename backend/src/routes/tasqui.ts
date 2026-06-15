@@ -9,11 +9,11 @@ const router = Router();
 
 // ── GET /api/tasqui/tasks ─────────────────────────────────────────────
 router.get("/tasks", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
-  const { clientId, projectId, status } = req.query;
+  const { clientId, projectId, status, archived } = req.query;
 
   try {
     const where: any = {};
-    
+
     // Filtro básico de permissões
     if (req.user?.role === "CLIENT") {
       const client = await prisma.client.findFirst({ where: { login_user_id: req.user.id } as any });
@@ -27,6 +27,8 @@ router.get("/tasks", authenticateJWT, async (req: AuthRequest, res: Response): P
     if (clientId) where.client_id = clientId as string;
     if (projectId) where.project_id = projectId as string;
     if (status) where.status = status as any;
+    // Por padrão esconde arquivadas; ?archived=true mostra só as arquivadas
+    where.archived = archived === "true";
 
     const tasks = await (prisma as any).task.findMany({
       where,
@@ -85,7 +87,7 @@ router.post("/tasks", authenticateJWT, async (req: AuthRequest, res: Response): 
 router.patch("/tasks/:id", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
   const { id } = req.params;
   const taskId = String(id);
-  const { status, responsible_id, title, description, due_date, priority } = req.body;
+  const { status, responsible_id, title, description, due_date, priority, archived } = req.body;
 
   try {
     // Clientes só podem atualizar status das próprias tarefas
@@ -126,6 +128,7 @@ router.patch("/tasks/:id", authenticateJWT, async (req: AuthRequest, res: Respon
         priority,
         due_date: due_date ? new Date(due_date) : undefined,
         completed_at: status === "CONCLUIDO" ? new Date() : undefined,
+        ...(archived !== undefined && { archived: !!archived }),
       },
     });
 
