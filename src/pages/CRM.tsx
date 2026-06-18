@@ -15,7 +15,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Plus, Trash2, Edit2, GripVertical, X,
   Phone, User, Kanban, Check, Loader2,
-  Instagram, MapPin, ChevronLeft, ChevronRight
+  Instagram, MapPin, ChevronLeft, ChevronRight, Bell
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
@@ -115,6 +115,49 @@ const CRM = () => {
   const [leadSearch, setLeadSearch] = useState("");
   const [availableLeads, setAvailableLeads] = useState<any[]>([]);
   const [addingLead, setAddingLead] = useState(false);
+  // Lembretes no drawer do lead
+  const [drawerReminders, setDrawerReminders] = useState<any[]>([]);
+  const [remMsg, setRemMsg] = useState("");
+  const [remDate, setRemDate] = useState("");
+  const [remSaving, setRemSaving] = useState(false);
+
+  useEffect(() => {
+    const leadId = drawerCard?.lead?.id;
+    if (leadId) {
+      api.get(`/api/leads/${leadId}/reminders`).then((d) => setDrawerReminders(d.reminders || [])).catch(() => setDrawerReminders([]));
+    } else {
+      setDrawerReminders([]); setRemMsg(""); setRemDate("");
+    }
+  }, [drawerCard]);
+
+  const addDrawerReminder = async () => {
+    const leadId = drawerCard?.lead?.id;
+    if (!leadId || !remMsg.trim() || !remDate) return;
+    setRemSaving(true);
+    try {
+      const d = await api.post(`/api/leads/${leadId}/reminders`, { message: remMsg.trim(), remind_on: remDate });
+      setDrawerReminders((p) => [...p, d.reminder].sort((a, b) => a.remind_on.localeCompare(b.remind_on)));
+      setRemMsg(""); setRemDate("");
+      toast({ title: "Lembrete criado!" });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    } finally { setRemSaving(false); }
+  };
+
+  const toggleDrawerReminder = async (r: any) => {
+    try {
+      await api.patch(`/api/leads/reminders/${r.id}`, { done: !r.done });
+      setDrawerReminders((p) => p.map((x) => x.id === r.id ? { ...x, done: !x.done } : x));
+    } catch { /* */ }
+  };
+
+  const delDrawerReminder = async (r: any) => {
+    try {
+      await api.delete(`/api/leads/reminders/${r.id}`);
+      setDrawerReminders((p) => p.filter((x) => x.id !== r.id));
+    } catch { /* */ }
+  };
+
   // Criar lead novo direto no CRM (form completo, igual à página de Leads)
   const emptyNovoLead = {
     nome: "", telefone: "", cidade: "", email: "", endereco: "", website: "", categoria: "",
@@ -614,6 +657,32 @@ const CRM = () => {
                   </div>
                 </div>
               )}
+
+              {/* Lembretes — criação rápida */}
+              <div className="pt-4 border-t border-border space-y-2">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Bell className="w-3.5 h-3.5 text-amber-400" /> Lembretes
+                </p>
+                {drawerReminders.map((r) => (
+                  <div key={r.id} className="flex items-center gap-2 bg-secondary/40 rounded-lg px-2 py-1.5">
+                    <button onClick={() => toggleDrawerReminder(r)} className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${r.done ? "bg-green-600 border-green-600" : "border-muted-foreground/40"}`}>
+                      {r.done && <Check className="w-3 h-3 text-white" />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs ${r.done ? "line-through text-muted-foreground" : "text-foreground"}`}>{r.message}</p>
+                      <p className="text-[10px] text-muted-foreground">{new Date(r.remind_on).toLocaleDateString("pt-BR")}</p>
+                    </div>
+                    <button onClick={() => delDrawerReminder(r)} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  <Input value={remMsg} onChange={(e) => setRemMsg(e.target.value)} placeholder="Ex: Ligar para retorno" className="bg-secondary border-border text-sm" />
+                  <Input type="date" value={remDate} onChange={(e) => setRemDate(e.target.value)} className="bg-secondary border-border text-sm w-36" />
+                  <button onClick={addDrawerReminder} disabled={remSaving || !remMsg.trim() || !remDate} className="px-3 rounded-lg bg-secondary border border-border text-muted-foreground hover:text-foreground disabled:opacity-40">
+                    {remSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
 
               <div className="flex flex-col gap-2 pt-4 border-t border-border">
                 <button onClick={() => setEditingLead(drawerLead)} className="gradient-button py-2.5 text-sm flex items-center justify-center gap-2">
