@@ -257,6 +257,7 @@ model Client {
   meta_connection  ClientMetaConnection?
   vault_credentials VaultCredential[]
   demands          Demand[]
+  influencer_partnerships InfluencerPartnership[]
 
   @@map("clients")
 }
@@ -285,6 +286,114 @@ enum DemandStatus {
   EM_ANDAMENTO
   RESOLVIDA
   DESCARTADA
+}
+
+// ── Influencers ───────────────────────────────────────────────────────
+model Influencer {
+  id          String   @id @default(uuid())
+  user_id     String   // quem cadastrou
+  nome        String
+  instagram   String?
+  tiktok      String?
+  youtube     String?
+  seguidores  Int?
+  telefone    String?
+  email       String?
+  nicho       String?
+  observacao  String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  partnerships InfluencerPartnership[]
+
+  @@map("influencers")
+}
+
+// Parceria: uma influencer trabalhando para um cliente
+model InfluencerPartnership {
+  id            String   @id @default(uuid())
+  influencer_id String
+  client_id     String
+  titulo        String                       // ex: "Campanha Verão"
+  tipo          PartnershipType   @default(PERMUTA)
+  cache_value   Float?                        // cachê pago (quando PAGO/HIBRIDO)
+  status        PartnershipStatus @default(NEGOCIACAO)
+  observacao    String?
+  started_at    DateTime?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  influencer Influencer @relation(fields: [influencer_id], references: [id], onDelete: Cascade)
+  client     Client     @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  products     PartnershipProduct[]
+  deliverables PartnershipDeliverable[]
+
+  @@map("influencer_partnerships")
+}
+
+enum PartnershipType {
+  PERMUTA   // só produto
+  PAGO      // só cachê
+  HIBRIDO   // produto + cachê
+}
+
+enum PartnershipStatus {
+  NEGOCIACAO
+  ENVIADO
+  PRODUZINDO
+  CONCLUIDO
+}
+
+// Peças/produtos recebidos pela influencer (vários por parceria)
+model PartnershipProduct {
+  id             String   @id @default(uuid())
+  partnership_id String
+  nome           String
+  valor          Float?
+  status         ProductStatus @default(A_ENVIAR)
+  created_at     DateTime @default(now())
+
+  partnership InfluencerPartnership @relation(fields: [partnership_id], references: [id], onDelete: Cascade)
+
+  @@map("partnership_products")
+}
+
+enum ProductStatus {
+  A_ENVIAR
+  ENVIADO
+  RECEBIDO
+}
+
+// Entregáveis combinados (o que ela tem que entregar / já entregou)
+model PartnershipDeliverable {
+  id             String   @id @default(uuid())
+  partnership_id String
+  tipo           String   // REEL | STORY | POST | VIDEO | OUTRO
+  descricao      String?
+  entregue       Boolean  @default(false)
+  link           String?
+  delivered_at   DateTime?
+  created_at     DateTime @default(now())
+
+  partnership InfluencerPartnership @relation(fields: [partnership_id], references: [id], onDelete: Cascade)
+  sales        DeliverableSale[]
+
+  @@map("partnership_deliverables")
+}
+
+// Vendas geradas por um material entregue
+model DeliverableSale {
+  id             String   @id @default(uuid())
+  deliverable_id String
+  valor          Float    @default(0)
+  quantidade     Int      @default(1)
+  observacao     String?
+  sale_date      DateTime @default(now())
+  created_at     DateTime @default(now())
+
+  deliverable PartnershipDeliverable @relation(fields: [deliverable_id], references: [id], onDelete: Cascade)
+
+  @@map("deliverable_sales")
 }
 
 enum ProjectType {

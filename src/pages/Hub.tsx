@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox } from "lucide-react";
+import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox, Star } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -90,6 +90,15 @@ const Hub = () => {
       icon: Inbox,
       color: "from-amber-500 to-orange-600",
       route: "/demandas",
+      adminOnly: false,
+    },
+    {
+      id: "influencers",
+      name: "Influencers",
+      description: "Cadastre influenciadoras, atrele a clientes e acompanhe entregas e vendas geradas.",
+      icon: Star,
+      color: "from-pink-500 to-rose-600",
+      route: "/influencers",
       adminOnly: false,
     },
     {
