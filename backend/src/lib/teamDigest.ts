@@ -81,16 +81,23 @@ export async function sendTeamDigest(hour: number): Promise<void> {
   }
 }
 
-// Disparo de teste manual (botão nas Configurações).
-// Se houver pendências hoje, manda o boletim real; senão, manda uma mensagem de confirmação.
+// Disparo manual (botão nas Configurações): força o boletim do dia AGORA,
+// idêntico ao automático (usa a saudação do horário atual). Se não houver
+// pendências, manda uma mensagem de confirmação de que o grupo está ok.
+function horaAtualSP(): number {
+  return Number(new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo", hour: "2-digit", hour12: false,
+  }).format(new Date())) % 24;
+}
+
 export async function sendTeamDigestTest(): Promise<{ enviou: "boletim" | "teste" }> {
-  const digest = await buildDigest(12);
+  const digest = await buildDigest(horaAtualSP());
   if (digest) {
-    await postToGroup(`🧪 *TESTE DE NOTIFICAÇÃO*\n\n${digest.text}`);
+    await postToGroup(digest.text);
     return { enviou: "boletim" };
   }
   await postToGroup(
-    `🧪 *Teste de notificação — Leadqui*\n\n${LINHA}\n✅ Grupo configurado com sucesso!\n\nOs boletins de lembretes e tarefas chegam aqui às *6h*, *12h* e *18h*.\n_Sem pendências para hoje no momento._`,
+    `✅ *Grupo configurado — Leadqui*\n\n${LINHA}\nOs boletins de lembretes e tarefas chegam aqui às *6h*, *12h* e *18h*.\n_Sem pendências para hoje no momento._`,
   );
   return { enviou: "teste" };
 }
