@@ -73,9 +73,15 @@ async function buildDigest(hour: number): Promise<{ text: string; reminders: num
 export async function sendTeamDigest(hour: number): Promise<void> {
   try {
     const digest = await buildDigest(hour);
-    if (!digest) return;
-    await postToGroup(digest.text);
-    console.log(`[Boletim ${hour}h] enviado: ${digest.reminders} lembrete(s), ${digest.tasks} tarefa(s).`);
+    if (digest) {
+      await postToGroup(digest.text);
+      console.log(`[Boletim ${hour}h] enviado: ${digest.reminders} lembrete(s), ${digest.tasks} tarefa(s).`);
+    } else {
+      // Sem pendências → ainda assim manda um boletim positivo nos 3 horários
+      const label = rangeHojeSP().label;
+      await postToGroup(`${SAUDACAO[hour] || "📋 *Boletim*"}\n📅 ${label}\n\n${LINHA}\n🎉 Nenhuma pendência para hoje!\n_Sem lembretes nem tarefas com prazo._`);
+      console.log(`[Boletim ${hour}h] enviado: sem pendências.`);
+    }
   } catch (e: any) {
     console.warn("[Boletim] erro:", e.message);
   }
