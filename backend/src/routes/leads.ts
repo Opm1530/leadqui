@@ -195,4 +195,51 @@ router.get("/stats/summary", async (req: AuthRequest, res: Response): Promise<vo
   }
 });
 
+// ── Lembretes do lead ─────────────────────────────────────────────────
+router.get("/:id/reminders", async (req: AuthRequest, res: Response): Promise<void> => {
+  const reminders = await (prisma as any).leadReminder.findMany({
+    where: { lead_id: String(req.params.id) },
+    orderBy: { remind_on: "asc" },
+  });
+  res.json({ reminders });
+});
+
+router.post("/:id/reminders", async (req: AuthRequest, res: Response): Promise<void> => {
+  const { message, remind_on } = req.body;
+  if (!message || !remind_on) { res.status(400).json({ error: "Mensagem e data são obrigatórias" }); return; }
+  try {
+    const reminder = await (prisma as any).leadReminder.create({
+      data: {
+        lead_id: String(req.params.id),
+        user_id: req.user!.id,
+        message: String(message).slice(0, 500),
+        remind_on: new Date(remind_on),
+      },
+    });
+    res.status(201).json({ reminder });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.patch("/reminders/:rid", async (req: AuthRequest, res: Response): Promise<void> => {
+  const { done, message, remind_on } = req.body;
+  try {
+    const reminder = await (prisma as any).leadReminder.update({
+      where: { id: String(req.params.rid) },
+      data: {
+        ...(done !== undefined && { done: !!done }),
+        ...(message && { message: String(message).slice(0, 500) }),
+        ...(remind_on && { remind_on: new Date(remind_on) }),
+      },
+    });
+    res.json({ reminder });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete("/reminders/:rid", async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    await (prisma as any).leadReminder.delete({ where: { id: String(req.params.rid) } });
+    res.json({ success: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;

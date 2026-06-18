@@ -63,6 +63,8 @@ model UserSettings {
   anthropic_api_key     String?  // Claude API (assistente do sistema)
   notification_phone    String?  // Número WhatsApp para alertas (ex: 5511999999999)
   notification_instance String?  // Nome da instância Evolution para enviar alertas
+  notification_group_id   String?  // Grupo da equipe que recebe o boletim diário (ex: 123@g.us)
+  notification_group_name String?  // Nome do grupo da equipe
   created_at            DateTime @default(now())
   updated_at            DateTime @updatedAt
 
@@ -120,8 +122,26 @@ model Lead {
   tags    LeadTag[]
   client  Client?   @relation(fields: [client_id], references: [id], onDelete: SetNull)
   crmCards CRMCard[]
+  reminders LeadReminder[]
 
   @@map("leads")
+}
+
+// Lembrete agendado dentro do card de um lead
+model LeadReminder {
+  id         String   @id @default(uuid())
+  lead_id    String
+  user_id    String   // quem criou
+  message    String
+  remind_on  DateTime // data do lembrete (dispara no boletim do dia)
+  done       Boolean  @default(false)
+  sent_at    DateTime? // marcado quando já foi para o grupo
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  lead Lead @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+
+  @@map("lead_reminders")
 }
 
 enum LeadOrigem {

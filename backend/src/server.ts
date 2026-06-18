@@ -18,6 +18,7 @@ import notificationsRoutes from "./routes/notifications";
 import { startRecurringInvoicesJob } from "./lib/recurringInvoices";
 import { startNotificationChecker } from "./lib/notificationChecker";
 import { startDemandDigest } from "./lib/demandDigest";
+import { startTeamDigest } from "./lib/teamDigest";
 import techquiRoutes from "./routes/techqui";
 import vaultRoutes from "./routes/vault";
 import legalRoutes from "./routes/legal";
@@ -123,6 +124,7 @@ app.listen(PORT, () => {
   startInstagramScheduler();
   startAdsAnalyzerJob();
   startDemandDigest();
+  startTeamDigest();
 });
 
 export default app;

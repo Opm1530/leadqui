@@ -30,6 +30,11 @@ const Settings = () => {
   const [anthropicApiKey, setAnthropicApiKey] = useState("");
   const [notificationPhone, setNotificationPhone] = useState("");
   const [notificationInstance, setNotificationInstance] = useState("");
+  const [notificationGroupId, setNotificationGroupId] = useState("");
+  const [notificationGroupName, setNotificationGroupName] = useState("");
+  const [instancesList, setInstancesList] = useState<any[]>([]);
+  const [notifGroups, setNotifGroups] = useState<any[]>([]);
+  const [loadingNotifGroups, setLoadingNotifGroups] = useState(false);
 
   // ── Meta / Instagram / Trello (TechQuiSettings) ────────────────────
   const [meta, setMeta] = useState<any>({
@@ -58,6 +63,9 @@ const Settings = () => {
       setAnthropicApiKey(s.anthropic_api_key || "");
       setNotificationPhone(s.notification_phone || "");
       setNotificationInstance(s.notification_instance || "");
+      setNotificationGroupId(s.notification_group_id || "");
+      setNotificationGroupName(s.notification_group_name || "");
+      api.get("/api/instances").then(d => setInstancesList(d.instances || [])).catch(() => {});
 
       const tq = await api.get("/api/techqui/settings").then(d => d.settings).catch(() => null);
       if (tq) setMeta((m: any) => ({
@@ -84,6 +92,8 @@ const Settings = () => {
         anthropic_api_key: anthropicApiKey || null,
         notification_phone: notificationPhone || null,
         notification_instance: notificationInstance || null,
+        notification_group_id: notificationGroupId || null,
+        notification_group_name: notificationGroupName || null,
       });
       toast({ title: "Configurações salvas!" });
     } catch (error: any) {
@@ -120,6 +130,19 @@ const Settings = () => {
   const [trelloBoards, setTrelloBoards] = useState<any[]>([]);
   const [trelloLists, setTrelloLists] = useState<any[]>([]);
   const [loadingTrello, setLoadingTrello] = useState(false);
+
+  const carregarNotifGroups = async () => {
+    const inst = instancesList.find(i => i.evolution_instance_id === notificationInstance || i.nome === notificationInstance);
+    if (!inst) { toast({ title: "Selecione uma instância conectada primeiro.", variant: "destructive" }); return; }
+    setLoadingNotifGroups(true);
+    try {
+      const d = await api.get(`/api/instances/${inst.id}/groups`);
+      setNotifGroups(d.groups || []);
+      if (!d.groups?.length) toast({ title: "Nenhum grupo encontrado nessa instância." });
+    } catch {
+      toast({ title: "Erro ao carregar grupos", description: "A instância precisa estar conectada.", variant: "destructive" });
+    } finally { setLoadingNotifGroups(false); }
+  };
 
   const carregarQuadros = async () => {
     setLoadingTrello(true);
@@ -198,7 +221,34 @@ const Settings = () => {
               <div className="flex items-center gap-2 mb-2"><Bell className="w-5 h-5 text-orange-400" /><h3 className="text-lg font-semibold text-foreground">Alertas por WhatsApp</h3></div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">Número para Alertas</Label><Input value={notificationPhone} onChange={e => setNotificationPhone(e.target.value)} placeholder="5511999999999" className="bg-secondary border-border" /></div>
-                <div className="space-y-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">Instância Evolution</Label><Input value={notificationInstance} onChange={e => setNotificationInstance(e.target.value)} className="bg-secondary border-border" /></div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Instância (envia os avisos)</Label>
+                  <Select value={notificationInstance} onValueChange={v => { setNotificationInstance(v); setNotifGroups([]); }}>
+                    <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione a instância" /></SelectTrigger>
+                    <SelectContent>
+                      {instancesList.map(i => <SelectItem key={i.id} value={i.evolution_instance_id}>{i.nome} ({i.status})</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Grupo da equipe — boletim diário 6h / 12h / 18h */}
+              <div className="space-y-2 pt-2 border-t border-border/50">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Grupo da equipe (boletim 6h / 12h / 18h)</Label>
+                  <button type="button" onClick={carregarNotifGroups} disabled={loadingNotifGroups || !notificationInstance}
+                    className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50">
+                    {loadingNotifGroups ? <Loader2 className="w-3 h-3 animate-spin" /> : <Smartphone className="w-3 h-3" />} Carregar grupos
+                  </button>
+                </div>
+                <Select value={notificationGroupId} onValueChange={v => { setNotificationGroupId(v); setNotificationGroupName(notifGroups.find(g => g.id === v)?.name || ""); }}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder={notificationGroupName || "Selecione o grupo da equipe"} /></SelectTrigger>
+                  <SelectContent>
+                    {notifGroups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {notificationGroupName && <p className="text-[11px] text-green-400">✓ Boletins de lembretes e tarefas do dia irão para: {notificationGroupName}</p>}
+                <p className="text-[11px] text-muted-foreground">Lembretes dos leads e tarefas com prazo no dia são enviados a este grupo às 6h, meio-dia e 18h.</p>
               </div>
             </div>
 

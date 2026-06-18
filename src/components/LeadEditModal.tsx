@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Bell, Plus, Trash2, Check } from "lucide-react";
 import api from "@/lib/api";
 import TagManager from "./TagManager";
 
@@ -21,11 +21,46 @@ const LeadEditModal = ({ lead, open, onClose, onSaved }: LeadEditModalProps) => 
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
 
+  // Lembretes
+  const [reminders, setReminders] = useState<any[]>([]);
+  const [remMsg, setRemMsg] = useState("");
+  const [remDate, setRemDate] = useState("");
+  const [remSaving, setRemSaving] = useState(false);
+
   useEffect(() => {
-    if (lead) setForm({ ...lead });
+    if (lead) {
+      setForm({ ...lead });
+      api.get(`/api/leads/${lead.id}/reminders`).then(d => setReminders(d.reminders || [])).catch(() => setReminders([]));
+    }
   }, [lead]);
 
   const set = (key: string, value: string) => setForm((p: any) => ({ ...p, [key]: value }));
+
+  const addReminder = async () => {
+    if (!remMsg.trim() || !remDate) return;
+    setRemSaving(true);
+    try {
+      const d = await api.post(`/api/leads/${lead.id}/reminders`, { message: remMsg.trim(), remind_on: remDate });
+      setReminders(p => [...p, d.reminder].sort((a, b) => a.remind_on.localeCompare(b.remind_on)));
+      setRemMsg(""); setRemDate("");
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    } finally { setRemSaving(false); }
+  };
+
+  const toggleReminder = async (r: any) => {
+    try {
+      await api.patch(`/api/leads/reminders/${r.id}`, { done: !r.done });
+      setReminders(p => p.map(x => x.id === r.id ? { ...x, done: !x.done } : x));
+    } catch { /* */ }
+  };
+
+  const delReminder = async (r: any) => {
+    try {
+      await api.delete(`/api/leads/reminders/${r.id}`);
+      setReminders(p => p.filter(x => x.id !== r.id));
+    } catch { /* */ }
+  };
 
   const handleSave = async () => {
     if (!lead || !form.nome?.trim()) return;
@@ -123,11 +158,40 @@ const LeadEditModal = ({ lead, open, onClose, onSaved }: LeadEditModalProps) => 
 
           <div className="space-y-1.5 pt-2 border-t border-border/50">
             <Label className="text-xs text-muted-foreground uppercase tracking-wider">Gerenciar Tags</Label>
-            <TagManager 
-              leadId={lead.id} 
-              assignedTagIds={(lead.tags || []).map((lt: any) => lt.tag_id)} 
-              onChange={() => onSaved()} 
+            <TagManager
+              leadId={lead.id}
+              assignedTagIds={(lead.tags || []).map((lt: any) => lt.tag_id)}
+              onChange={() => onSaved()}
             />
+          </div>
+
+          {/* Lembretes */}
+          <div className="space-y-2 pt-2 border-t border-border/50">
+            <Label className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Bell className="w-3.5 h-3.5 text-amber-400" /> Lembretes
+            </Label>
+            <div className="space-y-1.5">
+              {reminders.length === 0 && <p className="text-xs text-muted-foreground">Nenhum lembrete. O lembrete é enviado ao grupo da equipe no dia marcado.</p>}
+              {reminders.map(r => (
+                <div key={r.id} className="flex items-center gap-2 bg-secondary/40 rounded-lg px-2 py-1.5">
+                  <button onClick={() => toggleReminder(r)} className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${r.done ? "bg-green-600 border-green-600" : "border-muted-foreground/40"}`}>
+                    {r.done && <Check className="w-3 h-3 text-white" />}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs ${r.done ? "line-through text-muted-foreground" : "text-foreground"}`}>{r.message}</p>
+                    <p className="text-[10px] text-muted-foreground">{new Date(r.remind_on).toLocaleDateString("pt-BR")}</p>
+                  </div>
+                  <button onClick={() => delReminder(r)} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Input value={remMsg} onChange={e => setRemMsg(e.target.value)} placeholder="Ex: Ligar para retorno" className="bg-secondary border-border text-sm" />
+              <Input type="date" value={remDate} onChange={e => setRemDate(e.target.value)} className="bg-secondary border-border text-sm w-40" />
+              <button onClick={addReminder} disabled={remSaving || !remMsg.trim() || !remDate} className="px-3 rounded-lg bg-secondary border border-border text-muted-foreground hover:text-foreground disabled:opacity-40">
+                {remSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
         </div>
 
