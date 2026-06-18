@@ -15,57 +15,84 @@ function rangeHojeSP(): { start: Date; end: Date; label: string } {
 
 const SAUDACAO: Record<number, string> = { 6: "☀️ Bom dia, equipe!", 12: "🌤️ Boa tarde, equipe!", 18: "🌙 Fim de dia, equipe!" };
 
+const LINHA = "━━━━━━━━━━━━━━";
+
+// Envia um texto para o grupo da equipe. Lança erro se não configurado.
+async function postToGroup(text: string): Promise<void> {
+  const s = (await getCompanySettings()) as any;
+  if (!s?.evolution_api_url || !s?.notification_instance || !s?.notification_group_id) {
+    throw new Error("Configure a instância e o grupo da equipe nas Configurações.");
+  }
+  await axios.post(
+    `${s.evolution_api_url.replace(/\/$/, "")}/message/sendText/${s.notification_instance}`,
+    { number: s.notification_group_id, text },
+    { headers: { apikey: s.evolution_api_key || "", "Content-Type": "application/json" }, timeout: 8000 },
+  );
+}
+
+// Monta a mensagem do boletim. Retorna null se não há nada para enviar.
+async function buildDigest(hour: number): Promise<{ text: string; reminders: number; tasks: number } | null> {
+  const { start, end, label } = rangeHojeSP();
+
+  const reminders = await (prisma as any).leadReminder.findMany({
+    where: { done: false, remind_on: { lte: end } },
+    include: { lead: { select: { nome: true } } },
+    orderBy: { remind_on: "asc" },
+  });
+
+  const tasks = await (prisma as any).task.findMany({
+    where: { archived: false, status: { not: "CONCLUIDO" }, due_date: { lte: end } },
+    include: { client: { select: { name: true } }, responsible: { select: { name: true } } },
+    orderBy: { due_date: "asc" },
+  });
+
+  if (!reminders.length && !tasks.length) return null;
+
+  let msg = `${SAUDACAO[hour] || "📋 *Boletim*"}\n📅 ${label}\n`;
+
+  if (reminders.length) {
+    msg += `\n${LINHA}\n🔔 *LEMBRETES (${reminders.length})*\n`;
+    for (const r of reminders) {
+      const atrasado = new Date(r.remind_on) < start ? " ⚠️ _atrasado_" : "";
+      msg += `\n☑️ ${r.message}${r.lead?.nome ? `\n     🏷️ ${r.lead.nome}` : ""}${atrasado}\n`;
+    }
+  }
+
+  if (tasks.length) {
+    msg += `\n${LINHA}\n📋 *TAREFAS DE HOJE (${tasks.length})*\n`;
+    for (const t of tasks) {
+      const atrasado = t.due_date && new Date(t.due_date) < start ? " ⚠️ _atrasada_" : "";
+      const quem = t.responsible?.name || "sem responsável";
+      msg += `\n✅ ${t.title}${atrasado}\n     👤 ${quem}${t.client?.name ? `   🏢 ${t.client.name}` : ""}\n`;
+    }
+  }
+
+  return { text: msg, reminders: reminders.length, tasks: tasks.length };
+}
+
 export async function sendTeamDigest(hour: number): Promise<void> {
   try {
-    const s = (await getCompanySettings()) as any;
-    if (!s?.evolution_api_url || !s?.notification_instance || !s?.notification_group_id) return;
-
-    const { start, end, label } = rangeHojeSP();
-
-    // Lembretes do dia (e atrasados não concluídos)
-    const reminders = await (prisma as any).leadReminder.findMany({
-      where: { done: false, remind_on: { lte: end } },
-      include: { lead: { select: { nome: true } } },
-      orderBy: { remind_on: "asc" },
-    });
-
-    // Tarefas com prazo até hoje, não concluídas e não arquivadas
-    const tasks = await (prisma as any).task.findMany({
-      where: { archived: false, status: { not: "CONCLUIDO" }, due_date: { lte: end } },
-      include: { client: { select: { name: true } }, responsible: { select: { name: true } } },
-      orderBy: { due_date: "asc" },
-    });
-
-    if (!reminders.length && !tasks.length) return;
-
-    let msg = `${SAUDACAO[hour] || "📋 Boletim"} *${label}*\n`;
-
-    if (reminders.length) {
-      msg += `\n🔔 *Lembretes (${reminders.length})*\n`;
-      for (const r of reminders) {
-        const atrasado = new Date(r.remind_on) < start ? " ⚠️_atrasado_" : "";
-        msg += `• ${r.message}${r.lead?.nome ? ` _(${r.lead.nome})_` : ""}${atrasado}\n`;
-      }
-    }
-
-    if (tasks.length) {
-      msg += `\n✅ *Tarefas do dia (${tasks.length})*\n`;
-      for (const t of tasks) {
-        const atrasado = t.due_date && new Date(t.due_date) < start ? " ⚠️_atrasada_" : "";
-        const resp = t.responsible?.name ? ` — ${t.responsible.name}` : "";
-        msg += `• ${t.title}${t.client?.name ? ` _(${t.client.name})_` : ""}${resp}${atrasado}\n`;
-      }
-    }
-
-    await axios.post(
-      `${s.evolution_api_url.replace(/\/$/, "")}/message/sendText/${s.notification_instance}`,
-      { number: s.notification_group_id, text: msg },
-      { headers: { apikey: s.evolution_api_key || "", "Content-Type": "application/json" }, timeout: 8000 },
-    );
-    console.log(`[Boletim ${hour}h] enviado: ${reminders.length} lembrete(s), ${tasks.length} tarefa(s).`);
+    const digest = await buildDigest(hour);
+    if (!digest) return;
+    await postToGroup(digest.text);
+    console.log(`[Boletim ${hour}h] enviado: ${digest.reminders} lembrete(s), ${digest.tasks} tarefa(s).`);
   } catch (e: any) {
     console.warn("[Boletim] erro:", e.message);
   }
+}
+
+// Disparo de teste manual (botão nas Configurações).
+// Se houver pendências hoje, manda o boletim real; senão, manda uma mensagem de confirmação.
+export async function sendTeamDigestTest(): Promise<{ enviou: "boletim" | "teste" }> {
+  const digest = await buildDigest(12);
+  if (digest) {
+    await postToGroup(`🧪 *TESTE DE NOTIFICAÇÃO*\n\n${digest.text}`);
+    return { enviou: "boletim" };
+  }
+  await postToGroup(
+    `🧪 *Teste de notificação — Leadqui*\n\n${LINHA}\n✅ Grupo configurado com sucesso!\n\nOs boletins de lembretes e tarefas chegam aqui às *6h*, *12h* e *18h*.\n_Sem pendências para hoje no momento._`,
+  );
+  return { enviou: "teste" };
 }
 
 // Dispara nos horários 6h, 12h e 18h (São Paulo), uma vez por horário/dia.

@@ -131,6 +131,17 @@ const Settings = () => {
   const [trelloLists, setTrelloLists] = useState<any[]>([]);
   const [loadingTrello, setLoadingTrello] = useState(false);
 
+  const [testando, setTestando] = useState(false);
+  const dispararTeste = async () => {
+    setTestando(true);
+    try {
+      const d = await api.post("/api/settings/test-notification", {});
+      toast({ title: "Enviado! 🧪", description: d.enviou === "boletim" ? "Mandei o boletim atual no grupo." : "Mensagem de teste enviada no grupo." });
+    } catch (e: any) {
+      toast({ title: "Erro ao enviar teste", description: e.message, variant: "destructive" });
+    } finally { setTestando(false); }
+  };
+
   const carregarNotifGroups = async () => {
     const inst = instancesList.find(i => i.evolution_instance_id === notificationInstance || i.nome === notificationInstance);
     if (!inst) { toast({ title: "Selecione uma instância conectada primeiro.", variant: "destructive" }); return; }
@@ -249,6 +260,10 @@ const Settings = () => {
                 </Select>
                 {notificationGroupName && <p className="text-[11px] text-green-400">✓ Boletins de lembretes e tarefas do dia irão para: {notificationGroupName}</p>}
                 <p className="text-[11px] text-muted-foreground">Lembretes dos leads e tarefas com prazo no dia são enviados a este grupo às 6h, meio-dia e 18h.</p>
+                <button type="button" onClick={dispararTeste} disabled={testando || !notificationGroupId}
+                  className="text-xs px-3 py-2 rounded-lg border border-primary/40 text-primary hover:bg-primary/10 flex items-center gap-1 disabled:opacity-50">
+                  {testando ? <Loader2 className="w-3 h-3 animate-spin" /> : "🧪"} Disparar notificação de teste
+                </button>
               </div>
             </div>
 

@@ -20,6 +20,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import LeadEditModal from "@/components/LeadEditModal";
 import ConvertLeadModal from "@/components/ConvertLeadModal";
@@ -31,6 +32,8 @@ const COLUMN_COLORS = [
   "#f97316","#eab308","#22c55e","#10b981",
   "#06b6d4","#3b82f6","#64748b","#a16207",
 ];
+
+const LEAD_SERVICES = ["Gestão de Tráfego", "Social Media", "CRM", "Automação", "Design", "Landing Page"];
 
 // ── SortableCard ──────────────────────────────────────────────────────────────
 const SortableCard = ({ card, onClick }: { card: any; onClick: () => void }) => {
@@ -112,8 +115,13 @@ const CRM = () => {
   const [leadSearch, setLeadSearch] = useState("");
   const [availableLeads, setAvailableLeads] = useState<any[]>([]);
   const [addingLead, setAddingLead] = useState(false);
-  // Criar lead novo direto no CRM
-  const [novoLead, setNovoLead] = useState({ nome: "", telefone: "", cidade: "" });
+  // Criar lead novo direto no CRM (form completo, igual à página de Leads)
+  const emptyNovoLead = {
+    nome: "", telefone: "", cidade: "", email: "", endereco: "", website: "", categoria: "",
+    status: "NOVO", observacao: "",
+    valor_proposto: "", duracao_proposta: "", responsavel_proposto: "", servicos_propostos: [] as string[],
+  };
+  const [novoLead, setNovoLead] = useState({ ...emptyNovoLead });
 
   // Drawer
   const [drawerCard, setDrawerCard] = useState<any | null>(null);
@@ -254,14 +262,23 @@ const CRM = () => {
         nome: novoLead.nome.trim(),
         telefone: novoLead.telefone || null,
         cidade: novoLead.cidade || null,
+        email: novoLead.email || null,
+        endereco: novoLead.endereco || null,
+        website: novoLead.website || null,
+        categoria: novoLead.categoria || null,
+        status: novoLead.status,
+        observacao: novoLead.observacao || null,
+        valor_proposto: novoLead.valor_proposto || null,
+        duracao_proposta: novoLead.duracao_proposta || null,
+        responsavel_proposto: novoLead.responsavel_proposto || null,
+        servicos_propostos: novoLead.servicos_propostos,
         origem: "MANUAL",
-        status: "NOVO",
       });
       // 2. Cria o card na coluna escolhida
       const data = await api.post("/api/crm/cards", { lead_id: lead.id, coluna_id: addLeadColId });
       setCards((prev) => [...prev, { ...data.card, lead }]);
       toast({ title: `${lead.nome} criado e adicionado ao CRM!`, description: "Também aparece na página de Leads." });
-      setNovoLead({ nome: "", telefone: "", cidade: "" });
+      setNovoLead({ ...emptyNovoLead });
       setAddLeadColId(null);
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
@@ -482,20 +499,48 @@ const CRM = () => {
 
       {/* Modal Adicionar Lead */}
       <Dialog open={!!addLeadColId} onOpenChange={(v) => !v && setAddLeadColId(null)}>
-        <DialogContent className="max-w-md bg-card border-border">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto bg-card border-border">
           <DialogHeader>
             <DialogTitle>Adicionar Lead ao CRM</DialogTitle>
             <DialogDescription className="sr-only">Selecione um lead da lista para adicionar a esta coluna do CRM.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 pt-2">
-            {/* Criar lead novo */}
-            <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 space-y-2">
+            {/* Criar lead novo — completo */}
+            <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 space-y-3">
               <p className="text-xs font-semibold text-primary/90 uppercase tracking-wider">Criar novo lead</p>
               <div className="grid grid-cols-2 gap-2">
                 <Input placeholder="Nome *" value={novoLead.nome} onChange={(e) => setNovoLead({ ...novoLead, nome: e.target.value })} className="bg-secondary border-border col-span-2" />
                 <Input placeholder="Telefone" value={novoLead.telefone} onChange={(e) => setNovoLead({ ...novoLead, telefone: e.target.value })} className="bg-secondary border-border" />
+                <Input placeholder="E-mail" value={novoLead.email} onChange={(e) => setNovoLead({ ...novoLead, email: e.target.value })} className="bg-secondary border-border" />
                 <Input placeholder="Cidade" value={novoLead.cidade} onChange={(e) => setNovoLead({ ...novoLead, cidade: e.target.value })} className="bg-secondary border-border" />
+                <Input placeholder="Categoria" value={novoLead.categoria} onChange={(e) => setNovoLead({ ...novoLead, categoria: e.target.value })} className="bg-secondary border-border" />
+                <Input placeholder="Endereço" value={novoLead.endereco} onChange={(e) => setNovoLead({ ...novoLead, endereco: e.target.value })} className="bg-secondary border-border col-span-2" />
+                <Input placeholder="Website" value={novoLead.website} onChange={(e) => setNovoLead({ ...novoLead, website: e.target.value })} className="bg-secondary border-border col-span-2" />
               </div>
+              <Textarea placeholder="Observação..." value={novoLead.observacao} onChange={(e) => setNovoLead({ ...novoLead, observacao: e.target.value })} rows={2} className="bg-secondary border-border resize-none" />
+
+              {/* Proposta opcional */}
+              <div className="rounded-lg border border-border/60 p-2 space-y-2">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Proposta (opcional)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input type="number" placeholder="Valor (R$)" value={novoLead.valor_proposto} onChange={(e) => setNovoLead({ ...novoLead, valor_proposto: e.target.value })} className="bg-secondary border-border" />
+                  <Input type="number" placeholder="Duração (meses)" value={novoLead.duracao_proposta} onChange={(e) => setNovoLead({ ...novoLead, duracao_proposta: e.target.value })} className="bg-secondary border-border" />
+                  <Input placeholder="Responsável interno" value={novoLead.responsavel_proposto} onChange={(e) => setNovoLead({ ...novoLead, responsavel_proposto: e.target.value })} className="bg-secondary border-border col-span-2" />
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {LEAD_SERVICES.map((svc) => {
+                    const checked = novoLead.servicos_propostos.includes(svc);
+                    return (
+                      <button key={svc} type="button"
+                        onClick={() => setNovoLead({ ...novoLead, servicos_propostos: checked ? novoLead.servicos_propostos.filter(s => s !== svc) : [...novoLead.servicos_propostos, svc] })}
+                        className={`text-[11px] px-2 py-1 rounded-lg border transition-colors ${checked ? "border-primary bg-primary/15 text-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}>
+                        {svc}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <button onClick={handleCreateLeadInCrm} disabled={addingLead || !novoLead.nome.trim()} className="w-full gradient-button py-2 text-sm disabled:opacity-50 flex items-center justify-center gap-2">
                 {addingLead ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Criar e adicionar
               </button>

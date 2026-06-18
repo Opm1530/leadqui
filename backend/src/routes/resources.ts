@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 import { startGoogleMapsExtraction, startInstagramExtraction } from "../lib/extractionService";
 import { getCompanySettingsUserId } from "../lib/companySettings";
+import { sendTeamDigestTest } from "../lib/teamDigest";
 
 // Helper para automação do Tasqui
 // Cria projetos por serviço e aplica template de tarefas se fornecido
@@ -526,6 +527,16 @@ router.put("/settings", async (req: AuthRequest, res: Response): Promise<void> =
     update: data,
   });
   res.json({ settings: { ...settings, serper_api_key: settings.serper_api_key ? "••••••••" : null } });
+});
+
+// Dispara uma notificação de teste no grupo da equipe
+router.post("/settings/test-notification", async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const result = await sendTeamDigestTest();
+    res.json({ success: true, ...result });
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 // ─── DASHBOARD STATS ──────────────────────────────────────────────────
