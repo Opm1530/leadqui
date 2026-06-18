@@ -105,6 +105,11 @@ model Lead {
   biografia         String?  
   seguidores        Int?
   observacao        String?    // campo livre de observações/descrição
+  // Campos "propostos" — preenchidos no cadastro do lead e pré-carregados na conversão em cliente
+  valor_proposto      Float?
+  duracao_proposta    Int?
+  responsavel_proposto String?
+  servicos_propostos  String?  // JSON: string[]
   origem            LeadOrigem @default(MANUAL)
   status            LeadStatus @default(NOVO)
   client_id         String?

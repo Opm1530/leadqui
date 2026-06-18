@@ -47,7 +47,11 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
 
 // ── POST /api/leads ───────────────────────────────────────────────────
 router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
-  const { nome, telefone, email, endereco, cidade, origem = "MANUAL", status = "NOVO", ...rest } = req.body;
+  const {
+    nome, telefone, email, endereco, cidade, website, categoria, observacao,
+    origem = "MANUAL", status = "NOVO",
+    valor_proposto, duracao_proposta, responsavel_proposto, servicos_propostos,
+  } = req.body;
 
   if (!nome) {
     res.status(400).json({ error: "Nome é obrigatório" });
@@ -64,9 +68,15 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
         email: email || null,
         endereco: endereco || null,
         cidade: cidade || null,
+        website: website || null,
+        categoria: categoria || null,
+        observacao: observacao || null,
         origem,
         status,
-        ...rest,
+        valor_proposto: valor_proposto != null && valor_proposto !== "" ? Number(valor_proposto) : null,
+        duracao_proposta: duracao_proposta != null && duracao_proposta !== "" ? parseInt(String(duracao_proposta)) : null,
+        responsavel_proposto: responsavel_proposto || null,
+        servicos_propostos: Array.isArray(servicos_propostos) ? JSON.stringify(servicos_propostos) : (servicos_propostos || null),
       },
     });
 

@@ -105,12 +105,15 @@ const CRM = () => {
   // Renomear coluna
   const [editingColId, setEditingColId] = useState<string | null>(null);
   const [editingColNome, setEditingColNome] = useState("");
+  const [editColId, setEditColId] = useState<string | null>(null);
 
   // Add lead modal
   const [addLeadColId, setAddLeadColId] = useState<string | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
   const [availableLeads, setAvailableLeads] = useState<any[]>([]);
   const [addingLead, setAddingLead] = useState(false);
+  // Criar lead novo direto no CRM
+  const [novoLead, setNovoLead] = useState({ nome: "", telefone: "", cidade: "" });
 
   // Drawer
   const [drawerCard, setDrawerCard] = useState<any | null>(null);
@@ -143,15 +146,29 @@ const CRM = () => {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // ── Columns CRUD ─────────────────────────────────────────────────────────────
-  const handleCreateColumn = async () => {
+  const openEditColumn = (col: any) => {
+    setEditColId(col.id);
+    setColNome(col.nome);
+    setColCor(col.cor || COLUMN_COLORS[0]);
+    setColModal(true);
+  };
+
+  const handleSaveColumn = async () => {
     if (!colNome.trim()) return;
     setSavingCol(true);
     try {
-      const data = await api.post("/api/crm/columns", { nome: colNome.trim(), cor: colCor });
-      setColumns((prev) => [...prev, data.column]);
-      toast({ title: "Coluna criada!" });
+      if (editColId) {
+        const data = await api.put(`/api/crm/columns/${editColId}`, { nome: colNome.trim(), cor: colCor });
+        setColumns((prev) => prev.map((c) => c.id === editColId ? { ...c, nome: data.column.nome, cor: data.column.cor } : c));
+        toast({ title: "Coluna atualizada!" });
+      } else {
+        const data = await api.post("/api/crm/columns", { nome: colNome.trim(), cor: colCor });
+        setColumns((prev) => [...prev, data.column]);
+        toast({ title: "Coluna criada!" });
+      }
       setColModal(false);
       setColNome("");
+      setEditColId(null);
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } finally {
@@ -220,6 +237,31 @@ const CRM = () => {
       const data = await api.post("/api/crm/cards", { lead_id: lead.id, coluna_id: addLeadColId });
       setCards((prev) => [...prev, data.card]);
       toast({ title: `${lead.nome} adicionado ao CRM!` });
+      setAddLeadColId(null);
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } finally {
+      setAddingLead(false);
+    }
+  };
+
+  const handleCreateLeadInCrm = async () => {
+    if (!addLeadColId || !novoLead.nome.trim()) return;
+    setAddingLead(true);
+    try {
+      // 1. Cria o lead (aparece também na página de Leads)
+      const { lead } = await api.post("/api/leads", {
+        nome: novoLead.nome.trim(),
+        telefone: novoLead.telefone || null,
+        cidade: novoLead.cidade || null,
+        origem: "MANUAL",
+        status: "NOVO",
+      });
+      // 2. Cria o card na coluna escolhida
+      const data = await api.post("/api/crm/cards", { lead_id: lead.id, coluna_id: addLeadColId });
+      setCards((prev) => [...prev, { ...data.card, lead }]);
+      toast({ title: `${lead.nome} criado e adicionado ao CRM!`, description: "Também aparece na página de Leads." });
+      setNovoLead({ nome: "", telefone: "", cidade: "" });
       setAddLeadColId(null);
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
@@ -317,7 +359,7 @@ const CRM = () => {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">Organize seus leads em colunas personalizadas</p>
         </div>
-        <button onClick={() => { setColNome(""); setColCor(COLUMN_COLORS[0]); setColModal(true); }} className="gradient-button px-4 py-2 flex items-center gap-2 text-sm">
+        <button onClick={() => { setEditColId(null); setColNome(""); setColCor(COLUMN_COLORS[0]); setColModal(true); }} className="gradient-button px-4 py-2 flex items-center gap-2 text-sm">
           <Plus className="w-4 h-4" /> Nova Coluna
         </button>
       </div>
@@ -370,6 +412,9 @@ const CRM = () => {
                       >
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
+                      <button onClick={() => openEditColumn(col)} title="Editar nome e cor" className="p-1 rounded hover:bg-foreground/10 text-muted-foreground hover:text-foreground transition-colors">
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
                       <button onClick={() => handleDeleteColumn(col)} className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -401,12 +446,12 @@ const CRM = () => {
         </DndContext>
       )}
 
-      {/* Modal Nova Coluna */}
-      <Dialog open={colModal} onOpenChange={(v) => !v && setColModal(false)}>
+      {/* Modal Nova/Editar Coluna */}
+      <Dialog open={colModal} onOpenChange={(v) => { if (!v) { setColModal(false); setEditColId(null); } }}>
         <DialogContent className="max-w-sm bg-card border-border">
           <DialogHeader>
-            <DialogTitle>Nova Coluna</DialogTitle>
-            <DialogDescription className="sr-only">Crie uma nova coluna para organizar seus leads no funil.</DialogDescription>
+            <DialogTitle>{editColId ? "Editar Coluna" : "Nova Coluna"}</DialogTitle>
+            <DialogDescription className="sr-only">Defina o nome e a cor da coluna do funil.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
@@ -425,10 +470,10 @@ const CRM = () => {
             </div>
             <div className="h-1.5 w-full rounded-full" style={{ backgroundColor: colCor }} />
             <div className="flex justify-end gap-3">
-              <button onClick={() => setColModal(false)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
-              <button onClick={handleCreateColumn} disabled={savingCol || !colNome.trim()} className="gradient-button px-6 py-2 text-sm disabled:opacity-50 flex items-center gap-2">
+              <button onClick={() => { setColModal(false); setEditColId(null); }} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
+              <button onClick={handleSaveColumn} disabled={savingCol || !colNome.trim()} className="gradient-button px-6 py-2 text-sm disabled:opacity-50 flex items-center gap-2">
                 {savingCol && <Loader2 className="w-4 h-4 animate-spin" />}
-                {savingCol ? "Criando..." : "Criar"}
+                {savingCol ? "Salvando..." : (editColId ? "Salvar" : "Criar")}
               </button>
             </div>
           </div>
@@ -443,8 +488,26 @@ const CRM = () => {
             <DialogDescription className="sr-only">Selecione um lead da lista para adicionar a esta coluna do CRM.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 pt-2">
+            {/* Criar lead novo */}
+            <div className="rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 space-y-2">
+              <p className="text-xs font-semibold text-primary/90 uppercase tracking-wider">Criar novo lead</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Input placeholder="Nome *" value={novoLead.nome} onChange={(e) => setNovoLead({ ...novoLead, nome: e.target.value })} className="bg-secondary border-border col-span-2" />
+                <Input placeholder="Telefone" value={novoLead.telefone} onChange={(e) => setNovoLead({ ...novoLead, telefone: e.target.value })} className="bg-secondary border-border" />
+                <Input placeholder="Cidade" value={novoLead.cidade} onChange={(e) => setNovoLead({ ...novoLead, cidade: e.target.value })} className="bg-secondary border-border" />
+              </div>
+              <button onClick={handleCreateLeadInCrm} disabled={addingLead || !novoLead.nome.trim()} className="w-full gradient-button py-2 text-sm disabled:opacity-50 flex items-center justify-center gap-2">
+                {addingLead ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Criar e adicionar
+              </button>
+              <p className="text-[11px] text-muted-foreground">O lead também aparecerá na página de Leads.</p>
+            </div>
+
+            <div className="relative py-1 text-center">
+              <span className="text-[11px] text-muted-foreground bg-card px-2">ou adicione um lead existente</span>
+            </div>
+
             <Input placeholder="Buscar por nome ou telefone..." value={leadSearch} onChange={(e) => setLeadSearch(e.target.value)} className="bg-secondary border-border" />
-            <div className="max-h-64 overflow-y-auto space-y-2">
+            <div className="max-h-48 overflow-y-auto space-y-2">
               {filteredAvailableLeads.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   {availableLeads.length === 0 ? "Todos os leads já estão no CRM." : "Nenhum lead encontrado."}

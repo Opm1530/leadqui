@@ -40,6 +40,8 @@ const OriginBadge = ({ origem }: { origem: string }) => {
 
 const ITEMS_PER_PAGE = 15;
 
+const LEAD_SERVICES = ["Gestão de Tráfego", "Social Media", "CRM", "Automação", "Design", "Landing Page"];
+
 const Leads = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -59,7 +61,12 @@ const Leads = () => {
   // Modals
   const [editingLead, setEditingLead] = useState<any>(null);
   const [newLeadModal, setNewLeadModal] = useState(false);
-  const [newForm, setNewForm] = useState({ nome: "", telefone: "", cidade: "", status: "NOVO", observacao: "" });
+  const emptyLeadForm = {
+    nome: "", telefone: "", cidade: "", email: "", endereco: "", website: "", categoria: "",
+    status: "NOVO", observacao: "",
+    valor_proposto: "", duracao_proposta: "", responsavel_proposto: "", servicos_propostos: [] as string[],
+  };
+  const [newForm, setNewForm] = useState({ ...emptyLeadForm });
   const [savingNew, setSavingNew] = useState(false);
 
   // Selection
@@ -156,13 +163,21 @@ const Leads = () => {
         nome: newForm.nome.trim(),
         telefone: newForm.telefone || null,
         cidade: newForm.cidade || null,
+        email: newForm.email || null,
+        endereco: newForm.endereco || null,
+        website: newForm.website || null,
+        categoria: newForm.categoria || null,
         status: newForm.status,
         observacao: newForm.observacao || null,
+        valor_proposto: newForm.valor_proposto || null,
+        duracao_proposta: newForm.duracao_proposta || null,
+        responsavel_proposto: newForm.responsavel_proposto || null,
+        servicos_propostos: newForm.servicos_propostos,
         origem: "MANUAL",
       });
       toast({ title: "Lead criado!" });
       setNewLeadModal(false);
-      setNewForm({ nome: "", telefone: "", cidade: "", status: "NOVO", observacao: "" });
+      setNewForm({ ...emptyLeadForm });
       fetchLeads(1);
     } catch (error: any) {
       toast({ title: "Erro ao criar lead", description: error.message, variant: "destructive" });
@@ -374,22 +389,29 @@ const Leads = () => {
 
       {/* Modal Novo Lead */}
       <Dialog open={newLeadModal} onOpenChange={(v) => !v && setNewLeadModal(false)}>
-        <DialogContent className="max-w-md bg-card border-border">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-card border-border">
           <DialogHeader>
             <DialogTitle>Novo Lead</DialogTitle>
-            <DialogDescription className="sr-only">Preencha os dados abaixo para cadastrar um novo lead manualmente.</DialogDescription>
+            <DialogDescription className="sr-only">Preencha os dados do lead. Campos do contrato são opcionais e pré-carregam a conversão em cliente.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            {[
-              { label: "Nome *", key: "nome", type: "text", placeholder: "Nome completo" },
-              { label: "Telefone", key: "telefone", type: "tel", placeholder: "11999999999" },
-              { label: "Cidade", key: "cidade", type: "text", placeholder: "São Paulo" },
-            ].map((field) => (
-              <div key={field.key} className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wider">{field.label}</Label>
-                <Input type={field.type} value={(newForm as any)[field.key]} onChange={(e) => setNewForm({ ...newForm, [field.key]: e.target.value })} placeholder={field.placeholder} className="bg-secondary border-border" />
-              </div>
-            ))}
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: "Nome *", key: "nome", placeholder: "Nome completo", col: 2 },
+                { label: "Telefone", key: "telefone", placeholder: "11999999999" },
+                { label: "E-mail", key: "email", placeholder: "contato@empresa.com" },
+                { label: "Cidade", key: "cidade", placeholder: "São Paulo" },
+                { label: "Categoria", key: "categoria", placeholder: "Ex: Restaurante" },
+                { label: "Endereço", key: "endereco", placeholder: "Rua...", col: 2 },
+                { label: "Website", key: "website", placeholder: "https://...", col: 2 },
+              ].map((field) => (
+                <div key={field.key} className={`space-y-1.5 ${field.col === 2 ? "col-span-2" : ""}`}>
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">{field.label}</Label>
+                  <Input value={(newForm as any)[field.key]} onChange={(e) => setNewForm({ ...newForm, [field.key]: e.target.value })} placeholder={field.placeholder} className="bg-secondary border-border" />
+                </div>
+              ))}
+            </div>
+
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">Status</Label>
               <Select value={newForm.status} onValueChange={(v) => setNewForm({ ...newForm, status: v })}>
@@ -401,6 +423,7 @@ const Leads = () => {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">Observação</Label>
               <Textarea
@@ -408,9 +431,44 @@ const Leads = () => {
                 onChange={(e) => setNewForm({ ...newForm, observacao: e.target.value })}
                 placeholder="Anotações sobre o lead, contexto da conversa..."
                 className="bg-secondary border-border resize-none"
-                rows={3}
+                rows={2}
               />
             </div>
+
+            {/* Proposta (opcional) — pré-carrega a conversão em cliente */}
+            <div className="rounded-xl border border-dashed border-border/60 p-3 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Proposta (opcional)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Valor (R$)</Label>
+                  <Input type="number" value={newForm.valor_proposto} onChange={(e) => setNewForm({ ...newForm, valor_proposto: e.target.value })} placeholder="0,00" className="bg-secondary border-border" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Duração (meses)</Label>
+                  <Input type="number" value={newForm.duracao_proposta} onChange={(e) => setNewForm({ ...newForm, duracao_proposta: e.target.value })} placeholder="12" className="bg-secondary border-border" />
+                </div>
+                <div className="space-y-1.5 col-span-2">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Responsável interno</Label>
+                  <Input value={newForm.responsavel_proposto} onChange={(e) => setNewForm({ ...newForm, responsavel_proposto: e.target.value })} className="bg-secondary border-border" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Serviços</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {LEAD_SERVICES.map((svc) => {
+                    const checked = newForm.servicos_propostos.includes(svc);
+                    return (
+                      <button key={svc} type="button"
+                        onClick={() => setNewForm({ ...newForm, servicos_propostos: checked ? newForm.servicos_propostos.filter(s => s !== svc) : [...newForm.servicos_propostos, svc] })}
+                        className={`text-xs px-2 py-1.5 rounded-lg border transition-colors text-left ${checked ? "border-primary bg-primary/15 text-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}>
+                        {svc}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={() => setNewLeadModal(false)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground">Cancelar</button>
               <button onClick={handleCreateLead} disabled={savingNew || !newForm.nome.trim()} className="gradient-button px-6 py-2 text-sm flex items-center gap-2 disabled:opacity-50">

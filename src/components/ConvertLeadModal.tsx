@@ -59,9 +59,13 @@ const ConvertLeadModal = ({ lead, open, onClose, onConverted }: ConvertLeadModal
       setCompanyName(lead.nome || "");
       setEmail(lead.email || "");
       generatePassword();
-      setSelectedServices([]);
-      setMonthlyValue("");
-      setResponsible("");
+      // Pré-carrega a proposta cadastrada no lead, se houver
+      let svcs: string[] = [];
+      try { svcs = lead.servicos_propostos ? JSON.parse(lead.servicos_propostos) : []; } catch {}
+      setSelectedServices(Array.isArray(svcs) ? svcs : []);
+      setMonthlyValue(lead.valor_proposto != null ? String(lead.valor_proposto) : "");
+      setDuration(lead.duracao_proposta != null ? String(lead.duracao_proposta) : "12");
+      setResponsible(lead.responsavel_proposto || "");
       setIsUniqueJob(false);
       setUniqueJobName("");
       setSelectedTemplate("none");
