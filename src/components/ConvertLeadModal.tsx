@@ -96,7 +96,6 @@ const ConvertLeadModal = ({ lead, open, onClose, onConverted }: ConvertLeadModal
         status: "ATIVO",
         isUniqueJob,
         uniqueJobName,
-        template_id: selectedTemplate !== "none" ? selectedTemplate : undefined,
         contract: {
           value: monthlyValue,
           start_date: startDate,
@@ -213,38 +212,6 @@ const ConvertLeadModal = ({ lead, open, onClose, onConverted }: ConvertLeadModal
               </div>
             </div>
           )}
-
-          {/* Template de Onboarding */}
-          <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-              <LayoutTemplate className="w-3.5 h-3.5 text-blue-400" />
-              Template de Onboarding
-            </Label>
-            <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-              <SelectTrigger className="bg-secondary border-border">
-                <SelectValue placeholder="Selecionar template..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhum — sem tarefas automáticas</SelectItem>
-                {templates.map((t: any) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name}
-                    {t.items?.length > 0 && ` (${t.items.length} tarefa${t.items.length > 1 ? "s" : ""})`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedTemplate !== "none" && (
-              <p className="text-xs text-blue-400/80">
-                ✓ As tarefas deste template serão criadas automaticamente ao confirmar.
-              </p>
-            )}
-            {templates.length === 0 && (
-              <p className="text-xs text-muted-foreground/60">
-                Nenhum template criado ainda. Crie em Tasqui → Templates.
-              </p>
-            )}
-          </div>
 
           <hr className="border-border/50" />
 

@@ -91,13 +91,13 @@ const Tasqui = () => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTask.title || !newTask.client_id || !newTask.project_id) {
-      toast({ title: "Preencha título, cliente e projeto.", variant: "destructive" });
+    if (!newTask.title || !newTask.client_id) {
+      toast({ title: "Preencha título e cliente.", variant: "destructive" });
       return;
     }
     setCreating(true);
     try {
-      await api.post("/api/tasqui/tasks", newTask);
+      await api.post("/api/tasqui/tasks", { ...newTask, project_id: newTask.project_id || null });
       toast({ title: "Tarefa criada!" });
       setModalOpen(false);
       setNewTask({ title: "", description: "", client_id: "", project_id: "", responsible_id: "", due_date: "", priority: "MEDIA" });
@@ -229,9 +229,9 @@ const Tasqui = () => {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground uppercase tracking-widest">Projeto *</Label>
+                <Label className="text-xs text-muted-foreground uppercase tracking-widest">Projeto (opcional)</Label>
                 <Select value={newTask.project_id} onValueChange={v => setNewTask(f => ({ ...f, project_id: v }))}>
-                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Sem projeto" /></SelectTrigger>
                   <SelectContent>
                     {projects.filter(p => p.client_id === newTask.client_id).map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>

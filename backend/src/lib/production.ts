@@ -8,20 +8,6 @@ interface SendOpts {
   responsible_id?: string | null; // usuário do Tasqui responsável pela tarefa
 }
 
-// Garante que exista um projeto de produção de conteúdo para o cliente.
-async function getOrCreateContentProject(clientId: string, existingProjectId?: string | null): Promise<string> {
-  if (existingProjectId) return existingProjectId;
-  const existing = await prisma.project.findFirst({
-    where: { client_id: clientId, name: "Produção de Conteúdo" },
-    select: { id: true },
-  });
-  if (existing) return existing.id;
-  const created = await prisma.project.create({
-    data: { client_id: clientId, name: "Produção de Conteúdo", type: "RECORRENTE", status: "ATIVO" },
-  });
-  return created.id;
-}
-
 // Envia um post do calendário para produção:
 // 1. status -> PRODUZINDO
 // 2. cria card no Trello (lista/membros/etiquetas)
@@ -54,13 +40,12 @@ export async function sendPostToProduction(postId: string, opts: SendOpts = {}):
     console.warn("[Produção] Trello falhou:", e.message);
   }
 
-  // 2. Tarefa no Tasqui
+  // 2. Tarefa no Tasqui (direto no cliente, sem projeto)
   let task: any = null;
   try {
-    const projectId = await getOrCreateContentProject(post.client_id, post.project_id);
     task = await prisma.task.create({
       data: {
-        project_id: projectId,
+        project_id: post.project_id || null,
         client_id: post.client_id,
         responsible_id: opts.responsible_id || null,
         title: `Produzir: ${titulo}`,

@@ -254,17 +254,8 @@ router.post("/clients", async (req: AuthRequest, res: Response): Promise<void> =
       }).catch(() => {}); // ignore if lead doesn't exist
     }
 
-    // Automação Tasqui — cria projetos + aplica template de tarefas se selecionado
-    if (isUniqueJob || (services && services.length > 0) || template_id) {
-      await createOperationalFlow(
-        client.id,
-        services || [],
-        isUniqueJob,
-        uniqueJobName,
-        template_id || undefined,
-        req.user!.id,
-      );
-    }
+    // (Removido) Automação Tasqui de criar projetos/tarefas por serviço.
+    // As tarefas agora nascem manualmente no Tasqui (um único lugar), por cliente.
 
     // Automação CashQui — gerar primeira fatura automaticamente
     if (contract && contract.value) {
@@ -431,8 +422,7 @@ router.put("/clients/:id", async (req: AuthRequest, res: Response): Promise<void
         await prisma.clientService.createMany({
           data: services.map((s: string) => ({ client_id: id, service: s, status: "ATIVO" })),
         });
-        // Disparar automação para novos serviços (passa userId para buscar templates)
-        await createOperationalFlow(id, services, false, undefined, undefined, req.user!.id);
+        // (Removido) automação de projetos/tarefas — tasks nascem manualmente no Tasqui.
       }
     }
 

@@ -47,21 +47,9 @@ router.post("/:id/to-task", async (req: AuthRequest, res: Response): Promise<voi
     const demand = await (prisma as any).demand.findUnique({ where: { id: String(req.params.id) } });
     if (!demand) { res.status(404).json({ error: "Demanda não encontrada" }); return; }
 
-    // Garante um projeto "Atendimento" para o cliente
-    let project = await prisma.project.findFirst({
-      where: { client_id: demand.client_id, name: "Atendimento" },
-      select: { id: true },
-    });
-    if (!project) {
-      project = await prisma.project.create({
-        data: { client_id: demand.client_id, name: "Atendimento", type: "RECORRENTE", status: "ATIVO" },
-        select: { id: true },
-      });
-    }
-
     const task = await prisma.task.create({
       data: {
-        project_id: project.id,
+        project_id: null,
         client_id: demand.client_id,
         responsible_id: req.body?.responsible_id || null,
         title: demand.summary,

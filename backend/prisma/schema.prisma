@@ -318,7 +318,7 @@ enum ProjectStatus {
 
 model Task {
   id             String    @id @default(uuid())
-  project_id     String
+  project_id     String?
   client_id      String
   responsible_id String?   
   title          String
@@ -331,7 +331,7 @@ model Task {
   created_at     DateTime  @default(now())
   updated_at     DateTime  @updatedAt
 
-  project     Project @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  project     Project? @relation(fields: [project_id], references: [id], onDelete: Cascade)
   client      Client  @relation(fields: [client_id], references: [id], onDelete: Cascade)
   responsible User?   @relation("ResponsibleUser", fields: [responsible_id], references: [id])
 

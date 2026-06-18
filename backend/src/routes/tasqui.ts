@@ -55,8 +55,8 @@ router.post("/tasks", authenticateJWT, async (req: AuthRequest, res: Response): 
 
   const { title, description, client_id, project_id, responsible_id, due_date, priority } = req.body;
 
-  if (!title || !client_id || !project_id) {
-    res.status(400).json({ error: "Título, Cliente e Projeto são obrigatórios" });
+  if (!title || !client_id) {
+    res.status(400).json({ error: "Título e Cliente são obrigatórios" });
     return;
   }
 
@@ -66,7 +66,7 @@ router.post("/tasks", authenticateJWT, async (req: AuthRequest, res: Response): 
         title,
         description,
         client_id,
-        project_id,
+        project_id: project_id || null,
         responsible_id,
         due_date: due_date ? new Date(due_date) : null,
         priority: priority || "MEDIA"
