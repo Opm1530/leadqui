@@ -115,6 +115,19 @@ const CRM = () => {
   const [leadSearch, setLeadSearch] = useState("");
   const [availableLeads, setAvailableLeads] = useState<any[]>([]);
   const [addingLead, setAddingLead] = useState(false);
+  // Criar lead novo direto no CRM (form completo, igual à página de Leads)
+  const emptyNovoLead = {
+    nome: "", telefone: "", cidade: "", email: "", endereco: "", website: "", categoria: "",
+    status: "NOVO", observacao: "",
+    valor_proposto: "", duracao_proposta: "", responsavel_proposto: "", servicos_propostos: [] as string[],
+  };
+  const [novoLead, setNovoLead] = useState({ ...emptyNovoLead });
+
+  // Drawer
+  const [drawerCard, setDrawerCard] = useState<any | null>(null);
+  const [editingLead, setEditingLead] = useState<any | null>(null);
+  const [convertModalOpen, setConvertModalOpen] = useState(false);
+
   // Lembretes no drawer do lead
   const [drawerReminders, setDrawerReminders] = useState<any[]>([]);
   const [remMsg, setRemMsg] = useState("");
@@ -157,19 +170,6 @@ const CRM = () => {
       setDrawerReminders((p) => p.filter((x) => x.id !== r.id));
     } catch { /* */ }
   };
-
-  // Criar lead novo direto no CRM (form completo, igual à página de Leads)
-  const emptyNovoLead = {
-    nome: "", telefone: "", cidade: "", email: "", endereco: "", website: "", categoria: "",
-    status: "NOVO", observacao: "",
-    valor_proposto: "", duracao_proposta: "", responsavel_proposto: "", servicos_propostos: [] as string[],
-  };
-  const [novoLead, setNovoLead] = useState({ ...emptyNovoLead });
-
-  // Drawer
-  const [drawerCard, setDrawerCard] = useState<any | null>(null);
-  const [editingLead, setEditingLead] = useState<any | null>(null);
-  const [convertModalOpen, setConvertModalOpen] = useState(false);
 
   // DnD
   const [activeCard, setActiveCard] = useState<any | null>(null);
