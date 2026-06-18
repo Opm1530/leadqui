@@ -5,6 +5,7 @@ import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth"
 import { getCompanySettings } from "../lib/companySettings";
 import { isTrelloConfigured } from "../lib/trello";
 import { sendPostToProduction } from "../lib/production";
+import { dayDate } from "../lib/dates";
 
 const router = Router();
 router.use(authenticateJWT);
@@ -417,7 +418,7 @@ router.post("/execute", async (req: AuthRequest, res: Response): Promise<void> =
             title: null,
             type: payload.type || "POST",
             platform: payload.platform || "INSTAGRAM",
-            scheduled_date: new Date(d),
+            scheduled_date: new Date(d + "T12:00:00Z"),
             status: "PLANEJADO",
           },
         })
@@ -443,7 +444,7 @@ router.post("/execute", async (req: AuthRequest, res: Response): Promise<void> =
           content: payload.content || null,
           type: payload.type || "POST",
           platform: payload.platform || "INSTAGRAM",
-          scheduled_date: new Date(payload.scheduled_date),
+          scheduled_date: dayDate(payload.scheduled_date)!,
           status: "PLANEJADO",
         },
         include: { client: { select: { name: true } } },

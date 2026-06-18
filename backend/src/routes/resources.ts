@@ -5,6 +5,7 @@ import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth"
 import { startGoogleMapsExtraction, startInstagramExtraction } from "../lib/extractionService";
 import { getCompanySettingsUserId } from "../lib/companySettings";
 import { sendTeamDigestTest } from "../lib/teamDigest";
+import { dayDate } from "../lib/dates";
 
 // Helper para automação do Tasqui
 // Cria projetos por serviço e aplica template de tarefas se fornecido
@@ -260,7 +261,7 @@ router.post("/clients", async (req: AuthRequest, res: Response): Promise<void> =
 
     // Automação CashQui — gerar primeira fatura automaticamente
     if (contract && contract.value) {
-      const dueDate = new Date(contract.start_date || Date.now());
+      const dueDate = dayDate(contract.start_date) || new Date();
       dueDate.setDate(dueDate.getDate() + (isUniqueJob ? 0 : 30));
       const description = isUniqueJob
         ? (uniqueJobName || "Job único")

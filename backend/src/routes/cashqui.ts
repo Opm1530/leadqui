@@ -3,6 +3,7 @@ import prisma from "../lib/prisma";
 import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 import axios from "axios";
 import https from "https";
+import { dayDate } from "../lib/dates";
 
 const router = Router();
 router.use(authenticateJWT);
@@ -125,7 +126,7 @@ router.post("/invoices", async (req: AuthRequest, res: Response): Promise<void> 
         client_id,
         description: description || null,
         amount: parseFloat(amount),
-        due_date: new Date(due_date),
+        due_date: dayDate(due_date)!,
         status: "PENDENTE",
       },
       include: { client: { select: { name: true } } },
@@ -151,10 +152,10 @@ router.put("/invoices/:id", async (req: AuthRequest, res: Response): Promise<voi
       where: { id },
       data: {
         ...(status && { status }),
-        ...(paid_date !== undefined && { paid_date: paid_date ? new Date(paid_date) : null }),
+        ...(paid_date !== undefined && { paid_date: dayDate(paid_date) }),
         ...(description !== undefined && { description }),
         ...(amount !== undefined && { amount: parseFloat(amount) }),
-        ...(due_date !== undefined && { due_date: new Date(due_date) }),
+        ...(due_date !== undefined && { due_date: dayDate(due_date)! }),
       },
       include: { client: { select: { name: true } } },
     });
@@ -243,7 +244,7 @@ router.post("/expenses", async (req: AuthRequest, res: Response): Promise<void> 
         description,
         amount: parseFloat(amount),
         category: category || "OUTROS",
-        date: new Date(date),
+        date: dayDate(date)!,
       },
     });
 
@@ -269,7 +270,7 @@ router.put("/expenses/:id", async (req: AuthRequest, res: Response): Promise<voi
         ...(description && { description }),
         ...(amount !== undefined && { amount: parseFloat(amount) }),
         ...(category && { category }),
-        ...(date && { date: new Date(date) }),
+        ...(date && { date: dayDate(date)! }),
       },
     });
 

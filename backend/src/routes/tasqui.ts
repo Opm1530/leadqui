@@ -4,6 +4,7 @@ import prisma from "../lib/prisma";
 import { authenticateJWT, AuthRequest } from "../middlewares/auth";
 import { sendPostToProduction } from "../lib/production";
 import { sendApprovalToGroup } from "../lib/approval";
+import { dayDate } from "../lib/dates";
 
 const router = Router();
 
@@ -68,7 +69,7 @@ router.post("/tasks", authenticateJWT, async (req: AuthRequest, res: Response): 
         client_id,
         project_id: project_id || null,
         responsible_id,
-        due_date: due_date ? new Date(due_date) : null,
+        due_date: dayDate(due_date),
         priority: priority || "MEDIA"
       },
       include: {
@@ -126,7 +127,7 @@ router.patch("/tasks/:id", authenticateJWT, async (req: AuthRequest, res: Respon
         title,
         description,
         priority,
-        due_date: due_date ? new Date(due_date) : undefined,
+        due_date: due_date ? dayDate(due_date) : undefined,
         completed_at: status === "CONCLUIDO" ? new Date() : undefined,
         ...(archived !== undefined && { archived: !!archived }),
       },
@@ -350,7 +351,7 @@ router.post("/calendar", authenticateJWT, async (req: AuthRequest, res: Response
         content: content || null,
         type: type || "POST",
         platform: platform || "INSTAGRAM",
-        scheduled_date: new Date(scheduled_date),
+        scheduled_date: dayDate(scheduled_date)!,
         status: status || "PLANEJADO",
       },
       include: { client: { select: { name: true } } },
@@ -374,7 +375,7 @@ router.patch("/calendar/:id", authenticateJWT, async (req: AuthRequest, res: Res
         ...(content !== undefined && { content }),
         ...(type && { type }),
         ...(platform && { platform }),
-        ...(scheduled_date && { scheduled_date: new Date(scheduled_date) }),
+        ...(scheduled_date && { scheduled_date: dayDate(scheduled_date)! }),
         ...(status && { status }),
       },
       include: { client: { select: { name: true } } },
@@ -471,8 +472,8 @@ router.post("/traffic", authenticateJWT, async (req: AuthRequest, res: Response)
         objective: objective || null,
         budget: budget ? parseFloat(budget) : null,
         status: status || "ATIVO",
-        start_date: start_date ? new Date(start_date) : null,
-        end_date: end_date ? new Date(end_date) : null,
+        start_date: dayDate(start_date),
+        end_date: dayDate(end_date),
       },
       include: { client: { select: { name: true } } },
     });
@@ -495,8 +496,8 @@ router.patch("/traffic/:id", authenticateJWT, async (req: AuthRequest, res: Resp
         ...(objective !== undefined && { objective }),
         ...(budget !== undefined && { budget: budget ? parseFloat(budget) : null }),
         ...(status && { status }),
-        ...(start_date !== undefined && { start_date: start_date ? new Date(start_date) : null }),
-        ...(end_date !== undefined && { end_date: end_date ? new Date(end_date) : null }),
+        ...(start_date !== undefined && { start_date: dayDate(start_date) }),
+        ...(end_date !== undefined && { end_date: dayDate(end_date) }),
       },
       include: { client: { select: { name: true } } },
     });

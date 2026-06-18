@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import prisma from "../lib/prisma";
 import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
+import { dayDate } from "../lib/dates";
 
 const router = Router();
 router.use(authenticateJWT);
@@ -213,7 +214,7 @@ router.post("/:id/reminders", async (req: AuthRequest, res: Response): Promise<v
         lead_id: String(req.params.id),
         user_id: req.user!.id,
         message: String(message).slice(0, 500),
-        remind_on: new Date(remind_on),
+        remind_on: dayDate(remind_on)!,
       },
     });
     res.status(201).json({ reminder });
@@ -228,7 +229,7 @@ router.patch("/reminders/:rid", async (req: AuthRequest, res: Response): Promise
       data: {
         ...(done !== undefined && { done: !!done }),
         ...(message && { message: String(message).slice(0, 500) }),
-        ...(remind_on && { remind_on: new Date(remind_on) }),
+        ...(remind_on && { remind_on: dayDate(remind_on)! }),
       },
     });
     res.json({ reminder });
