@@ -9,7 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Kanban, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +44,51 @@ function DropZone({ id }: { id: string }) {
   );
 }
 
+const STATUS_LABEL: Record<string, { label: string; color: string }> = {
+  PENDENTE:     { label: "Pendente",     color: "bg-yellow-500/15 text-yellow-300" },
+  EM_ANDAMENTO: { label: "Em Andamento", color: "bg-blue-500/15 text-blue-300" },
+  REVISAO:      { label: "Revisão",      color: "bg-purple-500/15 text-purple-300" },
+  CONCLUIDO:    { label: "Concluído",    color: "bg-green-500/15 text-green-300" },
+};
+const PRIORITY_LABEL: Record<string, { label: string; color: string }> = {
+  BAIXA:   { label: "Baixa",   color: "text-muted-foreground" },
+  MEDIA:   { label: "Média",   color: "text-blue-400" },
+  ALTA:    { label: "Alta",    color: "text-orange-400" },
+  URGENTE: { label: "Urgente", color: "text-red-400" },
+};
+
+// Visualização em lista das tarefas
+function TaskListView({ tasks, onClick }: { tasks: any[]; onClick: (t: any) => void }) {
+  if (tasks.length === 0) {
+    return <p className="text-sm text-muted-foreground text-center py-12">Nenhuma tarefa encontrada com os filtros atuais.</p>;
+  }
+  return (
+    <div className="rounded-2xl border border-border bg-card/40 overflow-hidden">
+      <div className="hidden md:grid grid-cols-[1fr_140px_140px_110px_110px] gap-2 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border">
+        <span>Tarefa</span><span>Cliente</span><span>Responsável</span><span>Status</span><span>Prazo</span>
+      </div>
+      {tasks.map((t) => (
+        <button key={t.id} onClick={() => onClick(t)}
+          className="w-full text-left grid grid-cols-1 md:grid-cols-[1fr_140px_140px_110px_110px] gap-1 md:gap-2 px-4 py-3 border-b border-border/50 hover:bg-secondary/40 transition-colors items-center">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">{t.title}</p>
+            <div className="md:hidden flex flex-wrap gap-2 mt-1 text-[11px] text-muted-foreground">
+              <span>{t.client?.name || "—"}</span>
+              {t.responsible?.name && <span>· {t.responsible.name}</span>}
+            </div>
+          </div>
+          <span className="hidden md:block text-xs text-muted-foreground truncate">{t.client?.name || "—"}</span>
+          <span className="hidden md:block text-xs text-muted-foreground truncate">{t.responsible?.name || "—"}</span>
+          <span><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_LABEL[t.status]?.color}`}>{STATUS_LABEL[t.status]?.label}</span></span>
+          <span className={`text-xs ${PRIORITY_LABEL[t.priority]?.color}`}>
+            {t.due_date ? new Date(t.due_date).toLocaleDateString("pt-BR") : "—"}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const Tasqui = () => {
   const { setActiveModule } = useModule();
   const { toast } = useToast();
@@ -54,6 +99,8 @@ const Tasqui = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterClient, setFilterClient] = useState("all");
+  const [filterResponsible, setFilterResponsible] = useState("all");
+  const [viewMode, setViewMode] = useState<"board" | "list">("board");
   const [activeTask, setActiveTask] = useState<any>(null);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -127,8 +174,10 @@ const Tasqui = () => {
     const matchSearch = t.title.toLowerCase().includes(search.toLowerCase()) ||
       t.client?.name?.toLowerCase().includes(search.toLowerCase());
     const matchClient = filterClient === "all" || t.client_id === filterClient;
-    return matchSearch && matchClient;
-  }), [tasks, search, filterClient]);
+    const matchResp = filterResponsible === "all"
+      || (filterResponsible === "none" ? !t.responsible_id : t.responsible_id === filterResponsible);
+    return matchSearch && matchClient && matchResp;
+  }), [tasks, search, filterClient, filterResponsible]);
 
   return (
     <div className="p-6 space-y-6">
@@ -162,6 +211,28 @@ const Tasqui = () => {
             {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={filterResponsible} onValueChange={setFilterResponsible}>
+          <SelectTrigger className="w-44 bg-secondary border-border h-9">
+            <SelectValue placeholder="Todos responsáveis" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos responsáveis</SelectItem>
+            <SelectItem value="none">Sem responsável</SelectItem>
+            {team.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+
+        {/* Alternância de visualização */}
+        <div className="ml-auto flex rounded-lg border border-border overflow-hidden">
+          <button onClick={() => setViewMode("board")}
+            className={`px-3 h-9 text-xs font-bold flex items-center gap-1 ${viewMode === "board" ? "bg-primary text-white" : "bg-secondary text-muted-foreground hover:text-foreground"}`}>
+            <Kanban className="w-3.5 h-3.5" /> Quadro
+          </button>
+          <button onClick={() => setViewMode("list")}
+            className={`px-3 h-9 text-xs font-bold flex items-center gap-1 ${viewMode === "list" ? "bg-primary text-white" : "bg-secondary text-muted-foreground hover:text-foreground"}`}>
+            <List className="w-3.5 h-3.5" /> Lista
+          </button>
+        </div>
       </div>
 
       {/* Kanban */}
@@ -169,6 +240,8 @@ const Tasqui = () => {
         <div className="grid grid-cols-4 gap-4">
           {COLUMNS.map(c => <div key={c.id} className="h-64 rounded-2xl bg-card border border-border animate-pulse" />)}
         </div>
+      ) : viewMode === "list" ? (
+        <TaskListView tasks={filtered} onClick={setSelectedTask} />
       ) : (
         <DndContext
           sensors={sensors}
