@@ -111,13 +111,9 @@ router.patch("/tasks/:id", authenticateJWT, async (req: AuthRequest, res: Respon
       return;
     }
 
-    // Usuários internos: verificar que a tarefa pertence a um cliente do usuário
-    const existing = await (prisma as any).task.findFirst({
-      where: { id: taskId },
-      include: { client: { select: { user_id: true } } },
-    });
+    // Equipe interna: dados compartilhados pela empresa — qualquer staff edita.
+    const existing = await (prisma as any).task.findFirst({ where: { id: taskId } });
     if (!existing) { res.status(404).json({ error: "Tarefa não encontrada" }); return; }
-    if (existing.client?.user_id !== req.user!.id) { res.status(403).json({ error: "Acesso negado" }); return; }
 
     const task = await (prisma as any).task.update({
       where: { id: taskId },
