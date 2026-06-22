@@ -68,52 +68,47 @@ const ClienteProfile = () => {
   const openInvoicesTotal = openInvoices.reduce((a: number, i: any) => a + (i.amount || 0), 0);
 
   return (
-    <div className="min-h-screen max-w-5xl mx-auto px-6 py-6">
-      <button onClick={() => navigate("/clients")} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 w-fit">
-        <ArrowLeft className="w-4 h-4" /> Voltar aos clientes
-      </button>
-
-      {/* Cabeçalho */}
-      <div className="rounded-2xl border border-border bg-card/40 p-5 mb-5">
-        <div className="flex items-start justify-between flex-wrap gap-3">
+    <div className="flex min-h-screen bg-background">
+      {/* Sidebar do cliente */}
+      <aside className="w-64 bg-sidebar border-r border-border min-h-screen sticky top-0 flex flex-col shadow-2xl flex-shrink-0">
+        <div className="p-5 border-b border-white/5">
+          <button onClick={() => navigate("/clientes")} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-4">
+            <ArrowLeft className="w-3.5 h-3.5" /> Clientes
+          </button>
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center">
-              <Building2 className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center flex-shrink-0">
+              <span className="text-white font-black">{(client.name || "?").charAt(0).toUpperCase()}</span>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">{client.name}</h1>
-              <p className="text-sm text-muted-foreground">
-                <span className={`text-[11px] px-2 py-0.5 rounded-full ${client.status === "ATIVO" ? "bg-green-500/20 text-green-300" : "bg-secondary text-muted-foreground"}`}>{client.status}</span>
-                {client.contract && <span className="ml-2">{brl(client.contract.value)}/mês · Resp: {client.contract.responsible || "—"}</span>}
-              </p>
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-foreground truncate">{client.name}</h2>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full ${client.status === "ATIVO" ? "bg-green-500/20 text-green-300" : "bg-secondary text-muted-foreground"}`}>{client.status}</span>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          {client.contract && <p className="text-[11px] text-muted-foreground mt-2">{brl(client.contract.value)}/mês · {client.contract.responsible || "—"}</p>}
+          <div className="flex gap-1.5 mt-3">
             {client.drive_url && (
-              <a href={client.drive_url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-500 text-xs font-bold hover:bg-yellow-500/20">
-                <FolderOpen className="w-4 h-4" /> Drive
-              </a>
+              <a href={client.drive_url} target="_blank" rel="noreferrer" title="Drive" className="p-2 rounded-lg bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20"><FolderOpen className="w-4 h-4" /></a>
             )}
-            <button onClick={() => navigate(`/tasqui/cliente/${id}`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500/10 text-blue-400 text-xs font-bold hover:bg-blue-500/20">
-              <Kanban className="w-4 h-4" /> Quadro
-            </button>
-            <button onClick={() => navigate(`/onboarding/${id}`)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-500/10 text-indigo-400 text-xs font-bold hover:bg-indigo-500/20">
-              <ClipboardList className="w-4 h-4" /> Onboarding
-            </button>
+            <button onClick={() => navigate(`/tasqui/cliente/${id}`)} title="Quadro completo" className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"><Kanban className="w-4 h-4" /></button>
+            <button onClick={() => navigate(`/onboarding/${id}`)} title="Onboarding" className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"><ClipboardList className="w-4 h-4" /></button>
           </div>
         </div>
-      </div>
+        <nav className="p-3 space-y-1 flex-1 overflow-y-auto">
+          {TABS.map(t => {
+            const active = tab === t.id;
+            return (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-all group ${active ? "bg-white/10 text-white shadow-lg" : "text-muted-foreground hover:bg-white/5 hover:text-white"}`}>
+                <t.icon className={`w-4 h-4 transition-transform group-hover:scale-110 ${active ? "text-orange-500" : ""}`} />
+                {t.label}
+              </button>
+            );
+          })}
+        </nav>
+      </aside>
 
-      {/* Abas */}
-      <div className="flex flex-wrap gap-1.5 mb-5">
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full border transition-colors ${tab === t.id ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}>
-            <t.icon className="w-3.5 h-3.5" /> {t.label}
-          </button>
-        ))}
-      </div>
-
+      {/* Conteúdo */}
+      <main className="flex-1 p-6 md:p-8 min-w-0">
       {tab === "geral" && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Stat icon={ListTodo} label="Tarefas abertas" value={openTasks.length} color="text-blue-400" />
@@ -180,6 +175,7 @@ const ClienteProfile = () => {
           <Button onClick={() => navigate(`/onboarding/${id}`)} className="gradient-button">Abrir Onboarding</Button>
         </div>
       )}
+      </main>
     </div>
   );
 };

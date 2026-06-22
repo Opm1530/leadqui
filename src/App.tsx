@@ -45,6 +45,7 @@ import Influencers from "./pages/Influencers";
 import Onboarding from "./pages/Onboarding";
 import ClienteProfile from "./pages/ClienteProfile";
 import DashQui from "./pages/DashQui";
+import ClientesGrid from "./pages/ClientesGrid";
 
 const queryClient = new QueryClient();
 
@@ -73,6 +74,7 @@ const App = () => (
               <Route element={<ProtectedRoute staffOnly><Onboarding /></ProtectedRoute>} path="/onboarding/:clientId" />
               <Route element={<ProtectedRoute staffOnly><ClienteProfile /></ProtectedRoute>} path="/cliente/:id" />
               <Route element={<ProtectedRoute staffOnly><DashQui /></ProtectedRoute>} path="/dashqui" />
+              <Route element={<ProtectedRoute staffOnly><ClientesGrid /></ProtectedRoute>} path="/clientes" />
 
               {/* App Principal (protegido, com sidebar — somente equipe interna) */}
               <Route element={<ProtectedRoute staffOnly><AppLayout /></ProtectedRoute>}>

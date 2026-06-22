@@ -88,7 +88,7 @@ const Hub = () => {
       description: "Perfil de cada cliente com tudo centralizado: finanças, tarefas, tráfego, social, senhas e dados.",
       icon: Building2,
       color: "from-orange-500 to-amber-600",
-      route: "/clients",
+      route: "/clientes",
       adminOnly: false,
     },
     {
