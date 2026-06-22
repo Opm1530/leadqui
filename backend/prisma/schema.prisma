@@ -259,6 +259,7 @@ model Client {
   vault_credentials VaultCredential[]
   demands          Demand[]
   influencer_partnerships InfluencerPartnership[]
+  onboarding       Onboarding?
 
   @@map("clients")
 }
@@ -287,6 +288,24 @@ enum DemandStatus {
   EM_ANDAMENTO
   RESOLVIDA
   DESCARTADA
+}
+
+// Formulário de onboarding do cliente (preenchido pela equipe)
+model Onboarding {
+  id          String   @id @default(uuid())
+  client_id   String   @unique
+  store_name  String?
+  store_link  String?
+  audience    String?  // público-alvo → vira anotação no tráfego
+  credentials String?  // JSON: [{ label, email, password, vault_id? }]
+  checklist   String?  // JSON: [{ text, done, task_id? }]
+  traffic_campaign_id String? // campanha/briefing criada no tráfego
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@map("onboardings")
 }
 
 // ── Influencers ───────────────────────────────────────────────────────

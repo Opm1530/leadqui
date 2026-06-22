@@ -15,8 +15,9 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Plus, Trash2, Edit2, GripVertical, X,
   Phone, User, Kanban, Check, Loader2,
-  Instagram, MapPin, ChevronLeft, ChevronRight, Bell
+  Instagram, MapPin, ChevronLeft, ChevronRight, Bell, ClipboardList
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
@@ -94,6 +95,7 @@ const DroppableColumn = ({ col, children, isActive = false }: any) => {
 const CRM = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [columns, setColumns] = useState<any[]>([]);
   const [cards, setCards] = useState<any[]>([]);
@@ -691,6 +693,11 @@ const CRM = () => {
                 {drawerLead.status !== "CONVERTIDO" && (
                   <button onClick={() => setConvertModalOpen(true)} className="flex items-center justify-center gap-2 py-2.5 text-sm font-medium bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded-lg transition-colors border border-green-500/20">
                     <Check className="w-4 h-4" /> Converter em Cliente
+                  </button>
+                )}
+                {drawerLead.client_id && (
+                  <button onClick={() => navigate(`/onboarding/${drawerLead.client_id}`)} className="flex items-center justify-center gap-2 py-2.5 text-sm font-medium bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg transition-colors border border-indigo-500/20">
+                    <ClipboardList className="w-4 h-4" /> Preencher Onboarding
                   </button>
                 )}
                 <button onClick={() => drawerCard && handleRemoveCard(drawerCard)} className="py-2.5 text-sm border border-destructive/50 text-destructive rounded-lg hover:bg-destructive/10 flex items-center justify-center gap-2 transition-colors">

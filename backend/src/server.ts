@@ -26,6 +26,7 @@ import assistantRoutes from "./routes/assistant";
 import whatsappRoutes from "./routes/whatsapp";
 import demandsRoutes from "./routes/demands";
 import influencersRoutes from "./routes/influencers";
+import onboardingRoutes from "./routes/onboarding";
 import { startInstagramScheduler } from "./lib/instagramScheduler";
 import { startAdsAnalyzerJob } from "./lib/adsAnalyzerJob";
 
@@ -104,6 +105,7 @@ app.use("/api/assistant", assistantRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/demands", demandsRoutes);
 app.use("/api/influencers", influencersRoutes);
+app.use("/api/onboarding", onboardingRoutes);
 app.use("/api", resourcesRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────
