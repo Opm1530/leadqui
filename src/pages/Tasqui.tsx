@@ -9,7 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
-import { Plus, Search, Kanban, List, ArrowLeft } from "lucide-react";
+import { Plus, Search, Kanban, List, ArrowLeft, Check } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,33 +59,40 @@ const PRIORITY_LABEL: Record<string, { label: string; color: string }> = {
 };
 
 // Visualização em lista das tarefas
-function TaskListView({ tasks, onClick }: { tasks: any[]; onClick: (t: any) => void }) {
+function TaskListView({ tasks, onClick, onToggleDone }: { tasks: any[]; onClick: (t: any) => void; onToggleDone: (t: any) => void }) {
   if (tasks.length === 0) {
     return <p className="text-sm text-muted-foreground text-center py-12">Nenhuma tarefa encontrada com os filtros atuais.</p>;
   }
   return (
     <div className="rounded-2xl border border-border bg-card/40 overflow-hidden">
-      <div className="hidden md:grid grid-cols-[1fr_140px_140px_110px_110px] gap-2 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border">
-        <span>Tarefa</span><span>Cliente</span><span>Responsável</span><span>Status</span><span>Prazo</span>
+      <div className="hidden md:grid grid-cols-[28px_1fr_140px_140px_110px_110px] gap-2 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border">
+        <span></span><span>Tarefa</span><span>Cliente</span><span>Responsável</span><span>Status</span><span>Prazo</span>
       </div>
-      {tasks.map((t) => (
-        <button key={t.id} onClick={() => onClick(t)}
-          className="w-full text-left grid grid-cols-1 md:grid-cols-[1fr_140px_140px_110px_110px] gap-1 md:gap-2 px-4 py-3 border-b border-border/50 hover:bg-secondary/40 transition-colors items-center">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{t.title}</p>
-            <div className="md:hidden flex flex-wrap gap-2 mt-1 text-[11px] text-muted-foreground">
-              <span>{t.client?.name || "—"}</span>
-              {t.responsible?.name && <span>· {t.responsible.name}</span>}
-            </div>
+      {tasks.map((t) => {
+        const done = t.status === "CONCLUIDO";
+        return (
+          <div key={t.id}
+            className="grid grid-cols-[28px_1fr] md:grid-cols-[28px_1fr_140px_140px_110px_110px] gap-1 md:gap-2 px-4 py-3 border-b border-border/50 hover:bg-secondary/40 transition-colors items-center">
+            <button onClick={() => onToggleDone(t)} title={done ? "Reabrir" : "Concluir"}
+              className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 ${done ? "bg-green-600 border-green-600" : "border-muted-foreground/40 hover:border-green-500"}`}>
+              {done && <Check className="w-3.5 h-3.5 text-white" />}
+            </button>
+            <button onClick={() => onClick(t)} className="text-left min-w-0">
+              <p className={`text-sm font-medium truncate ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>{t.title}</p>
+              <div className="md:hidden flex flex-wrap gap-2 mt-1 text-[11px] text-muted-foreground">
+                <span>{t.client?.name || "—"}</span>
+                {t.responsible?.name && <span>· {t.responsible.name}</span>}
+              </div>
+            </button>
+            <span className="hidden md:block text-xs text-muted-foreground truncate">{t.client?.name || "—"}</span>
+            <span className="hidden md:block text-xs text-muted-foreground truncate">{t.responsible?.name || "—"}</span>
+            <span className="hidden md:block"><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_LABEL[t.status]?.color}`}>{STATUS_LABEL[t.status]?.label}</span></span>
+            <span className={`hidden md:block text-xs ${PRIORITY_LABEL[t.priority]?.color}`}>
+              {t.due_date ? new Date(t.due_date).toLocaleDateString("pt-BR") : "—"}
+            </span>
           </div>
-          <span className="hidden md:block text-xs text-muted-foreground truncate">{t.client?.name || "—"}</span>
-          <span className="hidden md:block text-xs text-muted-foreground truncate">{t.responsible?.name || "—"}</span>
-          <span><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_LABEL[t.status]?.color}`}>{STATUS_LABEL[t.status]?.label}</span></span>
-          <span className={`text-xs ${PRIORITY_LABEL[t.priority]?.color}`}>
-            {t.due_date ? new Date(t.due_date).toLocaleDateString("pt-BR") : "—"}
-          </span>
-        </button>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -157,6 +164,12 @@ const Tasqui = () => {
     } finally {
       setCreating(false);
     }
+  };
+
+  const handleToggleDone = async (t: any) => {
+    const newStatus = t.status === "CONCLUIDO" ? "PENDENTE" : "CONCLUIDO";
+    setTasks(prev => prev.map(x => x.id === t.id ? { ...x, status: newStatus } : x));
+    await api.patch(`/api/tasqui/tasks/${t.id}`, { status: newStatus }).catch(() => load());
   };
 
   const handleDragEnd = async (event: any) => {
@@ -258,7 +271,7 @@ const Tasqui = () => {
           {COLUMNS.map(c => <div key={c.id} className="h-64 rounded-2xl bg-card border border-border animate-pulse" />)}
         </div>
       ) : viewMode === "list" ? (
-        <TaskListView tasks={filtered} onClick={setSelectedTask} />
+        <TaskListView tasks={filtered} onClick={setSelectedTask} onToggleDone={handleToggleDone} />
       ) : (
         <DndContext
           sensors={sensors}

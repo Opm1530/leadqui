@@ -240,6 +240,7 @@ model Client {
   wa_instance_id   String?      // instância Evolution para aprovação de posts
   wa_group_id      String?      // ID do grupo WhatsApp (ex: 123@g.us)
   wa_group_name    String?      // nome do grupo
+  drive_url        String?      // link da pasta do Google Drive do cliente
   created_at       DateTime     @default(now())
   updated_at       DateTime     @updatedAt
 

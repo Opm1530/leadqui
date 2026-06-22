@@ -35,6 +35,7 @@ const ClientEditModal = ({ client, open, onClose, onSaved }: ClientEditModalProp
   const [startDate, setStartDate] = useState("");
   const [duration, setDuration] = useState("12");
   const [responsible, setResponsible] = useState("");
+  const [driveUrl, setDriveUrl] = useState("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
 
   // WhatsApp — vínculo de grupo para aprovação
@@ -69,6 +70,7 @@ const ClientEditModal = ({ client, open, onClose, onSaved }: ClientEditModalProp
       setWaInstanceId(client.wa_instance_id || "");
       setWaGroupId(client.wa_group_id || "");
       setWaGroupName(client.wa_group_name || "");
+      setDriveUrl(client.drive_url || "");
       // Carregar instâncias
       api.get("/api/instances").then(d => setInstances(d.instances || [])).catch(() => {});
     }
@@ -102,6 +104,7 @@ const ClientEditModal = ({ client, open, onClose, onSaved }: ClientEditModalProp
         wa_instance_id: waInstanceId || null,
         wa_group_id: waGroupId || null,
         wa_group_name: waGroupName || null,
+        drive_url: driveUrl || null,
       });
 
       toast({ title: "Cliente atualizado!", description: "Dados, contrato e serviços salvos." });
@@ -152,6 +155,10 @@ const ClientEditModal = ({ client, open, onClose, onSaved }: ClientEditModalProp
                   <SelectItem value="INADIMPLENTE">Inadimplente</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <Label className="text-xs text-muted-foreground uppercase tracking-widest">Pasta do Google Drive</Label>
+              <Input type="url" value={driveUrl} onChange={(e) => setDriveUrl(e.target.value)} placeholder="https://drive.google.com/..." className="bg-secondary border-border" />
             </div>
           </div>
 

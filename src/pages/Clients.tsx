@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
-import { Search, Briefcase, Edit2, Rocket, PlusCircle, KeyRound, Trash2, Kanban } from "lucide-react";
+import { Search, Briefcase, Edit2, Rocket, PlusCircle, KeyRound, Trash2, Kanban, FolderOpen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -193,6 +193,15 @@ const Clients = () => {
                           <PlusCircle className="w-3.5 h-3.5" />
                           Nova Venda
                         </button>
+                        {client.drive_url && (
+                          <a
+                            href={client.drive_url} target="_blank" rel="noreferrer"
+                            className="p-2 rounded-md hover:bg-yellow-500/20 transition-colors text-muted-foreground hover:text-yellow-500"
+                            title="Abrir pasta do Drive"
+                          >
+                            <FolderOpen className="w-4 h-4" />
+                          </a>
+                        )}
                         <button
                           onClick={() => navigate(`/tasqui/cliente/${client.id}`)}
                           className="p-2 rounded-md hover:bg-blue-500/20 transition-colors text-muted-foreground hover:text-blue-400"

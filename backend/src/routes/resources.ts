@@ -376,7 +376,7 @@ router.put("/clients/:id", async (req: AuthRequest, res: Response): Promise<void
   if (!existing) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
 
   try {
-    const { name, email, status, contract, services, initial_password, wa_instance_id, wa_group_id, wa_group_name } = req.body;
+    const { name, email, status, contract, services, initial_password, wa_instance_id, wa_group_id, wa_group_name, drive_url } = req.body;
 
     // Sincronizar usuário de acesso se houver e-mail
     let login_user_id = existing.login_user_id;
@@ -406,6 +406,7 @@ router.put("/clients/:id", async (req: AuthRequest, res: Response): Promise<void
         ...(wa_instance_id !== undefined && { wa_instance_id: wa_instance_id || null }),
         ...(wa_group_id    !== undefined && { wa_group_id:    wa_group_id || null }),
         ...(wa_group_name  !== undefined && { wa_group_name:  wa_group_name || null }),
+        ...(drive_url      !== undefined && { drive_url:      drive_url || null }),
       },
       include: { contract: true, services: true }
     });
