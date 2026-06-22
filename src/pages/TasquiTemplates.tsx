@@ -25,7 +25,7 @@ const SERVICES = ["Gestão de Tráfego", "Social Media", "CRM", "Automação", "
 
 const emptyItem = () => ({ title: "", description: "", priority: "MEDIA", due_days_offset: 0 });
 
-const TasquiTemplates = () => {
+const TasquiTemplates = ({ embedded = false }: { embedded?: boolean }) => {
   const { setActiveModule } = useModule();
   const { toast } = useToast();
 
@@ -56,7 +56,7 @@ const TasquiTemplates = () => {
   };
 
   useEffect(() => {
-    setActiveModule("tasqui");
+    if (!embedded) setActiveModule("tasqui");
     load();
   }, []);
 

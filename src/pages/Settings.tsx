@@ -11,6 +11,7 @@ import { Settings as SettingsIcon, Save, Key, Link2, Lock, Bell, Target, Instagr
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
 import WhatsAppSettings from "@/components/WhatsAppSettings";
+import TasquiTemplates from "@/pages/TasquiTemplates";
 
 const Settings = () => {
   const { user } = useAuth();
@@ -216,8 +217,13 @@ const Settings = () => {
           <TabsTrigger value="whatsapp"><Smartphone className="w-4 h-4 mr-1.5" />WhatsApp</TabsTrigger>
           <TabsTrigger value="meta"><Target className="w-4 h-4 mr-1.5" />Meta & Instagram</TabsTrigger>
           <TabsTrigger value="trello"><LayoutGrid className="w-4 h-4 mr-1.5" />Trello</TabsTrigger>
+          <TabsTrigger value="templates"><LayoutGrid className="w-4 h-4 mr-1.5" />Templates</TabsTrigger>
           <TabsTrigger value="conta"><Lock className="w-4 h-4 mr-1.5" />Conta</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="templates">
+          <TasquiTemplates embedded />
+        </TabsContent>
 
         {/* ── GERAL ───────────────────────────────────────────────── */}
         <TabsContent value="geral">

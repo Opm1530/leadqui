@@ -37,16 +37,6 @@ const Hub = () => {
       adminOnly: false,
     },
     {
-      id: "tasqui",
-      name: "Tasqui",
-      description: "Gestão inteligente de tarefas e produtividade.",
-      icon: Rocket,
-      color: "from-purple-500 to-pink-600",
-      route: "/tasqui",
-      serviceRequired: "Tarefas",
-      adminOnly: false,
-    },
-    {
       id: "teamqui",
       name: "TeamQui",
       description: "Gestão de equipe, permissões e controle de acessos.",
@@ -63,15 +53,6 @@ const Hub = () => {
       color: "from-green-500 to-emerald-600",
       route: "/cashqui",
       serviceRequired: "Finanças",
-      adminOnly: false,
-    },
-    {
-      id: "techqui",
-      name: "TechQui",
-      description: "Meta Ads, Instagram Scheduler e Auto-reply de comentários.",
-      icon: Zap,
-      color: "from-orange-500 to-yellow-600",
-      route: "/techqui",
       adminOnly: false,
     },
     {
@@ -104,10 +85,19 @@ const Hub = () => {
     {
       id: "clientes",
       name: "Clientes",
-      description: "Perfil de cada cliente com tudo centralizado: finanças, tarefas, tráfego, senhas e dados.",
+      description: "Perfil de cada cliente com tudo centralizado: finanças, tarefas, tráfego, social, senhas e dados.",
       icon: Building2,
       color: "from-orange-500 to-amber-600",
       route: "/clients",
+      adminOnly: false,
+    },
+    {
+      id: "dashqui",
+      name: "DashQui",
+      description: "Visão geral do dia: tarefas, posts agendados e movimentações financeiras.",
+      icon: LayoutDashboard,
+      color: "from-teal-500 to-cyan-600",
+      route: "/dashqui",
       adminOnly: false,
     },
     {
@@ -123,7 +113,7 @@ const Hub = () => {
 
   const availableApps = allApps.filter(app => {
     if (isAdmin) return true;
-    if (role === "OPERATOR") return app.id === "tasqui";
+    if (role === "OPERATOR") return ["clientes", "dashqui"].includes(app.id);
     if (app.adminOnly) return false;
     if (!app.serviceRequired) return true;
     
