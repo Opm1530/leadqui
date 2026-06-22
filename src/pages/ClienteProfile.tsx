@@ -177,10 +177,23 @@ const ClienteProfile = () => {
               <div className="space-y-3 text-sm">
                 {onboarding.store_name && <p><span className="text-muted-foreground">Loja:</span> {onboarding.store_name}</p>}
                 {onboarding.store_link && <p><span className="text-muted-foreground">Link:</span> <a href={onboarding.store_link} target="_blank" rel="noreferrer" className="text-primary hover:underline">{onboarding.store_link}</a></p>}
-                <div>
-                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Público-alvo</p>
-                  <p className="text-foreground whitespace-pre-wrap">{onboarding.audience || "—"}</p>
-                </div>
+                {onboarding.identidade_url && <p><span className="text-muted-foreground">Identidade visual:</span> <a href={onboarding.identidade_url} target="_blank" rel="noreferrer" className="text-primary hover:underline">abrir</a></p>}
+                {[
+                  ["audience", "Público-alvo"],
+                  ["investimento", "Investimento"],
+                  ["objetivos", "Objetivos"],
+                  ["concorrentes", "Concorrentes / referências"],
+                  ["faturamento", "Histórico de faturamento"],
+                  ["produtos", "Produtos mais vendidos"],
+                  ["influenciadores", "Influenciadores que deram resultado"],
+                  ["prazo_reposicao", "Prazo de reposição"],
+                  ["expectativas", "Expectativas vs Realidade"],
+                ].filter(([k]) => onboarding[k]).map(([k, label]) => (
+                  <div key={k}>
+                    <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">{label}</p>
+                    <p className="text-foreground whitespace-pre-wrap">{onboarding[k]}</p>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="text-center py-4">
