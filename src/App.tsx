@@ -80,6 +80,7 @@ const App = () => (
                 <Route path="/clients" element={<Clients />} />
                 <Route path="/vault" element={<Vault />} />
                 <Route path="/tasqui" element={<Tasqui />} />
+                <Route path="/tasqui/cliente/:clientId" element={<Tasqui />} />
                 <Route path="/tasqui/calendar" element={<TasquiCalendar />} />
                 <Route path="/tasqui/traffic" element={<TasquiTraffic />} />
                 <Route path="/tasqui/jobs" element={<Projects />} />

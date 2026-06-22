@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
-import { Search, Briefcase, Edit2, Rocket, PlusCircle, KeyRound, Trash2 } from "lucide-react";
+import { Search, Briefcase, Edit2, Rocket, PlusCircle, KeyRound, Trash2, Kanban } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import ClientEditModal from "@/components/ClientEditModal";
@@ -18,6 +19,7 @@ const STATUS_COLORS: Record<string, string> = {
 const Clients = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -190,6 +192,13 @@ const Clients = () => {
                         >
                           <PlusCircle className="w-3.5 h-3.5" />
                           Nova Venda
+                        </button>
+                        <button
+                          onClick={() => navigate(`/tasqui/cliente/${client.id}`)}
+                          className="p-2 rounded-md hover:bg-blue-500/20 transition-colors text-muted-foreground hover:text-blue-400"
+                          title="Quadro de tarefas do cliente"
+                        >
+                          <Kanban className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setAccessClient(client)}

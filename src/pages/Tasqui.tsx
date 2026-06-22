@@ -9,7 +9,8 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
-import { Plus, Search, Kanban, List } from "lucide-react";
+import { Plus, Search, Kanban, List, ArrowLeft } from "lucide-react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -92,6 +93,8 @@ function TaskListView({ tasks, onClick }: { tasks: any[]; onClick: (t: any) => v
 const Tasqui = () => {
   const { setActiveModule } = useModule();
   const { toast } = useToast();
+  const { clientId } = useParams();   // quando presente, quadro travado nesse cliente
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -170,23 +173,35 @@ const Tasqui = () => {
     setActiveTask(null);
   };
 
+  const lockedClient = clientId ? clients.find(c => c.id === clientId) : null;
+
   const filtered = useMemo(() => tasks.filter(t => {
     const matchSearch = t.title.toLowerCase().includes(search.toLowerCase()) ||
       t.client?.name?.toLowerCase().includes(search.toLowerCase());
-    const matchClient = filterClient === "all" || t.client_id === filterClient;
+    const effectiveClient = clientId || filterClient;
+    const matchClient = effectiveClient === "all" || t.client_id === effectiveClient;
     const matchResp = filterResponsible === "all"
       || (filterResponsible === "none" ? !t.responsible_id : t.responsible_id === filterResponsible);
     return matchSearch && matchClient && matchResp;
-  }), [tasks, search, filterClient, filterResponsible]);
+  }), [tasks, search, filterClient, filterResponsible, clientId]);
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">Operações</h1>
-          <p className="text-sm text-muted-foreground mt-1">Tarefas internas da equipe</p>
+          {clientId && (
+            <button onClick={() => navigate("/tasqui")} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-1">
+              <ArrowLeft className="w-3.5 h-3.5" /> Quadro geral
+            </button>
+          )}
+          <h1 className="text-2xl font-black tracking-tight text-foreground">
+            {clientId ? (lockedClient?.name || "Cliente") : "Operações"}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {clientId ? "Quadro de tarefas deste cliente" : "Tarefas internas da equipe"}
+          </p>
         </div>
-        <Button onClick={() => setModalOpen(true)} className="gradient-button gap-2">
+        <Button onClick={() => { setNewTask(f => ({ ...f, client_id: clientId || "" })); setModalOpen(true); }} className="gradient-button gap-2">
           <Plus className="w-4 h-4" /> Nova Tarefa
         </Button>
       </div>
@@ -202,15 +217,17 @@ const Tasqui = () => {
             className="pl-9 bg-secondary border-border w-56 h-9"
           />
         </div>
-        <Select value={filterClient} onValueChange={setFilterClient}>
-          <SelectTrigger className="w-44 bg-secondary border-border h-9">
-            <SelectValue placeholder="Todos os clientes" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os clientes</SelectItem>
-            {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {!clientId && (
+          <Select value={filterClient} onValueChange={setFilterClient}>
+            <SelectTrigger className="w-44 bg-secondary border-border h-9">
+              <SelectValue placeholder="Todos os clientes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os clientes</SelectItem>
+              {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={filterResponsible} onValueChange={setFilterResponsible}>
           <SelectTrigger className="w-44 bg-secondary border-border h-9">
             <SelectValue placeholder="Todos responsáveis" />
