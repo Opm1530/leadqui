@@ -111,6 +111,12 @@ const Hub = () => {
     },
   ];
 
+  const ORDER = ["dashqui", "leadqui", "clientes"];
+  allApps.sort((a, b) => {
+    const ia = ORDER.indexOf(a.id); const ib = ORDER.indexOf(b.id);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+
   const availableApps = allApps.filter(app => {
     if (isAdmin) return true;
     if (role === "OPERATOR") return ["clientes", "dashqui"].includes(app.id);

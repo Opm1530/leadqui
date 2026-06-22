@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
 import {
   ArrowLeft, Loader2, Building2, FolderOpen, Kanban, ClipboardList, Plus, Check,
-  DollarSign, Lock, Eye, MousePointerClick, Star, ListTodo, Receipt, CalendarClock, Instagram,
+  DollarSign, Lock, Eye, Star, ListTodo, Receipt, CalendarClock, Instagram, Facebook, BarChart2, MessageSquare,
 } from "lucide-react";
 
 const brl = (n: number) => (n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -15,8 +15,9 @@ const TABS = [
   { id: "geral", label: "Visão Geral", icon: Building2 },
   { id: "tarefas", label: "Tarefas", icon: ListTodo },
   { id: "calendario", label: "Calendário", icon: CalendarClock },
-  { id: "trafego", label: "Tráfego", icon: MousePointerClick },
-  { id: "social", label: "TechQui", icon: Instagram },
+  { id: "conexoes", label: "Conexões", icon: Instagram },
+  { id: "ads", label: "Meta Ads", icon: BarChart2 },
+  { id: "autoreply", label: "Auto-reply", icon: MessageSquare },
   { id: "financas", label: "Finanças", icon: DollarSign },
   { id: "senhas", label: "Senhas", icon: Lock },
   { id: "influencers", label: "Influencers", icon: Star },
@@ -38,6 +39,11 @@ const ClienteProfile = () => {
   const [partnerships, setPartnerships] = useState<any[]>([]);
   const [posts, setPosts] = useState<any[]>([]);
   const [connection, setConnection] = useState<any>(null);
+  const [rules, setRules] = useState<any[]>([]);
+  const [analyses, setAnalyses] = useState<any[]>([]);
+  const [onboarding, setOnboarding] = useState<any>(null);
+
+  const loadConnection = () => api.get(`/api/techqui/connections`).then(d => setConnection((d.connections || []).find((c: any) => c.client_id === id) || null)).catch(() => {});
 
   useEffect(() => {
     (async () => {
@@ -57,7 +63,10 @@ const ClienteProfile = () => {
     if (tab === "trafego") api.get(`/api/tasqui/traffic?clientId=${id}`).then(d => setTraffic(d.campaigns || d || [])).catch(() => {});
     if (tab === "influencers") api.get(`/api/influencers/partnerships?client_id=${id}`).then(d => setPartnerships(d.partnerships || [])).catch(() => {});
     if (tab === "calendario") api.get(`/api/tasqui/calendar?client_id=${id}`).then(d => setPosts(Array.isArray(d) ? d : (d.posts || []))).catch(() => {});
-    if (tab === "social") api.get(`/api/techqui/connections`).then(d => setConnection((d.connections || []).find((c: any) => c.client_id === id) || null)).catch(() => {});
+    if (tab === "conexoes" || tab === "ads" || tab === "autoreply") loadConnection();
+    if (tab === "autoreply") api.get(`/api/techqui/comments/rules?client_id=${id}`).then(d => setRules(d.rules || [])).catch(() => {});
+    if (tab === "ads") api.get(`/api/techqui/ads/analyses?client_id=${id}`).then(d => setAnalyses(d.analyses || [])).catch(() => {});
+    if (tab === "dados") api.get(`/api/onboarding/${id}`).then(d => setOnboarding(d.onboarding)).catch(() => {});
   }, [tab, id]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
@@ -141,41 +150,180 @@ const ClienteProfile = () => {
         </div>
       )}
 
-      {tab === "social" && (
-        <div className="rounded-2xl border border-border bg-card/40 p-5">
-          <h2 className="text-sm font-semibold text-foreground mb-3">Social / TechQui</h2>
-          {connection ? (
-            <div className="rounded-xl bg-secondary/40 p-3 mb-4">
-              <p className="text-sm text-foreground flex items-center gap-2"><Instagram className="w-4 h-4 text-pink-400" /> Conectado</p>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                {connection.instagram_username ? `@${connection.instagram_username}` : ""}
-                {connection.page_name ? ` · ${connection.page_name}` : ""}
-              </p>
-            </div>
+      {tab === "conexoes" && <ConexoesTab clientId={id!} connection={connection} reload={loadConnection} toast={toast} />}
+
+      {tab === "ads" && (
+        <div className="rounded-2xl border border-border bg-card/40 p-4">
+          <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><BarChart2 className="w-4 h-4 text-blue-400" /> Meta Ads</h2>
+          {!connection ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Conecte a conta Meta na aba Conexões para ver as campanhas.</p>
+          ) : analyses.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma análise de campanha ainda. O agente roda automaticamente 6h e 18h.</p>
           ) : (
-            <div className="rounded-xl bg-yellow-500/10 border border-yellow-500/20 p-3 mb-4 text-xs text-yellow-300">
-              Este cliente ainda não tem conta Meta/Instagram conectada.
+            <div className="space-y-1.5 max-h-96 overflow-y-auto">
+              {analyses.map((a: any) => (
+                <div key={a.id} className="bg-secondary/40 rounded-lg px-3 py-2 text-sm text-foreground">
+                  <p className="text-[11px] text-muted-foreground">{new Date(a.created_at).toLocaleDateString("pt-BR")}</p>
+                  {a.summary || a.resumo || "Análise"}
+                </div>
+              ))}
             </div>
           )}
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => navigate("/techqui")} className="py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-secondary/70">Conexões</button>
-            <button onClick={() => navigate("/techqui/instagram")} className="py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-secondary/70">Instagram</button>
-            <button onClick={() => navigate("/techqui/ads")} className="py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-secondary/70">Meta Ads</button>
-            <button onClick={() => navigate("/techqui/comments")} className="py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-secondary/70">Auto-reply</button>
-          </div>
         </div>
       )}
 
-      {tab === "trafego" && <ListaSimples itens={traffic} vazio="Nenhuma campanha de tráfego." render={(c: any) => `${c.name}${c.objective ? ` — ${c.objective}` : ""}`} onAbrir={() => navigate("/tasqui/traffic")} />}
+      {tab === "autoreply" && <AutoReplyTab clientId={id!} connection={connection} rules={rules} setRules={setRules} toast={toast} />}
+
       {tab === "influencers" && <ListaSimples itens={partnerships} vazio="Nenhuma parceria." render={(p: any) => `${p.titulo} — ${p.influencer?.nome}`} onAbrir={() => navigate("/influencers")} />}
+
       {tab === "dados" && (
-        <div className="rounded-2xl border border-border bg-card/40 p-6 text-center">
-          <ClipboardList className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground mb-3">Dados do onboarding deste cliente (loja, público, checklist).</p>
-          <Button onClick={() => navigate(`/onboarding/${id}`)} className="gradient-button">Abrir Onboarding</Button>
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-border bg-card/40 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-foreground">Dados do cliente</h2>
+              <button onClick={() => navigate(`/onboarding/${id}`)} className="text-xs text-primary hover:underline">editar onboarding</button>
+            </div>
+            {onboarding ? (
+              <div className="space-y-3 text-sm">
+                {onboarding.store_name && <p><span className="text-muted-foreground">Loja:</span> {onboarding.store_name}</p>}
+                {onboarding.store_link && <p><span className="text-muted-foreground">Link:</span> <a href={onboarding.store_link} target="_blank" rel="noreferrer" className="text-primary hover:underline">{onboarding.store_link}</a></p>}
+                <div>
+                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Público-alvo</p>
+                  <p className="text-foreground whitespace-pre-wrap">{onboarding.audience || "—"}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-sm text-muted-foreground mb-3">Onboarding ainda não preenchido.</p>
+                <Button onClick={() => navigate(`/onboarding/${id}`)} className="gradient-button">Preencher Onboarding</Button>
+              </div>
+            )}
+          </div>
         </div>
       )}
       </main>
+    </div>
+  );
+};
+
+// ── Conexões (Instagram + Facebook) ────────────────────────────────────
+const ConexoesTab = ({ clientId, connection, reload, toast }: any) => {
+  const conectar = async (rede: "facebook" | "instagram") => {
+    try {
+      const url = rede === "instagram"
+        ? `/api/techqui/oauth/instagram/start?client_id=${clientId}`
+        : `/api/techqui/oauth/start?client_id=${clientId}`;
+      const d = await api.get(url);
+      const w = 600, h = 700;
+      const left = window.screenX + (window.outerWidth - w) / 2;
+      const top = window.screenY + (window.outerHeight - h) / 2;
+      const popup = window.open(d.url, "meta_oauth", `width=${w},height=${h},left=${left},top=${top}`);
+      // Recarrega ao fechar o popup
+      const timer = setInterval(() => { if (popup?.closed) { clearInterval(timer); reload(); } }, 1000);
+    } catch (e: any) {
+      toast({ title: "Erro ao iniciar conexão", description: e.message || "Configure o app Meta nas Configurações.", variant: "destructive" });
+    }
+  };
+  const desconectar = async () => {
+    if (!connection || !confirm("Desconectar a conta deste cliente?")) return;
+    try { await api.delete(`/api/techqui/connections/${connection.id}`); reload(); }
+    catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
+  };
+
+  const igOn = !!connection?.instagram_username || !!connection?.instagram_account_id;
+  const fbOn = !!connection?.page_name || !!connection?.page_id;
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* Instagram */}
+      <div className="rounded-2xl border border-border bg-card/40 p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Instagram className="w-6 h-6 text-pink-500" />
+          <h3 className="font-semibold text-foreground">Instagram</h3>
+        </div>
+        {igOn ? (
+          <>
+            <p className="text-sm text-green-400 mb-1">✓ Conectado</p>
+            <p className="text-xs text-muted-foreground">{connection.instagram_username ? `@${connection.instagram_username}` : connection.instagram_account_id}</p>
+            <button onClick={desconectar} className="mt-3 text-xs text-red-400 hover:underline">Desconectar</button>
+          </>
+        ) : (
+          <button onClick={() => conectar("instagram")} className="w-full py-2.5 rounded-lg text-sm font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90">
+            Conectar Instagram
+          </button>
+        )}
+      </div>
+      {/* Facebook / Meta */}
+      <div className="rounded-2xl border border-border bg-card/40 p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Facebook className="w-6 h-6 text-blue-500" />
+          <h3 className="font-semibold text-foreground">Facebook / Meta</h3>
+        </div>
+        {fbOn ? (
+          <>
+            <p className="text-sm text-green-400 mb-1">✓ Conectado</p>
+            <p className="text-xs text-muted-foreground">{connection.page_name || connection.page_id}</p>
+            <button onClick={desconectar} className="mt-3 text-xs text-red-400 hover:underline">Desconectar</button>
+          </>
+        ) : (
+          <button onClick={() => conectar("facebook")} className="w-full py-2.5 rounded-lg text-sm font-bold text-white bg-blue-600 hover:bg-blue-700">
+            Conectar Facebook
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ── Auto-reply (regras de comentários) ──────────────────────────────────
+const AutoReplyTab = ({ clientId, connection, rules, setRules, toast }: any) => {
+  const [nome, setNome] = useState("");
+  const [resposta, setResposta] = useState("");
+  const add = async () => {
+    if (!connection) { toast({ title: "Conecte o Instagram primeiro (aba Conexões).", variant: "destructive" }); return; }
+    if (!nome.trim() || !resposta.trim()) return;
+    try {
+      const d = await api.post("/api/techqui/comments/rules", {
+        connection_id: connection.id, client_id: clientId, name: nome.trim(),
+        reply_type: "FIXA", fixed_reply: resposta.trim(), apply_to: "TODOS",
+      });
+      setRules((p: any[]) => [...p, d.rule]); setNome(""); setResposta("");
+    } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
+  };
+  const toggle = async (r: any) => {
+    await api.patch(`/api/techqui/comments/rules/${r.id}`, { active: !r.active }).catch(() => {});
+    setRules((p: any[]) => p.map(x => x.id === r.id ? { ...x, active: !x.active } : x));
+  };
+  const del = async (r: any) => {
+    await api.delete(`/api/techqui/comments/rules/${r.id}`).catch(() => {});
+    setRules((p: any[]) => p.filter(x => x.id !== r.id));
+  };
+  return (
+    <div className="rounded-2xl border border-border bg-card/40 p-4">
+      <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><MessageSquare className="w-4 h-4 text-green-400" /> Auto-reply de comentários</h2>
+      <div className="space-y-1.5">
+        {rules.length === 0 && <p className="text-sm text-muted-foreground py-3 text-center">Nenhuma regra de resposta automática.</p>}
+        {rules.map((r: any) => (
+          <div key={r.id} className="flex items-center gap-2 bg-secondary/40 rounded-lg px-3 py-2">
+            <button onClick={() => toggle(r)} className={`w-9 h-5 rounded-full flex-shrink-0 transition-colors ${r.active ? "bg-green-600" : "bg-secondary border border-border"}`}>
+              <span className={`block w-4 h-4 bg-white rounded-full transition-transform ${r.active ? "translate-x-4" : "translate-x-0.5"}`} />
+            </button>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-foreground truncate">{r.name}</p>
+              <p className="text-[11px] text-muted-foreground truncate">{r.fixed_reply}</p>
+            </div>
+            <button onClick={() => del(r)} className="p-1 text-xs text-muted-foreground hover:text-destructive">excluir</button>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 space-y-2 border-t border-border/50 pt-3">
+        <Input value={nome} onChange={e => setNome(e.target.value)} placeholder="Nome da regra (ex: Saudação)" className="bg-secondary border-border text-sm" />
+        <div className="flex gap-2">
+          <Input value={resposta} onChange={e => setResposta(e.target.value)} placeholder="Resposta automática" className="bg-secondary border-border text-sm" />
+          <Button onClick={add} className="gradient-button"><Plus className="w-4 h-4" /></Button>
+        </div>
+        <p className="text-[11px] text-muted-foreground">Responde automaticamente todos os comentários com essa mensagem fixa.</p>
+      </div>
     </div>
   );
 };
