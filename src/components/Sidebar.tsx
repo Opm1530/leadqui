@@ -1,7 +1,11 @@
+import { useState, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useModule } from "@/contexts/ModuleContext";
+import api from "@/lib/api";
 import {
+  ChevronDown,
+  ChevronRight,
   BarChart3,
   Settings,
   Users,
@@ -86,6 +90,15 @@ const Sidebar = () => {
   const isAdmin = user?.role === "ADMIN";
   const isOperator = user?.role === "OPERATOR";
 
+  // Clientes para os subtópicos de "Operações"
+  const [clients, setClients] = useState<any[]>([]);
+  const [opsOpen, setOpsOpen] = useState(true);
+  useEffect(() => {
+    if (activeModule === "tasqui" && clients.length === 0) {
+      api.get("/api/clients").then(d => setClients(d.clients || [])).catch(() => {});
+    }
+  }, [activeModule]);
+
   const getModuleTitle = () => {
     switch (activeModule) {
       case "tasqui": return "Tasqui";
@@ -129,8 +142,51 @@ const Sidebar = () => {
 
         <nav className="space-y-1">
           {menuItems.map((item) => {
-            const isActive = location.pathname === item.to;
             const Icon = item.icon;
+
+            // "Operações" — item expansível com os clientes como subtópicos
+            if (item.to === "/tasqui") {
+              const opsActive = location.pathname === "/tasqui";
+              return (
+                <div key={item.to}>
+                  <div className="flex items-center">
+                    <NavLink
+                      to={item.to}
+                      className={`flex flex-1 items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200 group ${
+                        opsActive ? "bg-white/10 text-white shadow-lg" : "text-muted-foreground hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 transition-transform group-hover:scale-110 ${opsActive ? "text-blue-500" : ""}`} />
+                      {item.label}
+                    </NavLink>
+                    <button onClick={() => setOpsOpen(o => !o)} className="p-2 text-muted-foreground hover:text-white" title="Clientes">
+                      {opsOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {opsOpen && (
+                    <div className="ml-5 mt-1 pl-3 border-l border-white/10 space-y-0.5 max-h-72 overflow-y-auto">
+                      {clients.length === 0 && <p className="text-[11px] text-muted-foreground/60 px-3 py-1.5">Nenhum cliente.</p>}
+                      {clients.map((c) => {
+                        const active = location.pathname === `/tasqui/cliente/${c.id}`;
+                        return (
+                          <NavLink
+                            key={c.id}
+                            to={`/tasqui/cliente/${c.id}`}
+                            className={`block px-3 py-1.5 rounded-lg text-xs font-medium truncate transition-colors ${
+                              active ? "bg-white/10 text-white" : "text-muted-foreground hover:bg-white/5 hover:text-white"
+                            }`}
+                          >
+                            {c.name}
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            const isActive = location.pathname === item.to;
             return (
               <NavLink
                 key={item.to}
