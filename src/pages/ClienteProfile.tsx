@@ -3,8 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import api from "@/lib/api";
 import ClientTaskBoard from "@/components/ClientTaskBoard";
+import ClientCalendar from "@/components/ClientCalendar";
 import {
   ArrowLeft, Loader2, Building2, FolderOpen, Kanban, ClipboardList, Plus, Check,
   DollarSign, Lock, Eye, Star, ListTodo, Receipt, CalendarClock, Instagram, Facebook, BarChart2, MessageSquare,
@@ -102,7 +106,7 @@ const ClienteProfile = () => {
             {client.drive_url && (
               <a href={client.drive_url} target="_blank" rel="noreferrer" title="Drive" className="p-2 rounded-lg bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20"><FolderOpen className="w-4 h-4" /></a>
             )}
-            <button onClick={() => navigate(`/tasqui/cliente/${id}`)} title="Quadro completo" className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"><Kanban className="w-4 h-4" /></button>
+            <button onClick={() => setTab("tarefas")} title="Quadro de tarefas" className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"><Kanban className="w-4 h-4" /></button>
             <button onClick={() => navigate(`/onboarding/${id}`)} title="Onboarding" className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"><ClipboardList className="w-4 h-4" /></button>
           </div>
         </div>
@@ -134,25 +138,7 @@ const ClienteProfile = () => {
       {tab === "tarefas" && <ClientTaskBoard clientId={id!} tasks={tasks} setTasks={setTasks} team={team} reload={reloadTasks} />}
       {tab === "financas" && <FinancasTab clientId={id!} invoices={invoices} setInvoices={setInvoices} toast={toast} navigate={navigate} />}
       {tab === "senhas" && <SenhasTab vault={vault} navigate={navigate} />}
-      {tab === "calendario" && (
-        <div className="rounded-2xl border border-border bg-card/40 p-4">
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-sm font-semibold text-foreground">Calendário editorial</h2>
-            <button onClick={() => navigate("/tasqui/calendar")} className="text-xs text-primary hover:underline">abrir calendário completo</button>
-          </div>
-          <div className="space-y-1.5 max-h-96 overflow-y-auto">
-            {posts.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">Nenhum post no calendário.</p>}
-            {posts.map((p: any) => (
-              <div key={p.id} className="flex items-center gap-2 bg-secondary/40 rounded-lg px-3 py-2">
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">{p.type}</span>
-                <span className="flex-1 text-sm text-foreground truncate">{p.title || "(a preencher)"}</span>
-                <span className="text-[11px] text-muted-foreground">{new Date(p.scheduled_date).toLocaleDateString("pt-BR")}</span>
-                <span className="text-[10px] text-muted-foreground">{p.status}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {tab === "calendario" && <ClientCalendar clientId={id!} />}
 
       {tab === "conexoes" && <ConexoesTab clientId={id!} connection={connection} reload={loadConnection} toast={toast} />}
 
@@ -178,7 +164,7 @@ const ClienteProfile = () => {
 
       {tab === "autoreply" && <AutoReplyTab clientId={id!} connection={connection} rules={rules} setRules={setRules} toast={toast} />}
 
-      {tab === "influencers" && <ListaSimples itens={partnerships} vazio="Nenhuma parceria." render={(p: any) => `${p.titulo} — ${p.influencer?.nome}`} onAbrir={() => navigate("/influencers")} />}
+      {tab === "influencers" && <InfluencersTab clientId={id!} partnerships={partnerships} setPartnerships={setPartnerships} navigate={navigate} toast={toast} />}
 
       {tab === "dados" && (
         <div className="space-y-4">
@@ -328,6 +314,87 @@ const AutoReplyTab = ({ clientId, connection, rules, setRules, toast }: any) => 
         </div>
         <p className="text-[11px] text-muted-foreground">Responde automaticamente todos os comentários com essa mensagem fixa.</p>
       </div>
+    </div>
+  );
+};
+
+// ── Influencers do cliente (parcerias) ──────────────────────────────────
+const TIPO_LABEL: Record<string, string> = { PERMUTA: "Permuta", PAGO: "Pago", HIBRIDO: "Híbrido" };
+const InfluencersTab = ({ clientId, partnerships, setPartnerships, navigate, toast }: any) => {
+  const [catalogo, setCatalogo] = useState<any[]>([]);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ influencer_id: "", titulo: "", tipo: "PERMUTA", cache_value: "" });
+  const [saving, setSaving] = useState(false);
+
+  const abrir = () => {
+    setForm({ influencer_id: "", titulo: "", tipo: "PERMUTA", cache_value: "" });
+    api.get("/api/influencers").then(d => setCatalogo(d.influencers || [])).catch(() => {});
+    setOpen(true);
+  };
+  const criar = async () => {
+    if (!form.influencer_id || !form.titulo.trim()) { toast({ title: "Escolha a influencer e o título.", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      const d = await api.post("/api/influencers/partnerships", { ...form, client_id: clientId });
+      // recarrega a lista do cliente
+      const r = await api.get(`/api/influencers/partnerships?client_id=${clientId}`);
+      setPartnerships(r.partnerships || [...partnerships, d.partnership]);
+      setOpen(false);
+    } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="rounded-2xl border border-border bg-card/40 p-4">
+      <div className="flex justify-between items-center mb-3">
+        <h2 className="text-sm font-semibold text-foreground">Parcerias de Influencer</h2>
+        <div className="flex gap-2">
+          <button onClick={() => navigate("/influencers")} className="text-xs text-muted-foreground hover:text-foreground">catálogo</button>
+          <Button onClick={abrir} size="sm" className="gradient-button gap-1 h-7 text-xs"><Plus className="w-3.5 h-3.5" /> Nova parceria</Button>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        {partnerships.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma parceria.</p>}
+        {partnerships.map((p: any) => (
+          <div key={p.id} className="flex items-center gap-2 bg-secondary/40 rounded-lg px-3 py-2">
+            <span className="flex-1 text-sm text-foreground">{p.titulo} <span className="text-muted-foreground">— {p.influencer?.nome}</span></span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">{TIPO_LABEL[p.tipo]}</span>
+          </div>
+        ))}
+      </div>
+
+      <Dialog open={open} onOpenChange={(v) => !v && setOpen(false)}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader><DialogTitle>Nova parceria de influencer</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase tracking-widest">Influencer *</Label>
+              <Select value={form.influencer_id} onValueChange={v => setForm(f => ({ ...f, influencer_id: v }))}>
+                <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione (ou cadastre no catálogo)" /></SelectTrigger>
+                <SelectContent>{catalogo.map(i => <SelectItem key={i.id} value={i.id}>{i.nome}</SelectItem>)}</SelectContent>
+              </Select>
+              {catalogo.length === 0 && <p className="text-[11px] text-muted-foreground">Nenhuma influencer no catálogo. Cadastre em <button onClick={() => navigate("/influencers")} className="text-primary underline">Influencers</button>.</p>}
+            </div>
+            <Input value={form.titulo} onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))} placeholder="Título (ex: Campanha Verão)" className="bg-secondary border-border" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground uppercase tracking-widest">Tipo</Label>
+                <Select value={form.tipo} onValueChange={v => setForm(f => ({ ...f, tipo: v }))}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
+                  <SelectContent>{Object.entries(TIPO_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              {form.tipo !== "PERMUTA" && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-widest">Cachê (R$)</Label>
+                  <Input type="number" value={form.cache_value} onChange={e => setForm(f => ({ ...f, cache_value: e.target.value }))} className="bg-secondary border-border" />
+                </div>
+              )}
+            </div>
+            <Button onClick={criar} disabled={saving} className="w-full gradient-button">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Criar parceria"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
