@@ -43,6 +43,7 @@ import Assistant from "./pages/Assistant";
 import Demandas from "./pages/Demandas";
 import Influencers from "./pages/Influencers";
 import Onboarding from "./pages/Onboarding";
+import ClienteProfile from "./pages/ClienteProfile";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,7 @@ const App = () => (
               <Route element={<ProtectedRoute staffOnly><Demandas /></ProtectedRoute>} path="/demandas" />
               <Route element={<ProtectedRoute staffOnly><Influencers /></ProtectedRoute>} path="/influencers" />
               <Route element={<ProtectedRoute staffOnly><Onboarding /></ProtectedRoute>} path="/onboarding/:clientId" />
+              <Route element={<ProtectedRoute staffOnly><ClienteProfile /></ProtectedRoute>} path="/cliente/:id" />
 
               {/* App Principal (protegido, com sidebar — somente equipe interna) */}
               <Route element={<ProtectedRoute staffOnly><AppLayout /></ProtectedRoute>}>

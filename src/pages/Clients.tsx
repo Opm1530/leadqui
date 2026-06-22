@@ -124,7 +124,9 @@ const Clients = () => {
                   >
                     <td className="p-4">
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-foreground">{client.name}</span>
+                        <button onClick={() => navigate(`/cliente/${client.id}`)} className="text-sm font-medium text-foreground hover:text-primary hover:underline text-left w-fit">
+                          {client.name}
+                        </button>
                         {client.origin_lead_id && (
                           <span className="text-[10px] text-muted-foreground flex items-center gap-1 opacity-60">
                             <Briefcase className="w-2.5 h-2.5" /> Lead #{client.origin_lead_id.slice(-6)}

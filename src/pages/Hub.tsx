@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox, Star } from "lucide-react";
+import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox, Star, Building2 } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -99,6 +99,15 @@ const Hub = () => {
       icon: Star,
       color: "from-pink-500 to-rose-600",
       route: "/influencers",
+      adminOnly: false,
+    },
+    {
+      id: "clientes",
+      name: "Clientes",
+      description: "Perfil de cada cliente com tudo centralizado: finanças, tarefas, tráfego, senhas e dados.",
+      icon: Building2,
+      color: "from-orange-500 to-amber-600",
+      route: "/clients",
       adminOnly: false,
     },
     {
