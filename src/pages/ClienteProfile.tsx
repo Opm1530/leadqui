@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
 import {
   ArrowLeft, Loader2, Building2, FolderOpen, Kanban, ClipboardList, Plus, Check,
-  DollarSign, Lock, Eye, MousePointerClick, Star, ListTodo, Receipt,
+  DollarSign, Lock, Eye, MousePointerClick, Star, ListTodo, Receipt, CalendarClock, Instagram,
 } from "lucide-react";
 
 const brl = (n: number) => (n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -14,8 +14,10 @@ const brl = (n: number) => (n || 0).toLocaleString("pt-BR", { style: "currency",
 const TABS = [
   { id: "geral", label: "Visão Geral", icon: Building2 },
   { id: "tarefas", label: "Tarefas", icon: ListTodo },
-  { id: "financas", label: "Finanças", icon: DollarSign },
+  { id: "calendario", label: "Calendário", icon: CalendarClock },
   { id: "trafego", label: "Tráfego", icon: MousePointerClick },
+  { id: "social", label: "TechQui", icon: Instagram },
+  { id: "financas", label: "Finanças", icon: DollarSign },
   { id: "senhas", label: "Senhas", icon: Lock },
   { id: "influencers", label: "Influencers", icon: Star },
   { id: "dados", label: "Dados", icon: ClipboardList },
@@ -34,6 +36,8 @@ const ClienteProfile = () => {
   const [vault, setVault] = useState<any[]>([]);
   const [traffic, setTraffic] = useState<any[]>([]);
   const [partnerships, setPartnerships] = useState<any[]>([]);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [connection, setConnection] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
@@ -52,6 +56,8 @@ const ClienteProfile = () => {
     if (tab === "senhas") api.get(`/api/vault?client_id=${id}`).then(d => setVault(d.credentials || d.vault || [])).catch(() => {});
     if (tab === "trafego") api.get(`/api/tasqui/traffic?clientId=${id}`).then(d => setTraffic(d.campaigns || d || [])).catch(() => {});
     if (tab === "influencers") api.get(`/api/influencers/partnerships?client_id=${id}`).then(d => setPartnerships(d.partnerships || [])).catch(() => {});
+    if (tab === "calendario") api.get(`/api/tasqui/calendar?client_id=${id}`).then(d => setPosts(Array.isArray(d) ? d : (d.posts || []))).catch(() => {});
+    if (tab === "social") api.get(`/api/techqui/connections`).then(d => setConnection((d.connections || []).find((c: any) => c.client_id === id) || null)).catch(() => {});
   }, [tab, id]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
@@ -120,6 +126,51 @@ const ClienteProfile = () => {
       {tab === "tarefas" && <TarefasTab clientId={id!} tasks={tasks} setTasks={setTasks} navigate={navigate} />}
       {tab === "financas" && <FinancasTab clientId={id!} invoices={invoices} setInvoices={setInvoices} toast={toast} navigate={navigate} />}
       {tab === "senhas" && <SenhasTab vault={vault} navigate={navigate} />}
+      {tab === "calendario" && (
+        <div className="rounded-2xl border border-border bg-card/40 p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-sm font-semibold text-foreground">Calendário editorial</h2>
+            <button onClick={() => navigate("/tasqui/calendar")} className="text-xs text-primary hover:underline">abrir calendário completo</button>
+          </div>
+          <div className="space-y-1.5 max-h-96 overflow-y-auto">
+            {posts.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">Nenhum post no calendário.</p>}
+            {posts.map((p: any) => (
+              <div key={p.id} className="flex items-center gap-2 bg-secondary/40 rounded-lg px-3 py-2">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">{p.type}</span>
+                <span className="flex-1 text-sm text-foreground truncate">{p.title || "(a preencher)"}</span>
+                <span className="text-[11px] text-muted-foreground">{new Date(p.scheduled_date).toLocaleDateString("pt-BR")}</span>
+                <span className="text-[10px] text-muted-foreground">{p.status}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === "social" && (
+        <div className="rounded-2xl border border-border bg-card/40 p-5">
+          <h2 className="text-sm font-semibold text-foreground mb-3">Social / TechQui</h2>
+          {connection ? (
+            <div className="rounded-xl bg-secondary/40 p-3 mb-4">
+              <p className="text-sm text-foreground flex items-center gap-2"><Instagram className="w-4 h-4 text-pink-400" /> Conectado</p>
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {connection.instagram_username ? `@${connection.instagram_username}` : ""}
+                {connection.page_name ? ` · ${connection.page_name}` : ""}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-xl bg-yellow-500/10 border border-yellow-500/20 p-3 mb-4 text-xs text-yellow-300">
+              Este cliente ainda não tem conta Meta/Instagram conectada.
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => navigate("/techqui")} className="py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-secondary/70">Conexões</button>
+            <button onClick={() => navigate("/techqui/instagram")} className="py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-secondary/70">Instagram</button>
+            <button onClick={() => navigate("/techqui/ads")} className="py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-secondary/70">Meta Ads</button>
+            <button onClick={() => navigate("/techqui/comments")} className="py-2.5 rounded-lg bg-secondary border border-border text-sm text-foreground hover:bg-secondary/70">Auto-reply</button>
+          </div>
+        </div>
+      )}
+
       {tab === "trafego" && <ListaSimples itens={traffic} vazio="Nenhuma campanha de tráfego." render={(c: any) => `${c.name}${c.objective ? ` — ${c.objective}` : ""}`} onAbrir={() => navigate("/tasqui/traffic")} />}
       {tab === "influencers" && <ListaSimples itens={partnerships} vazio="Nenhuma parceria." render={(p: any) => `${p.titulo} — ${p.influencer?.nome}`} onAbrir={() => navigate("/influencers")} />}
       {tab === "dados" && (

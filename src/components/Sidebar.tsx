@@ -7,7 +7,6 @@ import {
   ChevronDown,
   ChevronRight,
   BarChart3,
-  Settings,
   Users,
   Hash,
   Briefcase,
@@ -46,7 +45,6 @@ const leadquiItems = [
   { to: "/campaigns", icon: Share2, label: "Campanhas" },
   { to: "/instances", icon: Zap,  label: "Instâncias"        },
   { to: "/vault",     icon: Lock, label: "Cofre de Senhas"   },
-  { to: "/settings",  icon: Settings, label: "Configurações" },
 ];
 
 const tasquiItems = [
@@ -56,13 +54,11 @@ const tasquiItems = [
   { to: "/tasqui/jobs", icon: Wrench, label: "Jobs" },
   { to: "/tasqui/templates", icon: LayoutTemplate, label: "Templates" },
   { to: "/tasqui-stats", icon: BarChart3, label: "Estatísticas" },
-  { to: "/settings", icon: Settings, label: "Configurações" },
 ];
 
 const teamquiItems = [
   { to: "/teamqui", icon: Users, label: "Membros da Equipe" },
   { to: "/roles", icon: ShieldAlert, label: "Cargos e Permissões" },
-  { to: "/settings", icon: Settings, label: "Configurações" },
 ];
 
 const techquiItems = [
@@ -79,7 +75,6 @@ const cashquiItems = [
   { to: "/cashqui/fixed-expenses", icon: Bell, label: "Despesas Fixas" },
   { to: "/cashqui/inter", icon: Landmark, label: "Banco Inter" },
   { to: "/cashqui/report", icon: LineChart, label: "Relatório" },
-  { to: "/settings", icon: Settings, label: "Configurações" },
 ];
 
 const Sidebar = () => {

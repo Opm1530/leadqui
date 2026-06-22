@@ -4,13 +4,13 @@ import Sidebar from "./Sidebar";
 import NotificationBell from "./NotificationBell";
 import { useModule } from "@/contexts/ModuleContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { Zap } from "lucide-react";
+import { Zap, Settings, LogOut } from "lucide-react";
 
 const AppLayout = () => {
   const location = useLocation();
   const navigate  = useNavigate();
   const { setActiveModule } = useModule();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
 
   useEffect(() => {
     const path = location.pathname;
@@ -49,6 +49,14 @@ const AppLayout = () => {
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground hidden sm:block">{user?.name || user?.email}</span>
             <NotificationBell />
+            <button onClick={() => navigate("/settings")} title="Configurações"
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors">
+              <Settings className="w-4 h-4" />
+            </button>
+            <button onClick={() => signOut()} title="Sair"
+              className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </header>
         <main className="flex-1 p-6 md:p-8">
