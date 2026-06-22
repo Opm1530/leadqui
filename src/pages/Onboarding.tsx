@@ -27,6 +27,12 @@ const Onboarding = () => {
   const [creds, setCreds] = useState<Cred[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTask, setNewTask] = useState("");
+  const emptyExtra = {
+    drive_url: "", identidade_url: "", investimento: "", concorrentes: "", objetivos: "",
+    faturamento: "", produtos: "", influenciadores: "", prazo_reposicao: "", expectativas: "",
+  };
+  const [extra, setExtra] = useState({ ...emptyExtra });
+  const setE = (k: string, v: string) => setExtra(p => ({ ...p, [k]: v }));
 
   useEffect(() => {
     (async () => {
@@ -42,6 +48,12 @@ const Onboarding = () => {
           setStoreName(o.store_name || ""); setStoreLink(o.store_link || ""); setAudience(o.audience || "");
           setCreds((o.credentials || []).map((c: any) => ({ ...c, show: false })));
           setTasks(o.checklist || []);
+          setExtra({
+            drive_url: o.drive_url || "", identidade_url: o.identidade_url || "", investimento: o.investimento || "",
+            concorrentes: o.concorrentes || "", objetivos: o.objetivos || "", faturamento: o.faturamento || "",
+            produtos: o.produtos || "", influenciadores: o.influenciadores || "", prazo_reposicao: o.prazo_reposicao || "",
+            expectativas: o.expectativas || "",
+          });
         }
       } catch { /* */ } finally { setLoading(false); }
     })();
@@ -62,6 +74,7 @@ const Onboarding = () => {
         store_name: storeName, store_link: storeLink, audience,
         credentials: creds.map(({ show, ...c }) => c),
         checklist: tasks,
+        ...extra,
       });
       setCreds((d.onboarding.credentials || []).map((c: any) => ({ ...c, show: false })));
       setTasks(d.onboarding.checklist || []);
@@ -98,6 +111,26 @@ const Onboarding = () => {
         <Section icon={Store} title="Dados da loja">
           <FieldRow label="Nome da loja"><Input value={storeName} onChange={(e) => setStoreName(e.target.value)} className="bg-secondary border-border" /></FieldRow>
           <FieldRow label="Link da loja"><Input value={storeLink} onChange={(e) => setStoreLink(e.target.value)} placeholder="https://..." className="bg-secondary border-border" /></FieldRow>
+          <FieldRow label="Link da pasta do Drive"><Input value={extra.drive_url} onChange={(e) => setE("drive_url", e.target.value)} placeholder="https://drive.google.com/..." className="bg-secondary border-border" /></FieldRow>
+          <FieldRow label="Link da identidade visual"><Input value={extra.identidade_url} onChange={(e) => setE("identidade_url", e.target.value)} placeholder="https://..." className="bg-secondary border-border" /></FieldRow>
+        </Section>
+
+        {/* Briefing */}
+        <Section icon={ClipboardList} title="Briefing">
+          {[
+            ["investimento", "Investimento"],
+            ["objetivos", "Objetivos"],
+            ["concorrentes", "Principais concorrentes ou referências"],
+            ["faturamento", "Histórico de faturamento recente"],
+            ["produtos", "Produtos mais vendidos"],
+            ["influenciadores", "Influenciadores que deram resultado"],
+            ["prazo_reposicao", "Prazo de reposição"],
+            ["expectativas", "Expectativas vs Realidade"],
+          ].map(([key, label]) => (
+            <FieldRow key={key} label={label}>
+              <Textarea value={(extra as any)[key]} onChange={(e) => setE(key, e.target.value)} rows={2} className="bg-secondary border-border resize-none" />
+            </FieldRow>
+          ))}
         </Section>
 
         {/* Credenciais → Cofre */}

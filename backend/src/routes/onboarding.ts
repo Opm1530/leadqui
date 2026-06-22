@@ -29,7 +29,11 @@ router.get("/:clientId", async (req: AuthRequest, res: Response): Promise<void> 
 router.put("/:clientId", async (req: AuthRequest, res: Response): Promise<void> => {
   const client_id = String(req.params.clientId);
   const userId = req.user!.id;
-  const { store_name, store_link, audience } = req.body;
+  const {
+    store_name, store_link, audience,
+    drive_url, identidade_url, investimento, concorrentes, objetivos,
+    faturamento, produtos, influenciadores, prazo_reposicao, expectativas,
+  } = req.body;
   let credentials: any[] = Array.isArray(req.body.credentials) ? req.body.credentials : [];
   let checklist: any[] = Array.isArray(req.body.checklist) ? req.body.checklist : [];
 
@@ -98,7 +102,22 @@ router.put("/:clientId", async (req: AuthRequest, res: Response): Promise<void> 
       credentials: JSON.stringify(credentials),
       checklist: JSON.stringify(checklist),
       traffic_campaign_id: trafficCampaignId,
+      drive_url: drive_url || null,
+      identidade_url: identidade_url || null,
+      investimento: investimento || null,
+      concorrentes: concorrentes || null,
+      objetivos: objetivos || null,
+      faturamento: faturamento || null,
+      produtos: produtos || null,
+      influenciadores: influenciadores || null,
+      prazo_reposicao: prazo_reposicao || null,
+      expectativas: expectativas || null,
     };
+
+    // Sincroniza o link do Drive no cadastro do cliente
+    if (drive_url !== undefined) {
+      await prisma.client.update({ where: { id: client_id }, data: { drive_url: drive_url || null } }).catch(() => {});
+    }
     const ob = await (prisma as any).onboarding.upsert({
       where: { client_id }, create: { client_id, ...data }, update: data,
     });

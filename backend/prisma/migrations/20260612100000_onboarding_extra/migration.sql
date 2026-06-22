@@ -1,0 +1,11 @@
+-- Campos adicionais do briefing de onboarding
+ALTER TABLE "onboardings" ADD COLUMN "drive_url" TEXT;
+ALTER TABLE "onboardings" ADD COLUMN "identidade_url" TEXT;
+ALTER TABLE "onboardings" ADD COLUMN "investimento" TEXT;
+ALTER TABLE "onboardings" ADD COLUMN "concorrentes" TEXT;
+ALTER TABLE "onboardings" ADD COLUMN "objetivos" TEXT;
+ALTER TABLE "onboardings" ADD COLUMN "faturamento" TEXT;
+ALTER TABLE "onboardings" ADD COLUMN "produtos" TEXT;
+ALTER TABLE "onboardings" ADD COLUMN "influenciadores" TEXT;
+ALTER TABLE "onboardings" ADD COLUMN "prazo_reposicao" TEXT;
+ALTER TABLE "onboardings" ADD COLUMN "expectativas" TEXT;

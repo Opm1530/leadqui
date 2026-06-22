@@ -300,6 +300,17 @@ model Onboarding {
   credentials String?  // JSON: [{ label, email, password, vault_id? }]
   checklist   String?  // JSON: [{ text, done, task_id? }]
   traffic_campaign_id String? // campanha/briefing criada no tráfego
+  // Campos adicionais do briefing
+  drive_url        String?
+  identidade_url   String?
+  investimento     String?
+  concorrentes     String?
+  objetivos        String?
+  faturamento      String?
+  produtos         String?
+  influenciadores  String?
+  prazo_reposicao  String?
+  expectativas     String?
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
