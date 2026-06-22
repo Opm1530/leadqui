@@ -12,13 +12,10 @@ import {
   Briefcase,
   LayoutDashboard,
   MessageSquare,
-  Share2,
-  Database,
   ArrowLeft,
   Kanban,
   Rocket,
   ShieldAlert,
-  Zap,
   DollarSign,
   Receipt,
   TrendingDown,
@@ -41,9 +38,6 @@ const leadquiItems = [
   { to: "/crm", icon: MessageSquare, label: "CRM" },
   { to: "/tags", icon: Hash, label: "Tags" },
   { to: "/clients", icon: Briefcase, label: "Clientes" },
-  { to: "/extractions", icon: Database, label: "Extração de Leads" },
-  { to: "/campaigns", icon: Share2, label: "Campanhas" },
-  { to: "/instances", icon: Zap,  label: "Instâncias"        },
   { to: "/vault",     icon: Lock, label: "Cofre de Senhas"   },
 ];
 

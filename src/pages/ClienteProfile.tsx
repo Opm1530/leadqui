@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
+import ClientTaskBoard from "@/components/ClientTaskBoard";
 import {
   ArrowLeft, Loader2, Building2, FolderOpen, Kanban, ClipboardList, Plus, Check,
   DollarSign, Lock, Eye, Star, ListTodo, Receipt, CalendarClock, Instagram, Facebook, BarChart2, MessageSquare,
@@ -42,6 +43,8 @@ const ClienteProfile = () => {
   const [rules, setRules] = useState<any[]>([]);
   const [analyses, setAnalyses] = useState<any[]>([]);
   const [onboarding, setOnboarding] = useState<any>(null);
+  const [team, setTeam] = useState<any[]>([]);
+  const reloadTasks = () => api.get(`/api/tasqui/tasks?clientId=${id}`).then(setTasks).catch(() => {});
 
   const loadConnection = () => api.get(`/api/techqui/connections`).then(d => setConnection((d.connections || []).find((c: any) => c.client_id === id) || null)).catch(() => {});
 
@@ -50,6 +53,7 @@ const ClienteProfile = () => {
       try {
         const d = await api.get("/api/clients");
         setClient((d.clients || []).find((c: any) => c.id === id) || null);
+        api.get("/api/teamqui").then(t => setTeam(t.users || t || [])).catch(() => {});
       } finally { setLoading(false); }
     })();
   }, [id]);
@@ -127,7 +131,7 @@ const ClienteProfile = () => {
         </div>
       )}
 
-      {tab === "tarefas" && <TarefasTab clientId={id!} tasks={tasks} setTasks={setTasks} navigate={navigate} />}
+      {tab === "tarefas" && <ClientTaskBoard clientId={id!} tasks={tasks} setTasks={setTasks} team={team} reload={reloadTasks} />}
       {tab === "financas" && <FinancasTab clientId={id!} invoices={invoices} setInvoices={setInvoices} toast={toast} navigate={navigate} />}
       {tab === "senhas" && <SenhasTab vault={vault} navigate={navigate} />}
       {tab === "calendario" && (
@@ -336,44 +340,6 @@ const Stat = ({ icon: Icon, label, value, color }: any) => (
   </div>
 );
 
-// ── Tarefas embutidas ──────────────────────────────────────────────────
-const TarefasTab = ({ clientId, tasks, setTasks, navigate }: any) => {
-  const [novo, setNovo] = useState("");
-  const add = async () => {
-    if (!novo.trim()) return;
-    const t = await api.post("/api/tasqui/tasks", { title: novo.trim(), client_id: clientId, priority: "MEDIA" });
-    setTasks((p: any[]) => [...p, t]); setNovo("");
-  };
-  const toggle = async (t: any) => {
-    const status = t.status === "CONCLUIDO" ? "PENDENTE" : "CONCLUIDO";
-    setTasks((p: any[]) => p.map(x => x.id === t.id ? { ...x, status } : x));
-    await api.patch(`/api/tasqui/tasks/${t.id}`, { status }).catch(() => {});
-  };
-  return (
-    <div className="rounded-2xl border border-border bg-card/40 p-4">
-      <div className="flex justify-between items-center mb-3">
-        <h2 className="text-sm font-semibold text-foreground">Tarefas</h2>
-        <button onClick={() => navigate(`/tasqui/cliente/${clientId}`)} className="text-xs text-primary hover:underline">abrir quadro completo</button>
-      </div>
-      <div className="space-y-1.5">
-        {tasks.length === 0 && <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma tarefa.</p>}
-        {tasks.map((t: any) => (
-          <div key={t.id} className="flex items-center gap-2 bg-secondary/40 rounded-lg px-2 py-1.5">
-            <button onClick={() => toggle(t)} className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${t.status === "CONCLUIDO" ? "bg-green-600 border-green-600" : "border-muted-foreground/40"}`}>
-              {t.status === "CONCLUIDO" && <Check className="w-3 h-3 text-white" />}
-            </button>
-            <span className={`flex-1 text-sm ${t.status === "CONCLUIDO" ? "line-through text-muted-foreground" : "text-foreground"}`}>{t.title}</span>
-            {t.responsible?.name && <span className="text-[11px] text-muted-foreground">{t.responsible.name}</span>}
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-2 mt-3">
-        <Input value={novo} onChange={e => setNovo(e.target.value)} onKeyDown={e => { if (e.key === "Enter") add(); }} placeholder="Nova tarefa..." className="bg-secondary border-border text-sm" />
-        <Button onClick={add} className="gradient-button"><Plus className="w-4 h-4" /></Button>
-      </div>
-    </div>
-  );
-};
 
 // ── Finanças embutidas ──────────────────────────────────────────────────
 const FinancasTab = ({ invoices, setInvoices, toast, navigate }: any) => {
