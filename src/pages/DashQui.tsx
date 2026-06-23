@@ -1,18 +1,42 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
-import { ArrowLeft, Loader2, ListTodo, CalendarClock, TrendingUp, TrendingDown, Wallet } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/hooks/useRole";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Loader2, ListTodo, CalendarClock, TrendingUp, TrendingDown, Wallet, Check } from "lucide-react";
 
 const brl = (n: number) => (n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const DashQui = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isAdmin } = useRole();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [taskModal, setTaskModal] = useState(false);
+  const [allTasks, setAllTasks] = useState<any[]>([]);
+  const [filterUser, setFilterUser] = useState("all");
 
   useEffect(() => {
-    api.get("/api/dashqui").then(setData).catch(() => {}).finally(() => setLoading(false));
+    api.get("/api/dashqui").then(d => { setData(d); setAllTasks(d.tasks || []); }).catch(() => {}).finally(() => setLoading(false));
   }, []);
+
+  // Admin vê todas + filtra; não-admin vê só as próprias
+  const visibleTasks = allTasks.filter((t: any) => {
+    if (!isAdmin) return t.responsible?.id === user?.id;
+    if (filterUser === "all") return true;
+    if (filterUser === "none") return !t.responsible?.id;
+    return t.responsible?.id === filterUser;
+  });
+
+  const responsaveis = Array.from(new Map(allTasks.filter((t: any) => t.responsible?.id).map((t: any) => [t.responsible.id, t.responsible])).values());
+
+  const concluir = async (t: any) => {
+    setAllTasks(p => p.map(x => x.id === t.id ? { ...x, status: x.status === "CONCLUIDO" ? "PENDENTE" : "CONCLUIDO" } : x));
+    await api.patch(`/api/tasqui/tasks/${t.id}`, { status: t.status === "CONCLUIDO" ? "PENDENTE" : "CONCLUIDO" }).catch(() => {});
+  };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
 
@@ -31,11 +55,54 @@ const DashQui = () => {
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center">
           <Wallet className="w-5 h-5 text-white" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-foreground">DashQui</h1>
           <p className="text-muted-foreground text-sm capitalize">{hoje}</p>
         </div>
+        <button onClick={() => setTaskModal(true)} title="Tarefas do dia"
+          className="relative p-2.5 rounded-xl bg-secondary border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/70 transition-colors">
+          <ListTodo className="w-5 h-5" />
+          {visibleTasks.filter(t => t.status !== "CONCLUIDO").length > 0 && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
+              {visibleTasks.filter(t => t.status !== "CONCLUIDO").length}
+            </span>
+          )}
+        </button>
       </div>
+
+      {/* Modal tarefas do dia */}
+      <Dialog open={taskModal} onOpenChange={setTaskModal}>
+        <DialogContent className="bg-card border-border max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Tarefas do dia</DialogTitle></DialogHeader>
+          {isAdmin && (
+            <Select value={filterUser} onValueChange={setFilterUser}>
+              <SelectTrigger className="bg-secondary border-border h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os responsáveis</SelectItem>
+                <SelectItem value="none">Sem responsável</SelectItem>
+                {responsaveis.map((u: any) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          <div className="space-y-1.5 pt-2">
+            {visibleTasks.length === 0 && <p className="text-sm text-muted-foreground py-6 text-center">Nenhuma tarefa para hoje. 🎉</p>}
+            {visibleTasks.map((t: any) => {
+              const done = t.status === "CONCLUIDO";
+              return (
+                <div key={t.id} className="flex items-center gap-2 bg-secondary/40 rounded-lg px-3 py-2">
+                  <button onClick={() => concluir(t)} className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 ${done ? "bg-green-600 border-green-600" : "border-muted-foreground/40 hover:border-green-500"}`}>
+                    {done && <Check className="w-3.5 h-3.5 text-white" />}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>{t.title}</p>
+                    <p className="text-[11px] text-muted-foreground">{t.client?.name || "—"}{t.responsible?.name ? ` · ${t.responsible.name}` : ""}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Finanças do dia */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
