@@ -723,6 +723,49 @@ router.get("/ads/campaigns/:connectionId", authenticateJWT, async (req: AuthRequ
   }
 });
 
+// ── Saúde da conexão (token) ──────────────────────────────────────────
+router.get("/connections/:id/health", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { id: String(req.params.id) } });
+    if (!conn) { res.status(404).json({ error: "Conexão não encontrada" }); return; }
+    const token = conn.access_token || conn.page_access_token || conn.ig_access_token;
+    if (!token) { res.json({ ok: false, error: "Sem token salvo" }); return; }
+    try {
+      await axios.get("https://graph.facebook.com/v20.0/me", { params: { access_token: token, fields: "id" } });
+      // Verifica se o token de anúncios ainda acessa a conta
+      let adsOk = true;
+      if (conn.ad_account_id) {
+        try { await axios.get(`https://graph.facebook.com/v20.0/${conn.ad_account_id}`, { params: { access_token: token, fields: "id,name" } }); }
+        catch { adsOk = false; }
+      }
+      res.json({ ok: true, ads_ok: adsOk });
+    } catch (e: any) {
+      res.json({ ok: false, error: e.response?.data?.error?.message || e.message });
+    }
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Ação de escrita numa campanha (pausar/ativar/orçamento) ───────────
+router.post("/ads/campaigns/:connectionId/action", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  const { campaign_id, action, daily_budget } = req.body;
+  try {
+    const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { id: String(req.params.connectionId) } });
+    if (!conn?.access_token) { res.status(400).json({ error: "Conexão sem token" }); return; }
+    if (!campaign_id) { res.status(400).json({ error: "campaign_id obrigatório" }); return; }
+
+    const params: any = { access_token: conn.access_token };
+    if (action === "pause") params.status = "PAUSED";
+    else if (action === "activate") params.status = "ACTIVE";
+    else if (action === "budget") params.daily_budget = String(Math.round(Number(daily_budget) * 100)); // Meta usa centavos
+    else { res.status(400).json({ error: "Ação inválida" }); return; }
+
+    await axios.post(`https://graph.facebook.com/v20.0/${campaign_id}`, null, { params });
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.response?.data?.error?.message || e.message });
+  }
+});
+
 // ── Comentários: Regras ───────────────────────────────────────────────
 router.get("/comments/rules", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
   const { client_id } = req.query;

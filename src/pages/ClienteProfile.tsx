@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import api from "@/lib/api";
 import ClientTaskBoard from "@/components/ClientTaskBoard";
 import ClientCalendar from "@/components/ClientCalendar";
+import AdsManager from "@/components/AdsManager";
 import {
   ArrowLeft, Loader2, Building2, FolderOpen, Kanban, ClipboardList, Plus, Check,
   DollarSign, Lock, Eye, Star, ListTodo, Receipt, CalendarClock, Instagram, Facebook, BarChart2, MessageSquare,
@@ -142,25 +143,7 @@ const ClienteProfile = () => {
 
       {tab === "conexoes" && <ConexoesTab clientId={id!} connection={connection} reload={loadConnection} toast={toast} />}
 
-      {tab === "ads" && (
-        <div className="rounded-2xl border border-border bg-card/40 p-4">
-          <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2"><BarChart2 className="w-4 h-4 text-blue-400" /> Meta Ads</h2>
-          {!connection ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">Conecte a conta Meta na aba Conexões para ver as campanhas.</p>
-          ) : analyses.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma análise de campanha ainda. O agente roda automaticamente 6h e 18h.</p>
-          ) : (
-            <div className="space-y-1.5 max-h-96 overflow-y-auto">
-              {analyses.map((a: any) => (
-                <div key={a.id} className="bg-secondary/40 rounded-lg px-3 py-2 text-sm text-foreground">
-                  <p className="text-[11px] text-muted-foreground">{new Date(a.created_at).toLocaleDateString("pt-BR")}</p>
-                  {a.summary || a.resumo || "Análise"}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {tab === "ads" && <AdsManager clientId={id!} connection={connection} />}
 
       {tab === "autoreply" && <AutoReplyTab clientId={id!} connection={connection} rules={rules} setRules={setRules} toast={toast} />}
 
@@ -211,6 +194,17 @@ const ClienteProfile = () => {
 
 // ── Conexões (Instagram + Facebook) ────────────────────────────────────
 const ConexoesTab = ({ clientId, connection, reload, toast }: any) => {
+  const [health, setHealth] = useState<any>(null);
+  const [checking, setChecking] = useState(false);
+  const verificar = async () => {
+    if (!connection) return;
+    setChecking(true);
+    try { const d = await api.get(`/api/techqui/connections/${connection.id}/health`); setHealth(d); }
+    catch { setHealth({ ok: false, error: "Falha ao verificar" }); }
+    finally { setChecking(false); }
+  };
+  useEffect(() => { if (connection) verificar(); }, [connection?.id]);
+
   const conectar = async (rede: "facebook" | "instagram") => {
     try {
       const url = rede === "instagram"
@@ -237,7 +231,20 @@ const ConexoesTab = ({ clientId, connection, reload, toast }: any) => {
   const fbOn = !!connection?.page_name || !!connection?.page_id;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="space-y-3">
+      {/* Saúde da conexão */}
+      {connection && (
+        <div className={`rounded-xl border p-3 flex items-center justify-between ${health?.ok ? "border-green-500/20 bg-green-500/5" : health && !health.ok ? "border-red-500/20 bg-red-500/5" : "border-border bg-card/40"}`}>
+          <div className="text-sm">
+            {checking ? <span className="text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Verificando token...</span>
+              : health?.ok ? <span className="text-green-400">✓ Conexão saudável{health.ads_ok === false ? " · ⚠️ sem acesso à conta de anúncios" : ""}</span>
+              : health ? <span className="text-red-400">✗ Token com problema — reconecte. <span className="text-muted-foreground">({health.error})</span></span>
+              : <span className="text-muted-foreground">—</span>}
+          </div>
+          <button onClick={verificar} className="text-xs text-primary hover:underline">verificar</button>
+        </div>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {/* Instagram */}
       <div className="rounded-2xl border border-border bg-card/40 p-5">
         <div className="flex items-center gap-2 mb-3">
@@ -273,6 +280,7 @@ const ConexoesTab = ({ clientId, connection, reload, toast }: any) => {
             Conectar Facebook
           </button>
         )}
+      </div>
       </div>
     </div>
   );
