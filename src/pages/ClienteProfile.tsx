@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import AdsManager from "@/components/AdsManager";
 import ClientFiles from "@/components/ClientFiles";
 import {
   ArrowLeft, Loader2, Building2, FolderOpen, Kanban, ClipboardList, Plus, Check,
-  DollarSign, Lock, Eye, Star, ListTodo, Receipt, CalendarClock, Instagram, Facebook, BarChart2, MessageSquare,
+  DollarSign, Lock, Eye, Star, ListTodo, Receipt, CalendarClock, Instagram, Facebook, BarChart2, MessageSquare, Trash2,
 } from "lucide-react";
 
 const brl = (n: number) => (n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -27,6 +27,7 @@ const TABS = [
   { id: "autoreply", label: "Auto-reply", icon: MessageSquare },
   { id: "financas", label: "Finanças", icon: DollarSign },
   { id: "senhas", label: "Senhas", icon: Lock },
+  { id: "contrato", label: "Contrato", icon: Receipt },
   { id: "arquivos", label: "Arquivos", icon: FolderOpen },
   { id: "influencers", label: "Influencers", icon: Star },
   { id: "dados", label: "Dados", icon: ClipboardList },
@@ -142,6 +143,7 @@ const ClienteProfile = () => {
       {tab === "financas" && <FinancasTab clientId={id!} invoices={invoices} setInvoices={setInvoices} toast={toast} navigate={navigate} />}
       {tab === "senhas" && <SenhasTab vault={vault} navigate={navigate} />}
       {tab === "arquivos" && <ClientFiles clientId={id!} />}
+      {tab === "contrato" && <ContratoTab clientId={id!} client={client} toast={toast} />}
       {tab === "calendario" && <ClientCalendar clientId={id!} />}
 
       {tab === "conexoes" && <ConexoesTab clientId={id!} connection={connection} reload={loadConnection} toast={toast} />}
@@ -419,6 +421,75 @@ const InfluencersTab = ({ clientId, partnerships, setPartnerships, navigate, toa
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+};
+
+// ── Contrato (detalhes + documentos) ────────────────────────────────────
+const ContratoTab = ({ clientId, client, toast }: any) => {
+  const c = client.contract;
+  const [folderId, setFolderId] = useState<string | null>(null);
+  const [docs, setDocs] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    (async () => {
+      const d = await api.get(`/api/files/folders?client_id=${clientId}`).catch(() => ({ folders: [] }));
+      let f = (d.folders || []).find((x: any) => x.name === "Contrato");
+      if (!f) { const r = await api.post("/api/files/folders", { client_id: clientId, name: "Contrato" }).catch(() => null); f = r?.folder; }
+      if (f) { setFolderId(f.id); api.get(`/api/files?client_id=${clientId}&folder_id=${f.id}`).then(x => setDocs(x.files || [])).catch(() => {}); }
+    })();
+  }, [clientId]);
+
+  const upload = async (e: any) => {
+    const file = e.target.files?.[0]; if (!file || !folderId) return;
+    setUploading(true);
+    try {
+      const fd = new FormData(); fd.append("file", file); fd.append("client_id", clientId); fd.append("folder_id", folderId);
+      const d = await api.post("/api/files", fd); setDocs(p => [d.file, ...p]);
+    } catch { toast({ title: "Erro ao enviar", variant: "destructive" }); }
+    finally { setUploading(false); e.target.value = ""; }
+  };
+  const baixar = (f: any) => {
+    const token = localStorage.getItem("pequi_token");
+    fetch(`/api/files/${f.id}/download`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.blob()).then(b => window.open(URL.createObjectURL(b), "_blank")).catch(() => {});
+  };
+  const del = async (f: any) => { await api.delete(`/api/files/${f.id}`).catch(() => {}); setDocs(p => p.filter(x => x.id !== f.id)); };
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-border bg-card/40 p-5">
+        <h2 className="text-sm font-semibold text-foreground mb-3">Dados do contrato</h2>
+        {c ? (
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div><p className="text-[11px] text-muted-foreground uppercase tracking-wider">Valor</p><p className="text-foreground font-semibold">{brl(c.value)}{c.duration ? "/mês" : ""}</p></div>
+            <div><p className="text-[11px] text-muted-foreground uppercase tracking-wider">Duração</p><p className="text-foreground">{c.duration ? `${c.duration} meses` : "—"}</p></div>
+            <div><p className="text-[11px] text-muted-foreground uppercase tracking-wider">Início</p><p className="text-foreground">{c.start_date ? new Date(c.start_date).toLocaleDateString("pt-BR") : "—"}</p></div>
+            <div><p className="text-[11px] text-muted-foreground uppercase tracking-wider">Responsável</p><p className="text-foreground">{c.responsible || "—"}</p></div>
+          </div>
+        ) : <p className="text-sm text-muted-foreground">Sem contrato cadastrado. Edite o cliente para adicionar.</p>}
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card/40 p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-foreground">Documento do contrato</h2>
+          <input ref={ref} type="file" onChange={upload} className="hidden" />
+          <Button onClick={() => ref.current?.click()} disabled={uploading} size="sm" className="gradient-button gap-2">
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />} Enviar contrato
+          </Button>
+        </div>
+        {docs.length === 0 ? <p className="text-sm text-muted-foreground py-3 text-center">Nenhum documento anexado.</p> : (
+          <div className="space-y-1.5">
+            {docs.map(f => (
+              <div key={f.id} className="flex items-center gap-2 bg-secondary/40 rounded-lg px-3 py-2">
+                <button onClick={() => baixar(f)} className="flex-1 min-w-0 text-left text-sm text-foreground truncate hover:text-primary">{f.name}</button>
+                <button onClick={() => del(f)} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

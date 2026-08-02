@@ -302,6 +302,7 @@ model ClientFile {
   client_id   String
   user_id     String   // quem subiu
   task_id     String?  // anexo de uma tarefa (opcional)
+  folder_id   String?  // pasta (opcional)
   name        String   // nome original
   key         String   // chave no bucket
   size        Int      @default(0)
@@ -311,6 +312,15 @@ model ClientFile {
   client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
 
   @@map("client_files")
+}
+
+model ClientFolder {
+  id         String   @id @default(uuid())
+  client_id  String
+  name       String
+  created_at DateTime @default(now())
+
+  @@map("client_folders")
 }
 
 // Formulário de onboarding do cliente (preenchido pela equipe)
