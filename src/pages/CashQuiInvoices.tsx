@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Plus, CheckCircle2, Clock, AlertCircle, XCircle, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -49,14 +49,36 @@ const CashQuiInvoices = () => {
     load();
   }, []);
 
-  const markPaid = async (id: string) => {
+  const comprovanteRef = useRef<HTMLInputElement>(null);
+  const [pendingClient, setPendingClient] = useState<string | null>(null);
+
+  const markPaid = async (inv: any) => {
     try {
-      await api.put(`/api/cashqui/invoices/${id}`, { status: "PAGO", paid_date: new Date().toISOString() });
+      await api.put(`/api/cashqui/invoices/${inv.id}`, { status: "PAGO", paid_date: new Date().toISOString() });
       toast({ title: "Fatura marcada como paga!" });
       load();
+      if (inv.client_id && confirm("Deseja adicionar o comprovante de pagamento?")) {
+        setPendingClient(inv.client_id);
+        comprovanteRef.current?.click();
+      }
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
+  };
+
+  const enviarComprovante = async (e: any) => {
+    const file = e.target.files?.[0]; const client_id = pendingClient;
+    e.target.value = ""; setPendingClient(null);
+    if (!file || !client_id) return;
+    try {
+      // Garante a pasta "Comprovantes"
+      const d = await api.get(`/api/files/folders?client_id=${client_id}`).catch(() => ({ folders: [] }));
+      let f = (d.folders || []).find((x: any) => x.name === "Comprovantes");
+      if (!f) { const r = await api.post("/api/files/folders", { client_id, name: "Comprovantes" }).catch(() => null); f = r?.folder; }
+      const fd = new FormData(); fd.append("file", file); fd.append("client_id", client_id); if (f) fd.append("folder_id", f.id);
+      await api.post("/api/files", fd);
+      toast({ title: "Comprovante anexado!" });
+    } catch (err: any) { toast({ title: "Erro ao anexar", description: err.message, variant: "destructive" }); }
   };
 
   const deleteInvoice = async (id: string) => {
@@ -91,6 +113,7 @@ const CashQuiInvoices = () => {
 
   return (
     <div className="p-6 space-y-6">
+      <input ref={comprovanteRef} type="file" onChange={enviarComprovante} className="hidden" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-foreground">Faturas</h1>
@@ -163,7 +186,7 @@ const CashQuiInvoices = () => {
                   </span>
                   <div className="flex gap-1">
                     {inv.status === "PENDENTE" || inv.status === "ATRASADO" ? (
-                      <Button size="sm" variant="outline" onClick={() => markPaid(inv.id)} className="text-green-400 border-green-500/30 hover:bg-green-500/10 text-xs h-8">
+                      <Button size="sm" variant="outline" onClick={() => markPaid(inv)} className="text-green-400 border-green-500/30 hover:bg-green-500/10 text-xs h-8">
                         Marcar pago
                       </Button>
                     ) : null}
