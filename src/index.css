@@ -4,23 +4,23 @@
 @tailwind utilities;
 @layer base {
   :root {
-    --background: 24 14% 5%;
-    --foreground: 40 30% 96%;
+    --background: 0 0% 4%;
+    --foreground: 40 12% 96%;
 
-    --card: 24 12% 9%;
-    --card-foreground: 40 30% 96%;
+    --card: 0 0% 9%;
+    --card-foreground: 40 12% 96%;
 
-    --popover: 24 12% 9%;
-    --popover-foreground: 40 30% 96%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 40 12% 96%;
 
     --primary: 33 96% 54%;
     --primary-foreground: 24 40% 8%;
 
-    --secondary: 26 12% 15%;
-    --secondary-foreground: 40 20% 90%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 90%;
 
-    --muted: 26 12% 13%;
-    --muted-foreground: 34 12% 58%;
+    --muted: 0 0% 13%;
+    --muted-foreground: 0 0% 60%;
 
     --accent: 33 96% 54%;
     --accent-foreground: 24 40% 8%;
@@ -28,28 +28,28 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 30 14% 18%;
-    --input: 30 14% 18%;
+    --border: 0 0% 17%;
+    --input: 0 0% 17%;
     --ring: 33 96% 54%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 24 14% 7%;
-    --sidebar-foreground: 40 20% 90%;
+    --sidebar-background: 0 0% 6%;
+    --sidebar-foreground: 0 0% 90%;
     --sidebar-primary: 33 96% 54%;
     --sidebar-primary-foreground: 24 40% 8%;
-    --sidebar-accent: 26 12% 13%;
-    --sidebar-accent-foreground: 40 30% 96%;
-    --sidebar-border: 26 12% 15%;
+    --sidebar-accent: 0 0% 13%;
+    --sidebar-accent-foreground: 40 12% 96%;
+    --sidebar-border: 0 0% 15%;
     --sidebar-ring: 33 96% 54%;
 
     /* Custom tokens */
     --gradient-primary: linear-gradient(135deg, hsl(33 96% 54%), hsl(45 95% 55%));
     --gradient-button: linear-gradient(135deg, hsl(30 95% 55%), hsl(45 95% 52%));
-    --gradient-surface: linear-gradient(135deg, hsl(26 14% 12%), hsl(24 14% 8%));
-    --glass-bg: hsl(24 12% 10% / 0.6);
-    --glass-border: hsl(40 30% 96% / 0.08);
-    --glass-shadow: 0 8px 32px hsl(24 30% 3% / 0.4);
+    --gradient-surface: linear-gradient(135deg, hsl(0 0% 11%), hsl(0 0% 7%));
+    --glass-bg: hsl(0 0% 10% / 0.6);
+    --glass-border: hsl(0 0% 96% / 0.08);
+    --glass-shadow: 0 8px 32px hsl(0 0% 2% / 0.4);
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
@@ -77,8 +77,8 @@
     pointer-events: none;
     z-index: -1;
     background:
-      radial-gradient(600px circle at 8% -5%, hsl(33 96% 54% / 0.10), transparent 60%),
-      radial-gradient(600px circle at 100% 105%, hsl(45 95% 55% / 0.05), transparent 55%);
+      radial-gradient(600px circle at 8% -5%, hsl(30 95% 50% / 0.10), transparent 60%),
+      radial-gradient(600px circle at 100% 105%, hsl(217 90% 55% / 0.10), transparent 60%);
   }
 }
 
