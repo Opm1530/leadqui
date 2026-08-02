@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
@@ -83,7 +84,7 @@ const Tarefas = () => {
     await api.patch(`/api/tasqui/tasks/${t.id}`, { status }).catch(() => load());
   };
   const remover = async (t: any) => {
-    if (!confirm(`Excluir "${t.title}"?`)) return;
+    if (!(await confirm(`Excluir "${t.title}"?`))) return;
     setTasks(p => p.filter(x => x.id !== t.id));
     await api.delete(`/api/tasqui/tasks/${t.id}`).catch(() => { toast({ title: "Erro ao excluir", variant: "destructive" }); load(); });
   };

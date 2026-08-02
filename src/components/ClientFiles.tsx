@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect, useRef } from "react";
 import { Loader2, Upload, Trash2, FileIcon, Download, Folder, FolderPlus, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,7 @@ export default function ClientFiles({ clientId }: { clientId: string }) {
     } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };
   const delPasta = async (f: any) => {
-    if (!confirm(`Excluir a pasta "${f.name}"? Os arquivos voltam para a raiz.`)) return;
+    if (!(await confirm(`Excluir a pasta "${f.name}"? Os arquivos voltam para a raiz.`))) return;
     await api.delete(`/api/files/folders/${f.id}`).catch(() => {});
     setFolders(p => p.filter(x => x.id !== f.id));
     if (current?.id === f.id) setCurrent(null);
@@ -72,7 +73,7 @@ export default function ClientFiles({ clientId }: { clientId: string }) {
   };
 
   const remover = async (f: any) => {
-    if (!confirm(`Excluir "${f.name}"?`)) return;
+    if (!(await confirm(`Excluir "${f.name}"?`))) return;
     try { await api.delete(`/api/files/${f.id}`); setFiles(p => p.filter(x => x.id !== f.id)); }
     catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };

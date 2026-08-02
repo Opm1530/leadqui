@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { 
@@ -101,7 +102,7 @@ const Teamqui = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja remover este membro?")) return;
+    if (!(await confirm("Tem certeza que deseja remover este membro?"))) return;
     try {
       await api.delete(`/api/teamqui/${id}`);
       toast({ title: "Removido", description: "Membro removido com sucesso." });

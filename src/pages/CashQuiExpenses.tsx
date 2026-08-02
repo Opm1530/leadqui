@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Plus, Trash2, Loader2, TrendingDown, Paperclip } from "lucide-react";
@@ -57,8 +58,8 @@ const CashQuiExpenses = () => {
 
   const receiptRef = useRef<HTMLInputElement>(null);
   const [pendingExpense, setPendingExpense] = useState<string | null>(null);
-  const askReceipt = (expenseId: string) => {
-    if (confirm("Deseja adicionar o comprovante deste pagamento?")) { setPendingExpense(expenseId); receiptRef.current?.click(); }
+  const askReceipt = async (expenseId: string) => {
+    if (await confirm("Deseja adicionar o comprovante deste pagamento?")) { setPendingExpense(expenseId); receiptRef.current?.click(); }
   };
   const enviarComprovante = async (e: any) => {
     const file = e.target.files?.[0]; const id = pendingExpense;

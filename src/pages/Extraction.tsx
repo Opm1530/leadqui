@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -72,7 +73,7 @@ const Extraction = () => {
   }, []);
 
   const handleDeleteHistory = async (id: string) => {
-    if (!confirm("Excluir esta extração do histórico?")) return;
+    if (!(await confirm("Excluir esta extração do histórico?"))) return;
     try {
       await api.delete(`/api/extractions/${id}`);
       setHistory((prev) => prev.filter((ex) => ex.id !== id));

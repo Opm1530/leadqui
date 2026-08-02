@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -256,7 +257,7 @@ const CredentialCard = ({ cred, canReveal, onEdit, onDelete, onAudit, toast }: a
   };
 
   const remove = async () => {
-    if (!confirm(`Excluir "${cred.title}"? Esta ação não pode ser desfeita.`)) return;
+    if (!(await confirm(`Excluir "${cred.title}"? Esta ação não pode ser desfeita.`))) return;
     setDeleting(true);
     try {
       await api.delete(`/api/vault/${cred.id}`);

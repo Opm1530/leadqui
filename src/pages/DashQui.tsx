@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
+import { askInvoiceReceipt } from "@/lib/receipts";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -34,6 +35,7 @@ const DashQui = () => {
     try {
       await api.put(`/api/cashqui/invoices/${inv.id}`, { status: "PAGO" });
       setData((d: any) => ({ ...d, finance: { ...d.finance, invoices_due: d.finance.invoices_due.map((i: any) => i.id === inv.id ? { ...i, status: "PAGO" } : i) } }));
+      await askInvoiceReceipt(inv.client_id).catch(() => {});
     } catch { /* */ }
   };
 

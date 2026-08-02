@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -67,7 +68,7 @@ const Influencers = () => {
   };
 
   const delInfluencer = async (inf: any) => {
-    if (!confirm(`Excluir ${inf.nome}? As parcerias dela também serão removidas.`)) return;
+    if (!(await confirm(`Excluir ${inf.nome}? As parcerias dela também serão removidas.`))) return;
     try { await api.delete(`/api/influencers/${inf.id}`); load(); }
     catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };
@@ -327,7 +328,7 @@ const PartnershipDetail = ({ partnership, onClose, onChange }: any) => {
     catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };
   const delPartnership = async () => {
-    if (!confirm("Excluir esta parceria?")) return;
+    if (!(await confirm("Excluir esta parceria?"))) return;
     await api.delete(`/api/influencers/partnerships/${p.id}`); onClose(); onChange();
   };
 

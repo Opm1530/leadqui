@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -231,7 +232,7 @@ const CRM = () => {
 
   const handleDeleteColumn = async (col: any) => {
     const colCards = cards.filter((c) => c.coluna_id === col.id);
-    if (!confirm(`Excluir a coluna "${col.nome}"${colCards.length > 0 ? ` e seus ${colCards.length} card(s)` : ""}?`)) return;
+    if (!(await confirm(`Excluir a coluna "${col.nome}"${colCards.length > 0 ? ` e seus ${colCards.length} card(s)` : ""}?`))) return;
     try {
       await api.delete(`/api/crm/columns/${col.id}`);
       setColumns((prev) => prev.filter((c) => c.id !== col.id));
@@ -333,7 +334,7 @@ const CRM = () => {
   };
 
   const handleRemoveCard = async (card: any) => {
-    if (!confirm("Remover este lead do CRM?")) return;
+    if (!(await confirm("Remover este lead do CRM?"))) return;
     try {
       await api.delete(`/api/crm/cards/${card.id}`);
       setCards((prev) => prev.filter((c) => c.id !== card.id));

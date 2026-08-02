@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect, useCallback } from "react";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -311,7 +312,7 @@ const ConnectionsTab = ({ clients, connections, onRefresh, toast }: any) => {
   };
 
   const remove = async (id: string, name: string) => {
-    if (!confirm(`Desvincular a conta Meta de "${name}"?`)) return;
+    if (!(await confirm(`Desvincular a conta Meta de "${name}"?`))) return;
     try {
       await api.delete(`/api/techqui/connections/${id}`);
       toast({ title: "Conta desvinculada" });
@@ -971,7 +972,7 @@ const CommentsTab = ({ connections, clients, selectedClient, toast }: any) => {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("Excluir esta regra?")) return;
+    if (!(await confirm("Excluir esta regra?"))) return;
     try { await api.delete(`/api/techqui/comments/rules/${id}`); load(); } catch {}
   };
 

@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -133,7 +134,7 @@ const Leads = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Excluir este lead?")) return;
+    if (!(await confirm("Excluir este lead?"))) return;
     try {
       await api.delete(`/api/leads/${id}`);
       toast({ title: "Lead excluído!" });
@@ -144,7 +145,7 @@ const Leads = () => {
   };
 
   const handleDeleteSelected = async () => {
-    if (!confirm(`Excluir ${selectedIds.size} lead(s)?`)) return;
+    if (!(await confirm(`Excluir ${selectedIds.size} lead(s)?`))) return;
     try {
       await Promise.all([...selectedIds].map((id) => api.delete(`/api/leads/${id}`)));
       setSelectedIds(new Set());

@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Plus, CheckCircle2, Clock, AlertCircle, XCircle, Trash2, Loader2 } from "lucide-react";
@@ -57,7 +58,7 @@ const CashQuiInvoices = () => {
       await api.put(`/api/cashqui/invoices/${inv.id}`, { status: "PAGO", paid_date: new Date().toISOString() });
       toast({ title: "Fatura marcada como paga!" });
       load();
-      if (inv.client_id && confirm("Deseja adicionar o comprovante de pagamento?")) {
+      if (inv.client_id && await confirm("Deseja adicionar o comprovante de pagamento?")) {
         setPendingClient(inv.client_id);
         comprovanteRef.current?.click();
       }

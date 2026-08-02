@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -48,7 +49,7 @@ const Clients = () => {
   );
 
   const handleDelete = async (client: any) => {
-    const confirmed = confirm(
+    const confirmed = await confirm(
       `Excluir "${client.name}"?\n\nIsso irá apagar permanentemente:\n• Projetos e tarefas\n• Calendário editorial\n• Campanhas de tráfego\n• Cofre de senhas\n• Conexões Meta\n\nO histórico de pagamentos (faturas) será preservado.\n\nEsta ação não pode ser desfeita.`
     );
     if (!confirmed) return;

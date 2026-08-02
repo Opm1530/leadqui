@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -92,7 +93,7 @@ const Campaigns = () => {
 
   const handleStop = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Parar o disparo desta campanha?")) return;
+    if (!(await confirm("Parar o disparo desta campanha?"))) return;
     try {
       await api.patch(`/api/campaigns/${id}/stop`, {});
       toast({ title: "Campanha parada", description: "O disparo foi interrompido." });
@@ -104,7 +105,7 @@ const Campaigns = () => {
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Tem certeza que deseja excluir esta campanha?")) return;
+    if (!(await confirm("Tem certeza que deseja excluir esta campanha?"))) return;
     try {
       await api.delete(`/api/campaigns/${id}`);
       setCampaigns(prev => prev.filter(c => c.id !== id));

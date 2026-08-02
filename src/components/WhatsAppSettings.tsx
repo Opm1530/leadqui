@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,7 +60,7 @@ const WhatsAppSettings = () => {
   };
 
   const remover = async (id: string) => {
-    if (!confirm("Excluir esta instância?")) return;
+    if (!(await confirm("Excluir esta instância?"))) return;
     try { await api.delete(`/api/instances/${id}`); setInstances(p => p.filter(i => i.id !== id)); }
     catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };

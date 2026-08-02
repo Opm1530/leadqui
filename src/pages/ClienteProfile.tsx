@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -7,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import api from "@/lib/api";
+import { askInvoiceReceipt } from "@/lib/receipts";
 import ClientTaskBoard from "@/components/ClientTaskBoard";
 import ClientCalendar from "@/components/ClientCalendar";
 import AdsManager from "@/components/AdsManager";
@@ -227,7 +229,7 @@ const ConexoesTab = ({ clientId, connection, reload, toast }: any) => {
     }
   };
   const desconectar = async () => {
-    if (!connection || !confirm("Desconectar a conta deste cliente?")) return;
+    if (!connection || !(await confirm("Desconectar a conta deste cliente?"))) return;
     try { await api.delete(`/api/techqui/connections/${connection.id}`); reload(); }
     catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };
@@ -509,6 +511,7 @@ const FinancasTab = ({ invoices, setInvoices, toast, navigate }: any) => {
     try {
       await api.put(`/api/cashqui/invoices/${inv.id}`, { status: "PAGO" });
       setInvoices((p: any[]) => p.map(x => x.id === inv.id ? { ...x, status: "PAGO" } : x));
+      await askInvoiceReceipt(inv.client_id).catch(() => {});
     } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };
   return (

@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -98,7 +99,7 @@ const TasquiTemplates = ({ embedded = false }: { embedded?: boolean }) => {
   };
 
   const handleDeleteTemplate = async (tpl: any) => {
-    if (!confirm(`Excluir template "${tpl.name}"? Isso não pode ser desfeito.`)) return;
+    if (!(await confirm(`Excluir template "${tpl.name}"? Isso não pode ser desfeito.`))) return;
     try {
       await api.delete(`/api/templates/${tpl.id}`);
       setTemplates(prev => prev.filter(t => t.id !== tpl.id));

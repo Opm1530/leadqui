@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -87,7 +88,7 @@ const Tags = () => {
 
   const handleDelete = async (tag: any, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Excluir a tag "${tag.nome}"?`)) return;
+    if (!(await confirm(`Excluir a tag "${tag.nome}"?`))) return;
     try {
       await api.delete(`/api/tags/${tag.id}`);
       toast({ title: "Tag excluída!" });

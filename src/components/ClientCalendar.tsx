@@ -1,3 +1,4 @@
+import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -147,7 +148,7 @@ function PostDetail({ post, onClose, onChanged, toast }: any) {
     catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };
   const remover = async () => {
-    if (!confirm("Remover este post?")) return;
+    if (!(await confirm("Remover este post?"))) return;
     try { await api.delete(`/api/tasqui/calendar/${post.id}`); onChanged(); }
     catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };
