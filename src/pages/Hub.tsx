@@ -224,7 +224,7 @@ const Hub = () => {
             </button>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="flex flex-wrap gap-8">
             {availableApps.map((app, i) => (
             <motion.div
               key={app.id}
@@ -232,7 +232,7 @@ const Hub = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
               onClick={() => { setActiveModule(app.id as any); navigate(app.route); }}
-              className="group relative cursor-pointer"
+              className="group relative cursor-pointer grow basis-full md:basis-[320px] min-w-0 md:min-w-[280px]"
             >
               <div className="absolute -inset-0.5 bg-gradient-to-r from-orange-500/20 to-blue-500/20 rounded-[2rem] blur opacity-0 group-hover:opacity-100 transition duration-500" />
               <div className="relative bg-[#111]/80 backdrop-blur-xl border border-white/10 p-10 rounded-[2rem] h-full flex flex-col justify-between hover:bg-[#151515] transition-all hover:border-white/20 group-active:scale-[0.98]">
