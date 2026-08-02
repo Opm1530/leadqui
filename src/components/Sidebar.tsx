@@ -110,9 +110,9 @@ const Sidebar = () => {
       default: items = [...leadquiItems]; break;
     }
 
-    // Gestor no CashQui: só Faturas (receber) e Despesas (pagamentos)
+    // Gestor no CashQui: Faturas (receber), Despesas e Despesas Fixas (pagamentos)
     if (isManager && activeModule === "cashqui") {
-      items = items.filter(item => ["/cashqui/invoices", "/cashqui/expenses"].includes(item.to));
+      items = items.filter(item => ["/cashqui/invoices", "/cashqui/expenses", "/cashqui/fixed-expenses"].includes(item.to));
     }
 
     // Filtrar configurações para operadores
