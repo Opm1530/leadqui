@@ -1,29 +1,27 @@
 import { useState } from "react";
-import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors, useDroppable } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Calendar, User, CheckCircle2, Circle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TaskCard } from "@/components/TaskCard";
 import { TaskDetailModal } from "@/components/TaskDetailModal";
 import api from "@/lib/api";
 
-const COLUMNS = [
-  { id: "PENDENTE",     label: "Pendente",     color: "text-yellow-400" },
-  { id: "EM_ANDAMENTO", label: "Em Andamento", color: "text-blue-400" },
-  { id: "REVISAO",      label: "Revisão",      color: "text-purple-400" },
-  { id: "CONCLUIDO",    label: "Concluído",    color: "text-green-400" },
+const STATUS = [
+  { id: "PENDENTE",     label: "Pendente",     color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20" },
+  { id: "EM_ANDAMENTO", label: "Em Andamento", color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
+  { id: "REVISAO",      label: "Revisão",      color: "text-purple-400 bg-purple-500/10 border-purple-500/20" },
+  { id: "CONCLUIDO",    label: "Concluído",    color: "text-green-400 bg-green-500/10 border-green-500/20" },
 ];
 
-function DropZone({ id }: { id: string }) {
-  const { setNodeRef, isOver } = useDroppable({ id });
-  return <div ref={setNodeRef} className={`h-12 rounded-xl border-2 border-dashed transition-all ${isOver ? "border-blue-500/50 bg-blue-500/5" : "border-transparent"}`} />;
-}
+const PRIORITY: Record<string, { label: string; color: string }> = {
+  BAIXA:   { label: "Baixa",   color: "text-slate-400 bg-slate-500/10 border-slate-500/20" },
+  MEDIA:   { label: "Média",   color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
+  ALTA:    { label: "Alta",    color: "text-orange-400 bg-orange-500/10 border-orange-500/20" },
+  URGENTE: { label: "Urgente", color: "text-red-400 bg-red-500/10 border-red-500/20" },
+};
 
 interface Props {
   clientId: string;
@@ -34,14 +32,12 @@ interface Props {
 }
 
 export default function ClientTaskBoard({ clientId, tasks, setTasks, team = [], reload }: Props) {
-  const [activeTask, setActiveTask] = useState<any>(null);
   const [selected, setSelected] = useState<any>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const emptyForm = { title: "", description: "", responsible_id: "", priority: "MEDIA", due_date: "" };
   const [form, setForm] = useState(emptyForm);
   const [attachments, setAttachments] = useState<File[]>([]);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const criar = async () => {
     if (!form.title.trim()) return;
@@ -55,7 +51,6 @@ export default function ClientTaskBoard({ clientId, tasks, setTasks, team = [], 
         priority: form.priority,
         due_date: form.due_date || null,
       });
-      // Sobe os anexos vinculados à tarefa
       for (const f of attachments) {
         const fd = new FormData();
         fd.append("file", f); fd.append("client_id", clientId); fd.append("task_id", t.id);
@@ -66,18 +61,20 @@ export default function ClientTaskBoard({ clientId, tasks, setTasks, team = [], 
     } finally { setCreating(false); }
   };
 
-  const onDragEnd = async (e: any) => {
-    const { active, over } = e;
-    setActiveTask(null);
-    if (!over) return;
-    const newStatus = over.id;
-    if (!COLUMNS.find(c => c.id === newStatus)) return;
-    const task = tasks.find(t => t.id === active.id);
-    if (task && task.status !== newStatus) {
-      setTasks((p: any[]) => p.map(t => t.id === active.id ? { ...t, status: newStatus } : t));
-      await api.patch(`/api/tasqui/tasks/${active.id}`, { status: newStatus }).catch(() => reload());
-    }
+  const changeStatus = async (task: any, newStatus: string) => {
+    if (task.status === newStatus) return;
+    setTasks((p: any[]) => p.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
+    await api.patch(`/api/tasqui/tasks/${task.id}`, { status: newStatus }).catch(() => reload());
   };
+
+  const toggleDone = async (task: any) => {
+    const newStatus = task.status === "CONCLUIDO" ? "PENDENTE" : "CONCLUIDO";
+    await changeStatus(task, newStatus);
+  };
+
+  // Ordena: abertas primeiro (por status), concluídas por último
+  const order = ["PENDENTE", "EM_ANDAMENTO", "REVISAO", "CONCLUIDO"];
+  const sorted = [...tasks].sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
 
   return (
     <div>
@@ -138,28 +135,48 @@ export default function ClientTaskBoard({ clientId, tasks, setTasks, team = [], 
         </DialogContent>
       </Dialog>
 
-      <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={e => setActiveTask(tasks.find(t => t.id === e.active.id))} onDragEnd={onDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {COLUMNS.map(col => {
-            const colTasks = tasks.filter(t => t.status === col.id);
-            return (
-              <div key={col.id} className="flex flex-col gap-3">
-                <div className="flex items-center justify-between px-1">
-                  <span className={`text-[10px] font-black tracking-[0.2em] uppercase ${col.color}`}>{col.label}</span>
-                  <Badge variant="outline" className="text-[9px] font-black bg-white/5 border-white/10">{colTasks.length}</Badge>
+      {/* Lista de tarefas */}
+      <div className="space-y-2">
+        {sorted.length === 0 && (
+          <p className="text-sm text-muted-foreground py-10 text-center">Nenhuma tarefa para este cliente.</p>
+        )}
+        {sorted.map(task => {
+          const done = task.status === "CONCLUIDO";
+          const prio = PRIORITY[task.priority] || PRIORITY.MEDIA;
+          const atrasada = !done && task.due_date && new Date(task.due_date) < new Date(new Date().setHours(0, 0, 0, 0));
+          const responsavel = team.find((u: any) => u.id === task.responsible_id) || task.responsible;
+          return (
+            <div key={task.id} className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3 hover:bg-white/[0.02] transition-colors">
+              <button onClick={() => toggleDone(task)} title={done ? "Reabrir" : "Concluir"} className="flex-shrink-0">
+                {done
+                  ? <CheckCircle2 className="w-5 h-5 text-green-500" />
+                  : <Circle className="w-5 h-5 text-muted-foreground hover:text-green-500 transition-colors" />}
+              </button>
+
+              <button onClick={() => setSelected(task)} className="flex-1 min-w-0 text-left">
+                <p className={`text-sm font-medium truncate ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>{task.title}</p>
+                <div className="flex items-center gap-3 mt-0.5 text-[11px] text-muted-foreground">
+                  {responsavel && <span className="flex items-center gap-1"><User className="w-3 h-3" /> {responsavel.name}</span>}
+                  {task.due_date && (
+                    <span className={`flex items-center gap-1 ${atrasada ? "text-red-400" : ""}`}>
+                      <Calendar className="w-3 h-3" /> {new Date(task.due_date).toLocaleDateString("pt-BR")}{atrasada && " · atrasada"}
+                    </span>
+                  )}
                 </div>
-                <div className="space-y-3 min-h-[120px]">
-                  <SortableContext items={colTasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                    {colTasks.map(task => <TaskCard key={task.id} task={task} onClick={setSelected} />)}
-                  </SortableContext>
-                  <DropZone id={col.id} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <DragOverlay>{activeTask && <div className="scale-105 opacity-80"><TaskCard task={activeTask} onClick={() => {}} /></div>}</DragOverlay>
-      </DndContext>
+              </button>
+
+              <span className={`hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${prio.color}`}>{prio.label}</span>
+
+              <Select value={task.status} onValueChange={(v) => changeStatus(task, v)}>
+                <SelectTrigger className="h-8 w-36 bg-secondary border-border text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {STATUS.map(s => <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          );
+        })}
+      </div>
 
       <TaskDetailModal task={selected} isOpen={!!selected} onClose={() => setSelected(null)} onUpdate={reload} team={team} />
     </div>
