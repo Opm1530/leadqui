@@ -9,7 +9,7 @@ const AppHeader = ({ extra, showHub = true }: { extra?: ReactNode; showHub?: boo
   const { user, signOut } = useAuth();
   return (
     <header className="relative z-30">
-      <div className="max-w-6xl mx-auto flex justify-between items-center px-6 py-3">
+      <div className="max-w-6xl mx-auto flex justify-between items-center px-6 pt-6 md:pt-10 pb-3">
         <button onClick={() => navigate("/hub")} className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-orange-400 to-yellow-400 shadow-lg shadow-orange-500/20">
             <Zap className="w-6 h-6 text-black fill-black" />
