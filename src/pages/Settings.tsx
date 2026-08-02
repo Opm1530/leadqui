@@ -29,6 +29,7 @@ const Settings = () => {
   const [apifyApiKey, setApifyApiKey] = useState("");
   const [openaiApiKey, setOpenaiApiKey] = useState("");
   const [anthropicApiKey, setAnthropicApiKey] = useState("");
+  const [r2, setR2] = useState({ account_id: "", access_key_id: "", secret_key: "", bucket: "" });
   const [notificationPhone, setNotificationPhone] = useState("");
   const [notificationInstance, setNotificationInstance] = useState("");
   const [notificationGroupId, setNotificationGroupId] = useState("");
@@ -62,6 +63,7 @@ const Settings = () => {
       setApifyApiKey(s.apify_api_key || "");
       setOpenaiApiKey(s.openai_api_key || "");
       setAnthropicApiKey(s.anthropic_api_key || "");
+      setR2({ account_id: s.r2_account_id || "", access_key_id: s.r2_access_key_id || "", secret_key: s.r2_secret_key || "", bucket: s.r2_bucket || "" });
       setNotificationPhone(s.notification_phone || "");
       setNotificationInstance(s.notification_instance || "");
       setNotificationGroupId(s.notification_group_id || "");
@@ -91,6 +93,10 @@ const Settings = () => {
         apify_api_key: apifyApiKey || null,
         openai_api_key: openaiApiKey || null,
         anthropic_api_key: anthropicApiKey || null,
+        r2_account_id: r2.account_id || null,
+        r2_access_key_id: r2.access_key_id || null,
+        r2_secret_key: r2.secret_key || null,
+        r2_bucket: r2.bucket || null,
         notification_phone: notificationPhone || null,
         notification_instance: notificationInstance || null,
         notification_group_id: notificationGroupId || null,
@@ -283,6 +289,17 @@ const Settings = () => {
               ].map(f => (
                 <div key={f.label} className="space-y-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">{f.label}</Label><Input type="password" value={f.value} onChange={e => f.set(e.target.value)} className="bg-secondary border-border" /></div>
               ))}
+            </div>
+
+            <div className="glass-card p-6 space-y-5">
+              <div className="flex items-center gap-2 mb-2"><Key className="w-5 h-5 text-cyan-400" /><h3 className="text-lg font-semibold text-foreground">Armazenamento (Cloudflare R2)</h3></div>
+              <p className="text-xs text-muted-foreground">Guarda os arquivos dos clientes. Pegue no painel Cloudflare → R2 → API Tokens.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">Account ID</Label><Input value={r2.account_id} onChange={e => setR2(v => ({ ...v, account_id: e.target.value }))} className="bg-secondary border-border" /></div>
+                <div className="space-y-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">Bucket</Label><Input value={r2.bucket} onChange={e => setR2(v => ({ ...v, bucket: e.target.value }))} className="bg-secondary border-border" /></div>
+                <div className="space-y-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">Access Key ID</Label><Input value={r2.access_key_id} onChange={e => setR2(v => ({ ...v, access_key_id: e.target.value }))} className="bg-secondary border-border" /></div>
+                <div className="space-y-2"><Label className="text-xs text-muted-foreground uppercase tracking-wider">Secret Access Key</Label><Input type="password" value={r2.secret_key} onChange={e => setR2(v => ({ ...v, secret_key: e.target.value }))} className="bg-secondary border-border" /></div>
+              </div>
             </div>
 
             <button type="submit" disabled={saving} className="gradient-button px-6 py-3 flex items-center gap-2 text-sm disabled:opacity-50">

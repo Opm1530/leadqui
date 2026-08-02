@@ -65,6 +65,11 @@ model UserSettings {
   notification_instance String?  // Nome da instância Evolution para enviar alertas
   notification_group_id   String?  // Grupo da equipe que recebe o boletim diário (ex: 123@g.us)
   notification_group_name String?  // Nome do grupo da equipe
+  // Armazenamento (Cloudflare R2 / S3)
+  r2_account_id      String?
+  r2_access_key_id   String?
+  r2_secret_key      String?
+  r2_bucket          String?
   created_at            DateTime @default(now())
   updated_at            DateTime @updatedAt
 
@@ -258,6 +263,7 @@ model Client {
   meta_connection  ClientMetaConnection?
   vault_credentials VaultCredential[]
   demands          Demand[]
+  files            ClientFile[]
   influencer_partnerships InfluencerPartnership[]
   onboarding       Onboarding?
 
@@ -288,6 +294,22 @@ enum DemandStatus {
   EM_ANDAMENTO
   RESOLVIDA
   DESCARTADA
+}
+
+// Arquivo armazenado (R2) vinculado a um cliente
+model ClientFile {
+  id          String   @id @default(uuid())
+  client_id   String
+  user_id     String   // quem subiu
+  name        String   // nome original
+  key         String   // chave no bucket
+  size        Int      @default(0)
+  mime        String?
+  created_at  DateTime @default(now())
+
+  client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@map("client_files")
 }
 
 // Formulário de onboarding do cliente (preenchido pela equipe)

@@ -9,8 +9,10 @@ const getToken = () => localStorage.getItem("pequi_token");
 
 const request = async (path: string, options: RequestInit = {}) => {
   const token = getToken();
+  const isForm = options.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    // Deixa o navegador definir o Content-Type (com boundary) quando for FormData
+    ...(isForm ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string>),
   };
 
@@ -31,7 +33,7 @@ const request = async (path: string, options: RequestInit = {}) => {
 export const api = {
   get: (path: string) => request(path),
   post: (path: string, data: any) =>
-    request(path, { method: "POST", body: JSON.stringify(data) }),
+    request(path, { method: "POST", body: data instanceof FormData ? data : JSON.stringify(data) }),
   put: (path: string, data: any) =>
     request(path, { method: "PUT", body: JSON.stringify(data) }),
   patch: (path: string, data: any) =>

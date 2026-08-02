@@ -10,6 +10,7 @@ import api from "@/lib/api";
 import ClientTaskBoard from "@/components/ClientTaskBoard";
 import ClientCalendar from "@/components/ClientCalendar";
 import AdsManager from "@/components/AdsManager";
+import ClientFiles from "@/components/ClientFiles";
 import {
   ArrowLeft, Loader2, Building2, FolderOpen, Kanban, ClipboardList, Plus, Check,
   DollarSign, Lock, Eye, Star, ListTodo, Receipt, CalendarClock, Instagram, Facebook, BarChart2, MessageSquare,
@@ -26,6 +27,7 @@ const TABS = [
   { id: "autoreply", label: "Auto-reply", icon: MessageSquare },
   { id: "financas", label: "Finanças", icon: DollarSign },
   { id: "senhas", label: "Senhas", icon: Lock },
+  { id: "arquivos", label: "Arquivos", icon: FolderOpen },
   { id: "influencers", label: "Influencers", icon: Star },
   { id: "dados", label: "Dados", icon: ClipboardList },
 ];
@@ -139,6 +141,7 @@ const ClienteProfile = () => {
       {tab === "tarefas" && <ClientTaskBoard clientId={id!} tasks={tasks} setTasks={setTasks} team={team} reload={reloadTasks} />}
       {tab === "financas" && <FinancasTab clientId={id!} invoices={invoices} setInvoices={setInvoices} toast={toast} navigate={navigate} />}
       {tab === "senhas" && <SenhasTab vault={vault} navigate={navigate} />}
+      {tab === "arquivos" && <ClientFiles clientId={id!} />}
       {tab === "calendario" && <ClientCalendar clientId={id!} />}
 
       {tab === "conexoes" && <ConexoesTab clientId={id!} connection={connection} reload={loadConnection} toast={toast} />}
