@@ -91,6 +91,34 @@ router.post("/", authenticateJWT, async (req: AuthRequest, res: Response): Promi
   }
 });
 
+// ── PATCH /api/teamqui/:id ── (atualiza cargo/posição) ────────────────
+router.patch("/:id", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  if (req.user?.role !== "ADMIN") {
+    res.status(403).json({ error: "Acesso negado" });
+    return;
+  }
+  const id = String(req.params.id);
+  const { role, position } = req.body;
+  if (role && !AGENCY_ROLES.includes(role)) {
+    res.status(400).json({ error: "Cargo inválido para equipe" });
+    return;
+  }
+  if (id === req.user!.id && role && role !== "ADMIN") {
+    res.status(400).json({ error: "Você não pode rebaixar o próprio cargo." });
+    return;
+  }
+  try {
+    const user = await prisma.user.update({
+      where: { id },
+      data: { ...(role && { role: role as any }), ...(position !== undefined && { position }) },
+      select: { id: true, name: true, email: true, role: true, position: true },
+    });
+    res.json(user);
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── DELETE /api/teamqui/:id ───────────────────────────────────────────
 router.delete("/:id", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
   if (req.user?.role !== "ADMIN") {

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useRole } from "@/hooks/useRole";
 import { 
   Dialog, 
   DialogContent, 
@@ -35,6 +36,19 @@ const Teamqui = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const { toast } = useToast();
+  const { isAdmin } = useRole();
+
+  const handleRoleChange = async (id: string, role: string) => {
+    const prev = team;
+    setTeam(t => t.map(m => m.id === id ? { ...m, role } : m));
+    try {
+      await api.patch(`/api/teamqui/${id}`, { role });
+      toast({ title: "Cargo atualizado!" });
+    } catch (e: any) {
+      setTeam(prev);
+      toast({ title: "Erro ao trocar cargo", description: e.message, variant: "destructive" });
+    }
+  };
 
   // Form state
   const [isAdding, setIsAdding] = useState(false);
@@ -233,14 +247,25 @@ const Teamqui = () => {
                   </div>
                 </td>
                 <td className="p-4">
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase border ${
-                    member.role === 'ADMIN' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
-                    member.role === 'MANAGER' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
-                    'bg-slate-500/10 text-slate-400 border-slate-500/20'
-                  }`}>
-                    {member.role === 'ADMIN' ? 'Administrador' : 
-                     member.role === 'MANAGER' ? 'Gestor' : 'Operador'}
-                  </span>
+                  {isAdmin ? (
+                    <Select value={member.role} onValueChange={(v) => handleRoleChange(member.id, v)}>
+                      <SelectTrigger className="h-8 w-36 bg-secondary border-border text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ADMIN">Administrador</SelectItem>
+                        <SelectItem value="MANAGER">Gestor</SelectItem>
+                        <SelectItem value="OPERATOR">Operador</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-black uppercase border ${
+                      member.role === 'ADMIN' ? 'bg-orange-500/10 text-orange-500 border-orange-500/20' :
+                      member.role === 'MANAGER' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
+                      'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                    }`}>
+                      {member.role === 'ADMIN' ? 'Administrador' :
+                       member.role === 'MANAGER' ? 'Gestor' : 'Operador'}
+                    </span>
+                  )}
                 </td>
                 <td className="p-4">
                   <div className="flex items-center gap-2 text-sm text-green-500">
