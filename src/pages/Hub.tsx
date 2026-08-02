@@ -120,6 +120,8 @@ const Hub = () => {
   const availableApps = allApps.filter(app => {
     if (isAdmin) return true;
     if (role === "OPERATOR") return ["clientes", "dashqui"].includes(app.id);
+    // Gestor não vê Assistente, Caixa de Demandas nem ViewQui
+    if (role === "MANAGER" && ["assistente", "demandas", "viewqui"].includes(app.id)) return false;
     if (app.adminOnly) return false;
     if (!app.serviceRequired) return true;
     
