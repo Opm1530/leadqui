@@ -4,6 +4,10 @@ import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth"
 import axios from "axios";
 import https from "https";
 import { dayDate } from "../lib/dates";
+import multer from "multer";
+import { uploadFile, getFile } from "../lib/storage";
+
+const receiptUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 const router = Router();
 router.use(authenticateJWT);
@@ -252,6 +256,32 @@ router.post("/expenses", async (req: AuthRequest, res: Response): Promise<void> 
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// Anexar comprovante a uma despesa
+router.post("/expenses/:id/receipt", receiptUpload.single("file"), async (req: AuthRequest, res: Response): Promise<void> => {
+  const file = (req as any).file;
+  if (!file) { res.status(400).json({ error: "Arquivo obrigatório" }); return; }
+  try {
+    const id = String(req.params.id);
+    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const key = `expenses/${id}/${Date.now()}-${safe}`;
+    await uploadFile(key, file.buffer, file.mimetype);
+    const expense = await (prisma as any).expense.update({ where: { id }, data: { receipt_key: key, receipt_name: file.originalname } });
+    res.json({ expense });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// Baixar comprovante da despesa
+router.get("/expenses/:id/receipt", async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const exp = await (prisma as any).expense.findUnique({ where: { id: String(req.params.id) } });
+    if (!exp?.receipt_key) { res.status(404).json({ error: "Sem comprovante" }); return; }
+    const { body, mime } = await getFile(exp.receipt_key);
+    res.setHeader("Content-Type", mime || "application/octet-stream");
+    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(exp.receipt_name || "comprovante")}"`);
+    (body as any).pipe(res);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 router.put("/expenses/:id", async (req: AuthRequest, res: Response): Promise<void> => {

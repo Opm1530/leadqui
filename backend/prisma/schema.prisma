@@ -751,6 +751,8 @@ model Expense {
   category    ExpenseCategory @default(OUTROS)
   date        DateTime
   fixed_expense_id String?    // origem: despesa fixa marcada como paga
+  receipt_key  String?        // comprovante no R2
+  receipt_name String?
   created_at  DateTime        @default(now())
   updated_at  DateTime        @updatedAt
 

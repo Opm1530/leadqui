@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { Plus, Trash2, Loader2, TrendingDown } from "lucide-react";
+import { Plus, Trash2, Loader2, TrendingDown, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -55,13 +55,30 @@ const CashQuiExpenses = () => {
 
   useEffect(() => { load(); }, [month, year]);
 
+  const receiptRef = useRef<HTMLInputElement>(null);
+  const [pendingExpense, setPendingExpense] = useState<string | null>(null);
+  const askReceipt = (expenseId: string) => {
+    if (confirm("Deseja adicionar o comprovante deste pagamento?")) { setPendingExpense(expenseId); receiptRef.current?.click(); }
+  };
+  const enviarComprovante = async (e: any) => {
+    const file = e.target.files?.[0]; const id = pendingExpense;
+    e.target.value = ""; setPendingExpense(null);
+    if (!file || !id) return;
+    try {
+      const fd = new FormData(); fd.append("file", file);
+      await api.post(`/api/cashqui/expenses/${id}/receipt`, fd);
+      toast({ title: "Comprovante anexado!" }); load();
+    } catch (err: any) { toast({ title: "Erro ao anexar", description: err.message, variant: "destructive" }); }
+  };
+
   const marcarPaga = async (fixa: any) => {
     setPaying(fixa.id);
     try {
-      await api.post(`/api/cashqui/fixed-expenses/${fixa.id}/pay`, {});
+      const d = await api.post(`/api/cashqui/fixed-expenses/${fixa.id}/pay`, {});
       toast({ title: "Pago!", description: `${fixa.description} registrada como despesa.` });
       setPending(p => p.filter(x => x.id !== fixa.id));
       load();
+      if (d.expense?.id) askReceipt(d.expense.id);
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     } finally { setPaying(null); }
@@ -84,11 +101,12 @@ const CashQuiExpenses = () => {
     }
     setSaving(true);
     try {
-      await api.post("/api/cashqui/expenses", form);
+      const d = await api.post("/api/cashqui/expenses", form);
       toast({ title: "Despesa registrada!" });
       setModalOpen(false);
       setForm({ description: "", amount: "", category: "OUTROS", date: new Date().toISOString().split("T")[0] });
       load();
+      if (d.expense?.id) askReceipt(d.expense.id);
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
@@ -108,6 +126,7 @@ const CashQuiExpenses = () => {
 
   return (
     <div className="p-6 space-y-6">
+      <input ref={receiptRef} type="file" onChange={enviarComprovante} className="hidden" />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-foreground">Despesas</h1>
@@ -211,6 +230,9 @@ const CashQuiExpenses = () => {
                 <div className="flex items-center gap-4 shrink-0">
                   <p className="text-xs text-muted-foreground hidden sm:block">{fmtDate(exp.date)}</p>
                   <p className="text-base font-black text-red-400">{fmt(exp.amount)}</p>
+                  {exp.receipt_key
+                    ? <button onClick={() => { const t = localStorage.getItem("pequi_token"); fetch(`/api/cashqui/expenses/${exp.id}/receipt`, { headers: { Authorization: `Bearer ${t}` } }).then(r => r.blob()).then(b => window.open(URL.createObjectURL(b), "_blank")); }} title="Ver comprovante" className="text-green-400 hover:text-green-300"><Paperclip className="w-4 h-4" /></button>
+                    : <button onClick={() => askReceipt(exp.id)} title="Anexar comprovante" className="text-muted-foreground hover:text-foreground"><Paperclip className="w-4 h-4" /></button>}
                   <Button size="sm" variant="ghost" onClick={() => handleDelete(exp.id)} className="text-muted-foreground hover:text-red-400 h-8 w-8 p-0">
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
