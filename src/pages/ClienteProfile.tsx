@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import api from "@/lib/api";
-import { askInvoiceReceipt } from "@/lib/receipts";
+import { askInvoiceReceipt, openInvoiceReceipt } from "@/lib/receipts";
 import ClientTaskBoard from "@/components/ClientTaskBoard";
 import ClientCalendar from "@/components/ClientCalendar";
 import AdsManager from "@/components/AdsManager";
@@ -510,9 +510,16 @@ const FinancasTab = ({ invoices, setInvoices, toast, navigate }: any) => {
   const marcarPago = async (inv: any) => {
     try {
       await api.put(`/api/cashqui/invoices/${inv.id}`, { status: "PAGO" });
-      setInvoices((p: any[]) => p.map(x => x.id === inv.id ? { ...x, status: "PAGO" } : x));
-      await askInvoiceReceipt(inv.client_id).catch(() => {});
+      const rname = await askInvoiceReceipt(inv.id).catch(() => null);
+      setInvoices((p: any[]) => p.map(x => x.id === inv.id ? { ...x, status: "PAGO", receipt_key: rname ? "1" : x.receipt_key, receipt_name: rname || x.receipt_name } : x));
     } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
+  };
+  const desmarcar = async (inv: any) => {
+    const aviso = inv.receipt_key ? "Ao desmarcar, o comprovante anexado será EXCLUÍDO. Continuar?" : "Desmarcar esta fatura como paga?";
+    if (!(await confirm({ title: "Desmarcar pagamento", description: aviso, danger: !!inv.receipt_key }))) return;
+    if (inv.receipt_key) await api.delete(`/api/cashqui/invoices/${inv.id}/receipt`).catch(() => {});
+    await api.put(`/api/cashqui/invoices/${inv.id}`, { status: "PENDENTE", paid_date: null }).catch(() => {});
+    setInvoices((p: any[]) => p.map(x => x.id === inv.id ? { ...x, status: "PENDENTE", receipt_key: null, receipt_name: null } : x));
   };
   return (
     <div className="rounded-2xl border border-border bg-card/40 p-4">
@@ -529,9 +536,14 @@ const FinancasTab = ({ invoices, setInvoices, toast, navigate }: any) => {
               <p className="text-[11px] text-muted-foreground">Venc.: {inv.due_date ? new Date(inv.due_date).toLocaleDateString("pt-BR") : "—"}</p>
             </div>
             <span className="text-sm font-semibold text-foreground">{brl(inv.amount)}</span>
-            {inv.status === "PAGO"
-              ? <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-300">Pago</span>
-              : <button onClick={() => marcarPago(inv)} className="text-[10px] px-2 py-1 rounded-full bg-secondary border border-border text-muted-foreground hover:text-green-400">Marcar pago</button>}
+            {inv.status === "PAGO" ? (
+              <div className="flex items-center gap-1">
+                {inv.receipt_key && <button onClick={() => openInvoiceReceipt(inv.id)} title="Ver comprovante" className="text-green-400 hover:text-green-300 p-1"><Receipt className="w-3.5 h-3.5" /></button>}
+                <button onClick={() => desmarcar(inv)} className="text-[10px] px-2 py-1 rounded-full bg-secondary border border-border text-muted-foreground hover:text-foreground">Desmarcar</button>
+              </div>
+            ) : (
+              <button onClick={() => marcarPago(inv)} className="text-[10px] px-2 py-1 rounded-full bg-secondary border border-border text-muted-foreground hover:text-green-400">Marcar pago</button>
+            )}
           </div>
         ))}
       </div>

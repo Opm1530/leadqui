@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
-import { askInvoiceReceipt } from "@/lib/receipts";
+import { askInvoiceReceipt, openInvoiceReceipt } from "@/lib/receipts";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, ListTodo, CalendarClock, TrendingUp, TrendingDown, Wallet, Check } from "lucide-react";
+import { ArrowLeft, Loader2, ListTodo, CalendarClock, TrendingUp, TrendingDown, Wallet, Check, Paperclip } from "lucide-react";
+import { confirm } from "@/components/ConfirmDialog";
 
 const brl = (n: number) => (n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -31,12 +32,20 @@ const DashQui = () => {
     await api.patch(`/api/tasqui/tasks/${t.id}`, { status: t.status === "CONCLUIDO" ? "PENDENTE" : "CONCLUIDO" }).catch(() => {});
   };
 
+  const reloadFinance = () => api.get("/api/dashqui").then(setData).catch(() => {});
   const marcarPago = async (inv: any) => {
     try {
       await api.put(`/api/cashqui/invoices/${inv.id}`, { status: "PAGO" });
-      setData((d: any) => ({ ...d, finance: { ...d.finance, invoices_due: d.finance.invoices_due.map((i: any) => i.id === inv.id ? { ...i, status: "PAGO" } : i) } }));
-      await askInvoiceReceipt(inv.client_id).catch(() => {});
+      await askInvoiceReceipt(inv.id).catch(() => {});
+      reloadFinance();
     } catch { /* */ }
+  };
+  const desmarcarPago = async (inv: any) => {
+    const aviso = inv.receipt_key ? "Ao desmarcar, o comprovante anexado será EXCLUÍDO. Continuar?" : "Desmarcar esta fatura como paga?";
+    if (!(await confirm({ title: "Desmarcar pagamento", description: aviso, danger: !!inv.receipt_key }))) return;
+    if (inv.receipt_key) await api.delete(`/api/cashqui/invoices/${inv.id}/receipt`).catch(() => {});
+    await api.put(`/api/cashqui/invoices/${inv.id}`, { status: "PENDENTE", paid_date: null }).catch(() => {});
+    reloadFinance();
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
@@ -108,9 +117,14 @@ const DashQui = () => {
                   <p className="text-[11px] text-muted-foreground">{inv.description || "Fatura"}</p>
                 </div>
                 <span className="text-sm font-semibold text-foreground">{brl(inv.amount)}</span>
-                {inv.status === "PAGO"
-                  ? <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-300">Pago</span>
-                  : <button onClick={() => marcarPago(inv)} className="text-[10px] px-2 py-1 rounded-full bg-secondary border border-border text-muted-foreground hover:text-green-400">Cliente pagou</button>}
+                {inv.status === "PAGO" ? (
+                  <div className="flex items-center gap-1">
+                    {inv.receipt_key && <button onClick={() => openInvoiceReceipt(inv.id)} title="Ver comprovante" className="text-green-400 hover:text-green-300 p-1"><Paperclip className="w-3.5 h-3.5" /></button>}
+                    <button onClick={() => desmarcarPago(inv)} className="text-[10px] px-2 py-1 rounded-full bg-secondary border border-border text-muted-foreground hover:text-foreground">Desmarcar</button>
+                  </div>
+                ) : (
+                  <button onClick={() => marcarPago(inv)} className="text-[10px] px-2 py-1 rounded-full bg-secondary border border-border text-muted-foreground hover:text-green-400">Cliente pagou</button>
+                )}
               </div>
             ))}
           </div>

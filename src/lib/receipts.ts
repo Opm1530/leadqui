@@ -10,20 +10,22 @@ function pickFile(): Promise<File | null> {
   });
 }
 
-// Pergunta e anexa o comprovante de uma fatura na pasta "Comprovantes" do cliente.
-// Retorna true se um comprovante foi enviado.
-export async function askInvoiceReceipt(clientId?: string | null): Promise<boolean> {
-  if (!clientId) return false;
+// Pergunta e anexa o comprovante DIRETO na fatura. Retorna o nome do arquivo se enviado.
+export async function askInvoiceReceipt(invoiceId?: string | null): Promise<string | null> {
+  if (!invoiceId) return null;
   const ok = await confirm({ title: "Comprovante", description: "Deseja adicionar o comprovante de pagamento?" });
-  if (!ok) return false;
+  if (!ok) return null;
   const file = await pickFile();
-  if (!file) return false;
-  const d = await api.get(`/api/files/folders?client_id=${clientId}`).catch(() => ({ folders: [] }));
-  let folder = (d.folders || []).find((x: any) => x.name === "Comprovantes");
-  if (!folder) { const r = await api.post("/api/files/folders", { client_id: clientId, name: "Comprovantes" }).catch(() => null); folder = r?.folder; }
+  if (!file) return null;
   const fd = new FormData();
-  fd.append("file", file); fd.append("client_id", clientId);
-  if (folder) fd.append("folder_id", folder.id);
-  await api.post("/api/files", fd);
-  return true;
+  fd.append("file", file);
+  const d = await api.post(`/api/cashqui/invoices/${invoiceId}/receipt`, fd);
+  return d.invoice?.receipt_name || file.name;
+}
+
+// Abre o comprovante da fatura em nova aba.
+export function openInvoiceReceipt(invoiceId: string) {
+  const token = localStorage.getItem("pequi_token");
+  fetch(`/api/cashqui/invoices/${invoiceId}/receipt`, { headers: { Authorization: `Bearer ${token}` } })
+    .then(r => r.blob()).then(b => window.open(URL.createObjectURL(b), "_blank")).catch(() => {});
 }

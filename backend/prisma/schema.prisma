@@ -728,6 +728,8 @@ model Invoice {
   due_date            DateTime
   paid_date           DateTime?
   status              InvoiceStatus @default(PENDENTE)
+  receipt_key         String?       // comprovante no R2
+  receipt_name        String?
   created_at          DateTime      @default(now())
   updated_at          DateTime      @updatedAt
 

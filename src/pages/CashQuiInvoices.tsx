@@ -1,7 +1,8 @@
 import { confirm } from "@/components/ConfirmDialog";
-import { useEffect, useState, useRef } from "react";
+import { askInvoiceReceipt, openInvoiceReceipt } from "@/lib/receipts";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Plus, CheckCircle2, Clock, AlertCircle, XCircle, Trash2, Loader2 } from "lucide-react";
+import { Plus, CheckCircle2, Clock, AlertCircle, XCircle, Trash2, Loader2, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -50,36 +51,28 @@ const CashQuiInvoices = () => {
     load();
   }, []);
 
-  const comprovanteRef = useRef<HTMLInputElement>(null);
-  const [pendingClient, setPendingClient] = useState<string | null>(null);
-
   const markPaid = async (inv: any) => {
     try {
       await api.put(`/api/cashqui/invoices/${inv.id}`, { status: "PAGO", paid_date: new Date().toISOString() });
       toast({ title: "Fatura marcada como paga!" });
+      await askInvoiceReceipt(inv.id).catch(() => {});
       load();
-      if (inv.client_id && await confirm("Deseja adicionar o comprovante de pagamento?")) {
-        setPendingClient(inv.client_id);
-        comprovanteRef.current?.click();
-      }
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
   };
 
-  const enviarComprovante = async (e: any) => {
-    const file = e.target.files?.[0]; const client_id = pendingClient;
-    e.target.value = ""; setPendingClient(null);
-    if (!file || !client_id) return;
+  const unmarkPaid = async (inv: any) => {
+    const aviso = inv.receipt_key
+      ? "Ao desmarcar, o comprovante anexado será EXCLUÍDO. Deseja continuar?"
+      : "Desmarcar esta fatura como paga?";
+    if (!(await confirm({ title: "Desmarcar pagamento", description: aviso, danger: !!inv.receipt_key }))) return;
     try {
-      // Garante a pasta "Comprovantes"
-      const d = await api.get(`/api/files/folders?client_id=${client_id}`).catch(() => ({ folders: [] }));
-      let f = (d.folders || []).find((x: any) => x.name === "Comprovantes");
-      if (!f) { const r = await api.post("/api/files/folders", { client_id, name: "Comprovantes" }).catch(() => null); f = r?.folder; }
-      const fd = new FormData(); fd.append("file", file); fd.append("client_id", client_id); if (f) fd.append("folder_id", f.id);
-      await api.post("/api/files", fd);
-      toast({ title: "Comprovante anexado!" });
-    } catch (err: any) { toast({ title: "Erro ao anexar", description: err.message, variant: "destructive" }); }
+      if (inv.receipt_key) await api.delete(`/api/cashqui/invoices/${inv.id}/receipt`).catch(() => {});
+      await api.put(`/api/cashqui/invoices/${inv.id}`, { status: "PENDENTE", paid_date: null });
+      toast({ title: "Fatura reaberta." });
+      load();
+    } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };
 
   const deleteInvoice = async (id: string) => {
@@ -114,7 +107,6 @@ const CashQuiInvoices = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <input ref={comprovanteRef} type="file" onChange={enviarComprovante} className="hidden" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black tracking-tight text-foreground">Faturas</h1>
@@ -185,10 +177,17 @@ const CashQuiInvoices = () => {
                   <span className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${cfg.color}`}>
                     {cfg.label}
                   </span>
-                  <div className="flex gap-1">
-                    {inv.status === "PENDENTE" || inv.status === "ATRASADO" ? (
+                  <div className="flex gap-1 items-center">
+                    {inv.receipt_key && (
+                      <button onClick={() => openInvoiceReceipt(inv.id)} title="Ver comprovante" className="text-green-400 hover:text-green-300 p-1"><Paperclip className="w-4 h-4" /></button>
+                    )}
+                    {(inv.status === "PENDENTE" || inv.status === "ATRASADO") ? (
                       <Button size="sm" variant="outline" onClick={() => markPaid(inv)} className="text-green-400 border-green-500/30 hover:bg-green-500/10 text-xs h-8">
                         Marcar pago
+                      </Button>
+                    ) : inv.status === "PAGO" ? (
+                      <Button size="sm" variant="outline" onClick={() => unmarkPaid(inv)} className="text-muted-foreground border-border hover:bg-secondary text-xs h-8">
+                        Desmarcar
                       </Button>
                     ) : null}
                     <Button size="sm" variant="ghost" onClick={() => deleteInvoice(inv.id)} className="text-muted-foreground hover:text-red-400 h-8 w-8 p-0">

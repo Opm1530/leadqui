@@ -5,7 +5,7 @@ import axios from "axios";
 import https from "https";
 import { dayDate } from "../lib/dates";
 import multer from "multer";
-import { uploadFile, getFile } from "../lib/storage";
+import { uploadFile, getFile, deleteFile } from "../lib/storage";
 
 const receiptUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -209,6 +209,40 @@ router.delete("/invoices/:id", async (req: AuthRequest, res: Response): Promise<
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// Comprovante da fatura
+router.post("/invoices/:id/receipt", receiptUpload.single("file"), async (req: AuthRequest, res: Response): Promise<void> => {
+  const file = (req as any).file;
+  if (!file) { res.status(400).json({ error: "Arquivo obrigatório" }); return; }
+  try {
+    const id = String(req.params.id);
+    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const key = `invoices/${id}/${Date.now()}-${safe}`;
+    await uploadFile(key, file.buffer, file.mimetype);
+    const invoice = await (prisma as any).invoice.update({ where: { id }, data: { receipt_key: key, receipt_name: file.originalname } });
+    res.json({ invoice });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.get("/invoices/:id/receipt", async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const inv = await (prisma as any).invoice.findUnique({ where: { id: String(req.params.id) } });
+    if (!inv?.receipt_key) { res.status(404).json({ error: "Sem comprovante" }); return; }
+    const { body, mime } = await getFile(inv.receipt_key);
+    res.setHeader("Content-Type", mime || "application/octet-stream");
+    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(inv.receipt_name || "comprovante")}"`);
+    (body as any).pipe(res);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete("/invoices/:id/receipt", async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const inv = await (prisma as any).invoice.findUnique({ where: { id: String(req.params.id) } });
+    if (inv?.receipt_key) { await deleteFile(inv.receipt_key).catch(() => {}); }
+    await (prisma as any).invoice.update({ where: { id: String(req.params.id) }, data: { receipt_key: null, receipt_name: null } });
+    res.json({ success: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Despesas ──────────────────────────────────────────────────────────
