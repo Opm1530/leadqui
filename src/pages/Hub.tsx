@@ -232,7 +232,7 @@ const Hub = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
               onClick={() => { setActiveModule(app.id as any); navigate(app.route); }}
-              className="group relative cursor-pointer grow basis-full md:basis-[320px] min-w-0 md:min-w-[280px]"
+              className={`group relative cursor-pointer min-w-0 basis-full md:basis-[calc((100%-2rem)/2)] lg:basis-[calc((100%-4rem)/3)] ${i === availableApps.length - 1 ? "grow" : "grow-0"}`}
             >
               <div className="absolute -inset-0.5 bg-gradient-to-r from-orange-500/20 to-blue-500/20 rounded-[2rem] blur opacity-0 group-hover:opacity-100 transition duration-500" />
               <div className="relative bg-[#111]/80 backdrop-blur-xl border border-white/10 p-10 rounded-[2rem] h-full flex flex-col justify-between hover:bg-[#151515] transition-all hover:border-white/20 group-active:scale-[0.98]">
