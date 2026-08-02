@@ -17,15 +17,20 @@ router.get("/status", async (_req: AuthRequest, res: Response): Promise<void> =>
 
 // Lista arquivos de um cliente
 router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
-  const client_id = String(req.query.client_id || "");
-  if (!client_id) { res.status(400).json({ error: "client_id obrigatório" }); return; }
-  const files = await (prisma as any).clientFile.findMany({ where: { client_id }, orderBy: { created_at: "desc" } });
+  const client_id = req.query.client_id ? String(req.query.client_id) : undefined;
+  const task_id = req.query.task_id ? String(req.query.task_id) : undefined;
+  if (!client_id && !task_id) { res.status(400).json({ error: "client_id ou task_id obrigatório" }); return; }
+  const where: any = {};
+  if (task_id) where.task_id = task_id;
+  else { where.client_id = client_id; where.task_id = null; } // arquivos do cliente = sem task
+  const files = await (prisma as any).clientFile.findMany({ where, orderBy: { created_at: "desc" } });
   res.json({ files });
 });
 
 // Upload (multipart) → envia ao R2 e salva metadados
 router.post("/", upload.single("file"), async (req: AuthRequest, res: Response): Promise<void> => {
   const client_id = String(req.body.client_id || "");
+  const task_id = req.body.task_id ? String(req.body.task_id) : null;
   const file = (req as any).file;
   if (!client_id || !file) { res.status(400).json({ error: "client_id e arquivo obrigatórios" }); return; }
   try {
@@ -33,7 +38,7 @@ router.post("/", upload.single("file"), async (req: AuthRequest, res: Response):
     const key = `clients/${client_id}/${Date.now()}-${safe}`;
     await uploadFile(key, file.buffer, file.mimetype);
     const saved = await (prisma as any).clientFile.create({
-      data: { client_id, user_id: req.user!.id, name: file.originalname, key, size: file.size, mime: file.mimetype },
+      data: { client_id, task_id, user_id: req.user!.id, name: file.originalname, key, size: file.size, mime: file.mimetype },
     });
     res.status(201).json({ file: saved });
   } catch (e: any) {

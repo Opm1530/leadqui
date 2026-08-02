@@ -217,13 +217,13 @@ const Settings = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="geral">
+      <Tabs defaultValue={isAdmin ? "geral" : "conta"}>
         <TabsList className="bg-secondary border border-border">
-          <TabsTrigger value="geral"><Key className="w-4 h-4 mr-1.5" />Geral & APIs</TabsTrigger>
-          <TabsTrigger value="whatsapp"><Smartphone className="w-4 h-4 mr-1.5" />WhatsApp</TabsTrigger>
-          <TabsTrigger value="meta"><Target className="w-4 h-4 mr-1.5" />Meta & Instagram</TabsTrigger>
-          <TabsTrigger value="trello"><LayoutGrid className="w-4 h-4 mr-1.5" />Trello</TabsTrigger>
-          <TabsTrigger value="templates"><LayoutGrid className="w-4 h-4 mr-1.5" />Templates</TabsTrigger>
+          {isAdmin && <TabsTrigger value="geral"><Key className="w-4 h-4 mr-1.5" />Geral & APIs</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="whatsapp"><Smartphone className="w-4 h-4 mr-1.5" />WhatsApp</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="meta"><Target className="w-4 h-4 mr-1.5" />Meta & Instagram</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="trello"><LayoutGrid className="w-4 h-4 mr-1.5" />Trello</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="templates"><LayoutGrid className="w-4 h-4 mr-1.5" />Templates</TabsTrigger>}
           <TabsTrigger value="conta"><Lock className="w-4 h-4 mr-1.5" />Conta</TabsTrigger>
         </TabsList>
 

@@ -135,6 +135,17 @@ router.patch("/tasks/:id", authenticateJWT, async (req: AuthRequest, res: Respon
   }
 });
 
+// ── DELETE /api/tasqui/tasks/:id ──────────────────────────────────────
+router.delete("/tasks/:id", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  if (req.user?.role === "CLIENT") { res.status(403).json({ error: "Acesso negado" }); return; }
+  try {
+    await (prisma as any).task.delete({ where: { id: String(req.params.id) } });
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ── GET /api/tasqui/projects ──────────────────────────────────────────
 router.get("/projects", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
   const { clientId, status } = req.query;

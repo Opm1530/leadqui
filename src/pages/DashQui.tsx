@@ -16,9 +16,7 @@ const DashQui = () => {
   const canSeeAll = isAdmin || role === "MANAGER";
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [taskModal, setTaskModal] = useState(false);
   const [allTasks, setAllTasks] = useState<any[]>([]);
-  const [filterUser, setFilterUser] = useState("all");
 
   useEffect(() => {
     api.get("/api/dashqui").then(d => { setData(d); setAllTasks(d.tasks || []); }).catch(() => {}).finally(() => setLoading(false));
@@ -26,15 +24,6 @@ const DashQui = () => {
 
   // Minhas tarefas (checklist do dashboard, para qualquer responsável)
   const myTasks = allTasks.filter((t: any) => t.responsible?.id === user?.id);
-
-  // Modal "todas as tarefas" — só admin/gestor, com filtro
-  const allVisible = allTasks.filter((t: any) => {
-    if (filterUser === "all") return true;
-    if (filterUser === "none") return !t.responsible?.id;
-    return t.responsible?.id === filterUser;
-  });
-
-  const responsaveis = Array.from(new Map(allTasks.filter((t: any) => t.responsible?.id).map((t: any) => [t.responsible.id, t.responsible])).values());
 
   const concluir = async (t: any) => {
     setAllTasks(p => p.map(x => x.id === t.id ? { ...x, status: x.status === "CONCLUIDO" ? "PENDENTE" : "CONCLUIDO" } : x));
@@ -69,7 +58,7 @@ const DashQui = () => {
           <p className="text-muted-foreground text-sm capitalize">{hoje}</p>
         </div>
         {canSeeAll && (
-          <button onClick={() => setTaskModal(true)}
+          <button onClick={() => navigate("/tarefas")}
             className="flex items-center gap-2 px-3 h-10 rounded-xl bg-secondary border border-border text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-secondary/70 transition-colors">
             <ListTodo className="w-4 h-4" /> Todas as tarefas
             {allTasks.filter(t => t.status !== "CONCLUIDO").length > 0 && (
@@ -81,39 +70,9 @@ const DashQui = () => {
         )}
       </div>
 
-      {/* Modal todas as tarefas (admin/gestor) */}
-      <Dialog open={taskModal} onOpenChange={setTaskModal}>
-        <DialogContent className="bg-card border-border max-w-lg max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Todas as tarefas do dia</DialogTitle></DialogHeader>
-          <Select value={filterUser} onValueChange={setFilterUser}>
-            <SelectTrigger className="bg-secondary border-border h-9 text-sm"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os responsáveis</SelectItem>
-              <SelectItem value="none">Sem responsável</SelectItem>
-              {responsaveis.map((u: any) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <div className="space-y-1.5 pt-2">
-            {allVisible.length === 0 && <p className="text-sm text-muted-foreground py-6 text-center">Nenhuma tarefa para hoje. 🎉</p>}
-            {allVisible.map((t: any) => {
-              const done = t.status === "CONCLUIDO";
-              return (
-                <div key={t.id} className="flex items-center gap-2 bg-secondary/40 rounded-lg px-3 py-2">
-                  <button onClick={() => concluir(t)} className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 ${done ? "bg-green-600 border-green-600" : "border-muted-foreground/40 hover:border-green-500"}`}>
-                    {done && <Check className="w-3.5 h-3.5 text-white" />}
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>{t.title}</p>
-                    <p className="text-[11px] text-muted-foreground">{t.client?.name || "—"}{t.responsible?.name ? ` · ${t.responsible.name}` : ""}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* Finanças do dia */}
+      {/* Finanças do dia (só admin) */}
+      {isAdmin && (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <div className="rounded-2xl border border-border bg-card/40 p-4">
           <TrendingUp className="w-5 h-5 text-green-400 mb-2" />
@@ -131,9 +90,10 @@ const DashQui = () => {
           <p className="text-[11px] text-muted-foreground">Despesas hoje</p>
         </div>
       </div>
+      )}
 
-      {/* Recebimentos de hoje — marcar pago */}
-      {(fin.invoices_due || []).length > 0 && (
+      {/* Recebimentos de hoje — marcar pago (só admin) */}
+      {isAdmin && (fin.invoices_due || []).length > 0 && (
         <div className="rounded-2xl border border-border bg-card/40 p-5 mb-5">
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
             <Wallet className="w-4 h-4 text-orange-400" /> Recebimentos de hoje

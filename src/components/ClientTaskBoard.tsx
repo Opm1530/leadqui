@@ -40,6 +40,7 @@ export default function ClientTaskBoard({ clientId, tasks, setTasks, team = [], 
   const [creating, setCreating] = useState(false);
   const emptyForm = { title: "", description: "", responsible_id: "", priority: "MEDIA", due_date: "" };
   const [form, setForm] = useState(emptyForm);
+  const [attachments, setAttachments] = useState<File[]>([]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const criar = async () => {
@@ -54,8 +55,14 @@ export default function ClientTaskBoard({ clientId, tasks, setTasks, team = [], 
         priority: form.priority,
         due_date: form.due_date || null,
       });
+      // Sobe os anexos vinculados à tarefa
+      for (const f of attachments) {
+        const fd = new FormData();
+        fd.append("file", f); fd.append("client_id", clientId); fd.append("task_id", t.id);
+        await api.post("/api/files", fd).catch(() => {});
+      }
       setTasks((p: any[]) => [...p, t]);
-      setForm(emptyForm); setModalOpen(false);
+      setForm(emptyForm); setAttachments([]); setModalOpen(false);
     } finally { setCreating(false); }
   };
 
@@ -114,6 +121,12 @@ export default function ClientTaskBoard({ clientId, tasks, setTasks, team = [], 
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground uppercase tracking-widest">Prazo</Label>
               <Input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className="bg-secondary border-border" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase tracking-widest">Anexos / referências</Label>
+              <input type="file" multiple onChange={e => setAttachments(Array.from(e.target.files || []))}
+                className="block w-full text-xs text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-secondary file:text-foreground file:text-xs hover:file:bg-secondary/70" />
+              {attachments.length > 0 && <p className="text-[11px] text-muted-foreground">{attachments.length} arquivo(s) selecionado(s)</p>}
             </div>
           </div>
           <DialogFooter>

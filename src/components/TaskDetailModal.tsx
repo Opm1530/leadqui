@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Dialog, 
   DialogContent, 
@@ -40,6 +40,32 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, team }: TaskD
     due_date: task?.due_date ? new Date(task.due_date).toISOString().split('T')[0] : "",
   });
   const { toast } = useToast();
+
+  // Anexos da tarefa
+  const [files, setFiles] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  useEffect(() => {
+    if (task?.id && isOpen) api.get(`/api/files?task_id=${task.id}`).then(d => setFiles(d.files || [])).catch(() => setFiles([]));
+  }, [task?.id, isOpen]);
+  const uploadAnexo = async (e: any) => {
+    const f = e.target.files?.[0]; if (!f || !task) return;
+    setUploading(true);
+    try {
+      const fd = new FormData(); fd.append("file", f); fd.append("client_id", task.client_id); fd.append("task_id", task.id);
+      const d = await api.post("/api/files", fd);
+      setFiles(p => [d.file, ...p]);
+    } catch { toast({ title: "Erro ao anexar", variant: "destructive" }); }
+    finally { setUploading(false); e.target.value = ""; }
+  };
+  const baixarAnexo = (af: any) => {
+    const token = localStorage.getItem("pequi_token");
+    fetch(`/api/files/${af.id}/download`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.blob()).then(b => window.open(URL.createObjectURL(b), "_blank")).catch(() => {});
+  };
+  const delAnexo = async (af: any) => {
+    await api.delete(`/api/files/${af.id}`).catch(() => {});
+    setFiles(p => p.filter(x => x.id !== af.id));
+  };
 
   if (!task) return null;
 
@@ -179,6 +205,27 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, team }: TaskD
               placeholder="Descreva os entregáveis e detalhes da tarefa..." 
               className="bg-white/5 border-white/10 min-h-[120px]" 
             />
+          </div>
+
+          {/* Anexos */}
+          <div className="space-y-2 pt-2 border-t border-white/5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Anexos</label>
+              <label className="text-xs text-primary hover:underline cursor-pointer">
+                {uploading ? "enviando..." : "+ anexar"}
+                <input type="file" onChange={uploadAnexo} disabled={uploading} className="hidden" />
+              </label>
+            </div>
+            {files.length === 0 ? <p className="text-xs text-gray-500">Nenhum anexo.</p> : (
+              <div className="space-y-1.5">
+                {files.map(af => (
+                  <div key={af.id} className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-1.5">
+                    <button onClick={() => baixarAnexo(af)} className="flex-1 min-w-0 text-left text-xs text-foreground truncate hover:text-primary">{af.name}</button>
+                    <button onClick={() => delAnexo(af)} className="text-gray-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

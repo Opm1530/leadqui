@@ -301,6 +301,7 @@ model ClientFile {
   id          String   @id @default(uuid())
   client_id   String
   user_id     String   // quem subiu
+  task_id     String?  // anexo de uma tarefa (opcional)
   name        String   // nome original
   key         String   // chave no bucket
   size        Int      @default(0)
