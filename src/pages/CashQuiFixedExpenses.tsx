@@ -110,7 +110,13 @@ const CashQuiFixedExpenses = () => {
   };
 
   const total = items.filter(i => i.active).reduce((s, i) => s + i.amount, 0);
-  const dueThisWeek = items.filter(i => i.active && Math.abs(i.due_day - today) <= 3);
+  const dueThisWeek = items.filter(i => i.active && i.due_day - today <= 3 && i.due_day - today >= 0);
+  const vencLabel = (due_day: number) => {
+    const diff = due_day - today;
+    if (diff === 0) return { txt: "vence hoje", cls: "text-red-400" };
+    if (diff > 0) return { txt: `vence em ${diff} dia${diff > 1 ? "s" : ""}`, cls: "text-yellow-400" };
+    return { txt: `vencida há ${Math.abs(diff)} dia${Math.abs(diff) > 1 ? "s" : ""}`, cls: "text-red-400" };
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -135,8 +141,8 @@ const CashQuiFixedExpenses = () => {
         >
           <Bell className="w-5 h-5 shrink-0" />
           <span>
-            <strong>{dueThisWeek.length}</strong> despesa(s) com vencimento nos próximos 3 dias:{" "}
-            {dueThisWeek.map(i => `${i.description} (dia ${i.due_day})`).join(", ")}
+            <strong>{dueThisWeek.length}</strong> despesa(s) vencendo:{" "}
+            {dueThisWeek.map(i => `${i.description} (${vencLabel(i.due_day).txt})`).join(", ")}
           </span>
         </motion.div>
       )}
@@ -155,7 +161,8 @@ const CashQuiFixedExpenses = () => {
         <div className="space-y-3">
           {items.map((item, i) => {
             const cfg = CATEGORIES[item.category] || CATEGORIES.OUTROS;
-            const isDuesSoon = item.active && Math.abs(item.due_day - today) <= 3;
+            const isDuesSoon = item.active && item.due_day - today <= 3 && item.due_day - today >= 0;
+            const venc = vencLabel(item.due_day);
             return (
               <motion.div
                 key={item.id}
@@ -174,7 +181,7 @@ const CashQuiFixedExpenses = () => {
                     <p className="font-bold text-sm text-foreground truncate">{item.description}</p>
                     <p className="text-xs text-muted-foreground">
                       Todo dia <strong>{item.due_day}</strong>
-                      {isDuesSoon && <span className="ml-2 text-yellow-400">— vence em breve!</span>}
+                      {item.active && (item.due_day - today <= 5) && <span className={`ml-2 ${venc.cls}`}>— {venc.txt}</span>}
                     </p>
                   </div>
                 </div>

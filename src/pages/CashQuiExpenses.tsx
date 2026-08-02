@@ -34,6 +34,11 @@ const CashQuiExpenses = () => {
   const [year, setYear] = useState(now.getFullYear());
   const [form, setForm] = useState({ description: "", amount: "", category: "OUTROS", date: new Date().toISOString().split("T")[0] });
 
+  const [pending, setPending] = useState<any[]>([]);
+  const [paying, setPaying] = useState<string | null>(null);
+
+  const loadPending = () => api.get("/api/cashqui/fixed-expenses/pending").then(d => setPending(d.pending || [])).catch(() => {});
+
   const load = async () => {
     setLoading(true);
     try {
@@ -45,9 +50,22 @@ const CashQuiExpenses = () => {
 
   useEffect(() => {
     setActiveModule("cashqui");
+    loadPending();
   }, []);
 
   useEffect(() => { load(); }, [month, year]);
+
+  const marcarPaga = async (fixa: any) => {
+    setPaying(fixa.id);
+    try {
+      await api.post(`/api/cashqui/fixed-expenses/${fixa.id}/pay`, {});
+      toast({ title: "Pago!", description: `${fixa.description} registrada como despesa.` });
+      setPending(p => p.filter(x => x.id !== fixa.id));
+      load();
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    } finally { setPaying(null); }
+  };
 
   const handleDelete = async (id: string) => {
     try {
@@ -121,6 +139,31 @@ const CashQuiExpenses = () => {
           </Button>
         </div>
       </div>
+
+      {/* Despesas fixas a pagar */}
+      {pending.length > 0 && (
+        <div className="rounded-xl border border-yellow-500/25 bg-yellow-500/5 p-4">
+          <p className="text-sm font-semibold text-yellow-300 mb-2 flex items-center gap-2"><TrendingDown className="w-4 h-4" /> Contas fixas a pagar</p>
+          <div className="space-y-2">
+            {pending.map(f => {
+              const cfg = CATEGORIES[f.category] || CATEGORIES.OUTROS;
+              return (
+                <div key={f.id} className="flex items-center gap-3 bg-secondary/40 rounded-lg px-3 py-2">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${cfg.color}`}>{cfg.label}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground truncate">{f.description}</p>
+                    <p className="text-[11px] text-muted-foreground">Vence dia {f.due_day}</p>
+                  </div>
+                  <span className="text-sm font-bold text-red-400">{fmt(f.amount)}</span>
+                  <Button onClick={() => marcarPaga(f)} disabled={paying === f.id} size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700 gap-1">
+                    {paying === f.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Marcar paga"}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Resumo por categoria */}
       {byCategory.length > 0 && (

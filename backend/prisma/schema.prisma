@@ -717,6 +717,7 @@ model Expense {
   amount      Float
   category    ExpenseCategory @default(OUTROS)
   date        DateTime
+  fixed_expense_id String?    // origem: despesa fixa marcada como paga
   created_at  DateTime        @default(now())
   updated_at  DateTime        @updatedAt
 

@@ -348,6 +348,50 @@ router.get("/fixed-expenses", async (req: AuthRequest, res: Response): Promise<v
   }
 });
 
+// Despesas fixas "a pagar" — perto do vencimento e ainda não pagas neste mês
+router.get("/fixed-expenses/pending", async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const now = new Date();
+    const hojeDia = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", day: "2-digit" }).format(now));
+    const ini = new Date(`${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(now).slice(0, 7)}-01T00:00:00-03:00`);
+    const fim = new Date(ini); fim.setMonth(fim.getMonth() + 1);
+
+    const fixas = await (prisma as any).fixedExpense.findMany({ where: { active: true } });
+    const pagasMes = await (prisma as any).expense.findMany({
+      where: { fixed_expense_id: { not: null }, date: { gte: ini, lt: fim } },
+      select: { fixed_expense_id: true },
+    });
+    const pagasIds = new Set(pagasMes.map((e: any) => e.fixed_expense_id));
+
+    // Mostra as que faltam pagar e já estão perto do dia (5 dias antes) ou vencidas no mês
+    const pendentes = fixas.filter((f: any) => !pagasIds.has(f.id) && hojeDia >= f.due_day - 5);
+    res.json({ pending: pendentes });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Marca uma despesa fixa como paga → cria a despesa registrada
+router.post("/fixed-expenses/:id/pay", async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const fixa = await (prisma as any).fixedExpense.findFirst({ where: { id: String(req.params.id) } });
+    if (!fixa) { res.status(404).json({ error: "Despesa fixa não encontrada" }); return; }
+    const expense = await (prisma as any).expense.create({
+      data: {
+        user_id: req.user!.id,
+        description: fixa.description,
+        amount: fixa.amount,
+        category: fixa.category,
+        date: new Date(),
+        fixed_expense_id: fixa.id,
+      },
+    });
+    res.status(201).json({ expense });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post("/fixed-expenses", async (req: AuthRequest, res: Response): Promise<void> => {
   const { description, amount, category, due_day } = req.body;
   if (!description || !amount || !due_day) {
