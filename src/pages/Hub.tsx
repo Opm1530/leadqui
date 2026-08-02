@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox, Star, Building2 } from "lucide-react";
+import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox, Star, Building2, Clapperboard } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -92,6 +92,15 @@ const Hub = () => {
       adminOnly: false,
     },
     {
+      id: "editorial",
+      name: "Editorial",
+      description: "Planejamento e produção de conteúdos: calendário, aprovação e sincronia com tarefas.",
+      icon: Clapperboard,
+      color: "from-pink-500 to-rose-600",
+      route: "/editorial",
+      adminOnly: false,
+    },
+    {
       id: "dashqui",
       name: "DashQui",
       description: "Visão geral do dia: tarefas, posts agendados e movimentações financeiras.",
@@ -119,7 +128,7 @@ const Hub = () => {
 
   const availableApps = allApps.filter(app => {
     if (isAdmin) return true;
-    if (role === "OPERATOR") return ["clientes", "dashqui"].includes(app.id);
+    if (role === "OPERATOR") return ["clientes", "dashqui", "editorial"].includes(app.id);
     // Gestor não vê Assistente, Caixa de Demandas nem ViewQui
     if (role === "MANAGER" && ["assistente", "demandas", "viewqui"].includes(app.id)) return false;
     if (app.adminOnly) return false;

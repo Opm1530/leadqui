@@ -48,6 +48,8 @@ model User {
   notifications     Notification[]
   techqui_settings  TechQuiSettings?
   vault_credentials VaultCredential[]
+  editorial_created     EditorialContent[] @relation("EditorialCreator")
+  editorial_responsible EditorialContent[] @relation("EditorialResponsible")
 
   @@map("users")
 }
@@ -267,6 +269,7 @@ model Client {
   files            ClientFile[]
   influencer_partnerships InfluencerPartnership[]
   onboarding       Onboarding?
+  editorial_contents EditorialContent[]
 
   @@map("clients")
 }
@@ -508,6 +511,7 @@ model Task {
   project     Project? @relation(fields: [project_id], references: [id], onDelete: Cascade)
   client      Client  @relation(fields: [client_id], references: [id], onDelete: Cascade)
   responsible User?   @relation("ResponsibleUser", fields: [responsible_id], references: [id])
+  editorial   EditorialContent?
 
   @@map("tasks")
 }
@@ -518,6 +522,47 @@ enum TaskStatus {
   REVISAO
   CONCLUIDO
   CANCELADO
+}
+
+// ── Editorial (controle de conteúdos, sincronizado com tarefas) ──────
+model EditorialContent {
+  id             String   @id @default(uuid())
+  user_id        String                 // criador (manager/admin)
+  client_id      String
+  responsible_id String?                // responsável pela produção
+  task_id        String?  @unique       // tarefa vinculada (Tasqui)
+  title          String
+  description    String?
+  reference_url  String?                // link de referência (drive/canva)
+  caption        String?                // legenda do post
+  hashtags       String?
+  content_type   String   @default("POST")       // REELS | POST | CAROUSEL | STORY | OUTRO
+  platform       String   @default("INSTAGRAM")  // INSTAGRAM | TIKTOK | FACEBOOK | YOUTUBE | OUTRO
+  status         ContentStatus @default(EM_PRODUCAO)
+  scheduled_date DateTime?              // data de publicação prevista
+  produced_key   String?               // arquivo produzido (R2)
+  produced_name  String?
+  feedback       String?               // motivo dos ajustes ao reprovar
+  approved_at    DateTime?
+  posted_at      DateTime?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  creator     User   @relation("EditorialCreator", fields: [user_id], references: [id])
+  client      Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  responsible User?  @relation("EditorialResponsible", fields: [responsible_id], references: [id])
+  task        Task?  @relation(fields: [task_id], references: [id], onDelete: SetNull)
+
+  @@map("editorial_contents")
+}
+
+enum ContentStatus {
+  IDEIA
+  EM_PRODUCAO
+  AJUSTES
+  EM_APROVACAO
+  AGUARDANDO_POSTAR
+  POSTADO
 }
 
 enum Priority {

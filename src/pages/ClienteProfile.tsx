@@ -11,11 +11,12 @@ import api from "@/lib/api";
 import { askInvoiceReceipt, openInvoiceReceipt } from "@/lib/receipts";
 import ClientTaskBoard from "@/components/ClientTaskBoard";
 import ClientCalendar from "@/components/ClientCalendar";
+import ClientEditorial from "@/components/ClientEditorial";
 import AdsManager from "@/components/AdsManager";
 import ClientFiles from "@/components/ClientFiles";
 import {
   ArrowLeft, Loader2, Building2, FolderOpen, Kanban, ClipboardList, Plus, Check,
-  DollarSign, Lock, Eye, Star, ListTodo, Receipt, CalendarClock, Instagram, Facebook, BarChart2, MessageSquare, Trash2,
+  DollarSign, Lock, Eye, Star, ListTodo, Receipt, CalendarClock, Instagram, Facebook, BarChart2, MessageSquare, Trash2, Clapperboard,
 } from "lucide-react";
 
 const brl = (n: number) => (n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -23,6 +24,7 @@ const brl = (n: number) => (n || 0).toLocaleString("pt-BR", { style: "currency",
 const TABS = [
   { id: "geral", label: "Visão Geral", icon: Building2 },
   { id: "tarefas", label: "Tarefas", icon: ListTodo },
+  { id: "editorial", label: "Editorial", icon: Clapperboard },
   { id: "calendario", label: "Calendário", icon: CalendarClock },
   { id: "conexoes", label: "Conexões", icon: Instagram },
   { id: "ads", label: "Meta Ads", icon: BarChart2 },
@@ -142,6 +144,7 @@ const ClienteProfile = () => {
       )}
 
       {tab === "tarefas" && <ClientTaskBoard clientId={id!} tasks={tasks} setTasks={setTasks} team={team} reload={reloadTasks} />}
+      {tab === "editorial" && <ClientEditorial clientId={id!} clientName={client?.name || ""} team={team} />}
       {tab === "financas" && <FinancasTab clientId={id!} invoices={invoices} setInvoices={setInvoices} toast={toast} navigate={navigate} />}
       {tab === "senhas" && <SenhasTab vault={vault} navigate={navigate} />}
       {tab === "arquivos" && <ClientFiles clientId={id!} />}

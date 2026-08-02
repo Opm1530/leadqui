@@ -29,6 +29,7 @@ import influencersRoutes from "./routes/influencers";
 import onboardingRoutes from "./routes/onboarding";
 import dashquiRoutes from "./routes/dashqui";
 import filesRoutes from "./routes/files";
+import editorialRoutes from "./routes/editorial";
 import { startInstagramScheduler } from "./lib/instagramScheduler";
 import { startAdsAnalyzerJob } from "./lib/adsAnalyzerJob";
 
@@ -110,6 +111,7 @@ app.use("/api/influencers", influencersRoutes);
 app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/dashqui", dashquiRoutes);
 app.use("/api/files", filesRoutes);
+app.use("/api/editorial", editorialRoutes);
 app.use("/api", resourcesRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────
