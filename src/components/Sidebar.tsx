@@ -98,6 +98,8 @@ const Sidebar = () => {
     }
   };
 
+  const isManager = user?.role === "MANAGER";
+
   const getMenuItems = () => {
     let items = [];
     switch (activeModule) {
@@ -107,12 +109,17 @@ const Sidebar = () => {
       case "techqui": items = [...techquiItems]; break;
       default: items = [...leadquiItems]; break;
     }
-    
+
+    // Gestor no CashQui: só Faturas
+    if (isManager && activeModule === "cashqui") {
+      items = items.filter(item => item.to === "/cashqui/invoices");
+    }
+
     // Filtrar configurações para operadores
     if (isOperator) {
       return items.filter(item => item.to !== "/settings");
     }
-    
+
     return items;
   };
 

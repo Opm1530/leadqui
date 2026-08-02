@@ -48,10 +48,10 @@ const Hub = () => {
     {
       id: "cashqui",
       name: "CashQui",
-      description: "Controle financeiro, faturas e faturamento simplificado.",
+      description: role === "MANAGER" ? "Faturas dos clientes — marcar recebimentos." : "Controle financeiro, faturas e faturamento simplificado.",
       icon: DollarSign,
       color: "from-green-500 to-emerald-600",
-      route: "/cashqui",
+      route: role === "MANAGER" ? "/cashqui/invoices" : "/cashqui",
       serviceRequired: "Finanças",
       adminOnly: false,
     },
