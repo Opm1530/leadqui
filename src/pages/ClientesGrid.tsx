@@ -24,6 +24,7 @@ const ClientesGrid = () => {
   const [saving, setSaving] = useState(false);
   const emptyTask = { title: "", description: "", client_id: "", responsible_id: "", priority: "MEDIA", due_date: "" };
   const [form, setForm] = useState(emptyTask);
+  const [attach, setAttach] = useState<File[]>([]);
 
   useEffect(() => {
     api.get("/api/clients").then(d => setClients(d.clients || [])).catch(() => {}).finally(() => setLoading(false));
@@ -34,12 +35,16 @@ const ClientesGrid = () => {
     if (!form.title.trim() || !form.client_id) { toast({ title: "Preencha título e cliente.", variant: "destructive" }); return; }
     setSaving(true);
     try {
-      await api.post("/api/tasqui/tasks", {
+      const t = await api.post("/api/tasqui/tasks", {
         title: form.title.trim(), description: form.description || null, client_id: form.client_id,
         responsible_id: form.responsible_id || null, priority: form.priority, due_date: form.due_date || null,
       });
+      for (const f of attach) {
+        const fd = new FormData(); fd.append("file", f); fd.append("client_id", form.client_id); fd.append("task_id", t.id);
+        await api.post("/api/files", fd).catch(() => {});
+      }
       toast({ title: "Tarefa criada!" });
-      setForm(emptyTask); setTaskModal(false);
+      setForm(emptyTask); setAttach([]); setTaskModal(false);
     } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
     finally { setSaving(false); }
   };
@@ -114,6 +119,11 @@ const ClientesGrid = () => {
                 <Label className="text-xs text-muted-foreground uppercase tracking-widest">Prazo</Label>
                 <Input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className="bg-secondary border-border" />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase tracking-widest">Anexos / referências</Label>
+              <input type="file" multiple onChange={e => setAttach(Array.from(e.target.files || []))} className="block w-full text-xs text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-secondary file:text-foreground file:text-xs" />
+              {attach.length > 0 && <p className="text-[11px] text-muted-foreground">{attach.length} arquivo(s) selecionado(s)</p>}
             </div>
           </div>
           <DialogFooter>

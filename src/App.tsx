@@ -25,6 +25,7 @@ import Projects from "./pages/Projects";
 import Stats from "./pages/Stats";
 import Roles from "./pages/Roles";
 import AppLayout from "./components/AppLayout";
+import HubLayout from "./components/HubLayout";
 import NotFound from "./pages/NotFound";
 import ComingSoon from "./pages/ComingSoon";
 import CashQuiDashboard from "./pages/CashQuiDashboard";
@@ -68,15 +69,18 @@ const App = () => (
               <Route element={<ProtectedRoute><Hub /></ProtectedRoute>} path="/hub" />
               <Route element={<ProtectedRoute><ViewQui /></ProtectedRoute>} path="/viewqui" />
               <Route element={<ProtectedRoute><ComingSoon /></ProtectedRoute>} path="/coming-soon" />
-              <Route element={<ProtectedRoute staffOnly><Settings /></ProtectedRoute>} path="/settings" />
-              <Route element={<ProtectedRoute staffOnly><Assistant /></ProtectedRoute>} path="/assistente" />
-              <Route element={<ProtectedRoute staffOnly><Demandas /></ProtectedRoute>} path="/demandas" />
-              <Route element={<ProtectedRoute staffOnly><Influencers /></ProtectedRoute>} path="/influencers" />
-              <Route element={<ProtectedRoute staffOnly><Onboarding /></ProtectedRoute>} path="/onboarding/:clientId" />
-              <Route element={<ProtectedRoute staffOnly><ClienteProfile /></ProtectedRoute>} path="/cliente/:id" />
-              <Route element={<ProtectedRoute staffOnly><DashQui /></ProtectedRoute>} path="/dashqui" />
-              <Route element={<ProtectedRoute staffOnly><Tarefas /></ProtectedRoute>} path="/tarefas" />
-              <Route element={<ProtectedRoute staffOnly><ClientesGrid /></ProtectedRoute>} path="/clientes" />
+              {/* Páginas standalone com cabeçalho padrão (Hub/Config/Sair) */}
+              <Route element={<ProtectedRoute staffOnly><HubLayout /></ProtectedRoute>}>
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/assistente" element={<Assistant />} />
+                <Route path="/demandas" element={<Demandas />} />
+                <Route path="/influencers" element={<Influencers />} />
+                <Route path="/onboarding/:clientId" element={<Onboarding />} />
+                <Route path="/cliente/:id" element={<ClienteProfile />} />
+                <Route path="/dashqui" element={<DashQui />} />
+                <Route path="/tarefas" element={<Tarefas />} />
+                <Route path="/clientes" element={<ClientesGrid />} />
+              </Route>
 
               {/* App Principal (protegido, com sidebar — somente equipe interna) */}
               <Route element={<ProtectedRoute staffOnly><AppLayout /></ProtectedRoute>}>
