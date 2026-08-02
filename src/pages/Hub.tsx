@@ -188,7 +188,7 @@ const Hub = () => {
           className="mb-16 text-center md:text-left"
         >
           <h2 className="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight">
-            Seja bem-vindo, <br className="md:hidden" />
+            {user?.gender === "F" ? "Seja bem-vinda" : "Seja bem-vindo"}, <br className="md:hidden" />
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-yellow-300">
               {user?.name || user?.email?.split('@')[0] || "Usuário"}
             </span>

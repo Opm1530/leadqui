@@ -4,57 +4,57 @@
 @tailwind utilities;
 @layer base {
   :root {
-    --background: 222 47% 6%;
-    --foreground: 210 40% 96%;
+    --background: 24 14% 5%;
+    --foreground: 40 30% 96%;
 
-    --card: 222 41% 10%;
-    --card-foreground: 210 40% 96%;
+    --card: 24 12% 9%;
+    --card-foreground: 40 30% 96%;
 
-    --popover: 222 41% 10%;
-    --popover-foreground: 210 40% 96%;
+    --popover: 24 12% 9%;
+    --popover-foreground: 40 30% 96%;
 
-    --primary: 199 89% 48%;
-    --primary-foreground: 222 47% 6%;
+    --primary: 33 96% 54%;
+    --primary-foreground: 24 40% 8%;
 
-    --secondary: 222 30% 16%;
-    --secondary-foreground: 210 40% 90%;
+    --secondary: 26 12% 15%;
+    --secondary-foreground: 40 20% 90%;
 
-    --muted: 222 30% 14%;
-    --muted-foreground: 215 20% 55%;
+    --muted: 26 12% 13%;
+    --muted-foreground: 34 12% 58%;
 
-    --accent: 199 89% 48%;
-    --accent-foreground: 222 47% 6%;
+    --accent: 33 96% 54%;
+    --accent-foreground: 24 40% 8%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 222 30% 18%;
-    --input: 222 30% 18%;
-    --ring: 199 89% 48%;
+    --border: 30 14% 18%;
+    --input: 30 14% 18%;
+    --ring: 33 96% 54%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 222 47% 8%;
-    --sidebar-foreground: 210 40% 90%;
-    --sidebar-primary: 199 89% 48%;
-    --sidebar-primary-foreground: 222 47% 6%;
-    --sidebar-accent: 222 30% 14%;
-    --sidebar-accent-foreground: 210 40% 96%;
-    --sidebar-border: 222 30% 16%;
-    --sidebar-ring: 199 89% 48%;
+    --sidebar-background: 24 14% 7%;
+    --sidebar-foreground: 40 20% 90%;
+    --sidebar-primary: 33 96% 54%;
+    --sidebar-primary-foreground: 24 40% 8%;
+    --sidebar-accent: 26 12% 13%;
+    --sidebar-accent-foreground: 40 30% 96%;
+    --sidebar-border: 26 12% 15%;
+    --sidebar-ring: 33 96% 54%;
 
     /* Custom tokens */
-    --gradient-primary: linear-gradient(135deg, hsl(199 89% 48%), hsl(180 80% 50%));
-    --gradient-button: linear-gradient(135deg, hsl(210 100% 55%), hsl(180 90% 50%));
-    --gradient-surface: linear-gradient(135deg, hsl(222 41% 12%), hsl(222 41% 8%));
-    --glass-bg: hsl(222 41% 10% / 0.6);
-    --glass-border: hsl(210 40% 96% / 0.08);
-    --glass-shadow: 0 8px 32px hsl(222 47% 4% / 0.4);
+    --gradient-primary: linear-gradient(135deg, hsl(33 96% 54%), hsl(45 95% 55%));
+    --gradient-button: linear-gradient(135deg, hsl(30 95% 55%), hsl(45 95% 52%));
+    --gradient-surface: linear-gradient(135deg, hsl(26 14% 12%), hsl(24 14% 8%));
+    --glass-bg: hsl(24 12% 10% / 0.6);
+    --glass-border: hsl(40 30% 96% / 0.08);
+    --glass-shadow: 0 8px 32px hsl(24 30% 3% / 0.4);
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 0%;
-    --info: 199 89% 48%;
+    --info: 33 96% 54%;
   }
 }
 
@@ -66,6 +66,19 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
+    position: relative;
+  }
+
+  /* Brilho ambiente quente (estilo Hub) em todas as páginas */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -1;
+    background:
+      radial-gradient(600px circle at 8% -5%, hsl(33 96% 54% / 0.10), transparent 60%),
+      radial-gradient(600px circle at 100% 105%, hsl(45 95% 55% / 0.05), transparent 55%);
   }
 }
 

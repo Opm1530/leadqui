@@ -28,6 +28,7 @@ router.get("/", authenticateJWT, async (req: AuthRequest, res: Response): Promis
         email: true,
         role: true,
         position: true,
+        gender: true,
         created_at: true,
       },
       orderBy: { name: "asc" }
@@ -47,7 +48,7 @@ router.post("/", authenticateJWT, async (req: AuthRequest, res: Response): Promi
     return;
   }
 
-  const { name, email, password, role, position } = req.body;
+  const { name, email, password, role, position, gender } = req.body;
 
   if (!name || !email || !password || !role) {
     res.status(400).json({ error: "Todos os campos são obrigatórios" });
@@ -75,6 +76,7 @@ router.post("/", authenticateJWT, async (req: AuthRequest, res: Response): Promi
         password_hash,
         role: role as any,
         position,
+        gender,
       },
       select: {
         id: true,
@@ -82,6 +84,7 @@ router.post("/", authenticateJWT, async (req: AuthRequest, res: Response): Promi
         email: true,
         role: true,
         position: true,
+        gender: true,
       }
     });
 
@@ -98,7 +101,7 @@ router.patch("/:id", authenticateJWT, async (req: AuthRequest, res: Response): P
     return;
   }
   const id = String(req.params.id);
-  const { role, position } = req.body;
+  const { role, position, name, gender } = req.body;
   if (role && !AGENCY_ROLES.includes(role)) {
     res.status(400).json({ error: "Cargo inválido para equipe" });
     return;
@@ -110,8 +113,13 @@ router.patch("/:id", authenticateJWT, async (req: AuthRequest, res: Response): P
   try {
     const user = await prisma.user.update({
       where: { id },
-      data: { ...(role && { role: role as any }), ...(position !== undefined && { position }) },
-      select: { id: true, name: true, email: true, role: true, position: true },
+      data: {
+        ...(role && { role: role as any }),
+        ...(position !== undefined && { position }),
+        ...(name !== undefined && name !== "" && { name }),
+        ...(gender !== undefined && { gender }),
+      },
+      select: { id: true, name: true, email: true, role: true, position: true, gender: true },
     });
     res.json(user);
   } catch (e: any) {

@@ -45,6 +45,8 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
         name: user.name,
         email: user.email,
         role: user.role,
+        position: (user as any).position,
+        gender: (user as any).gender,
       },
     });
   } catch (error) {
@@ -190,7 +192,7 @@ router.get("/me", authenticateJWT, async (req: AuthRequest, res: Response): Prom
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: { id: true, name: true, email: true, role: true, created_at: true },
+      select: { id: true, name: true, email: true, role: true, position: true, gender: true, created_at: true },
     });
 
     if (!user) {

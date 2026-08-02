@@ -6,11 +6,12 @@ import {
   UserPlus, 
   Mail, 
   Shield, 
-  Trash2, 
+  Trash2,
   Search,
   MoreVertical,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Pencil
 } from "lucide-react";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
@@ -58,6 +59,23 @@ const Teamqui = () => {
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState("OPERATOR");
   const [newPosition, setNewPosition] = useState("");
+  const [newGender, setNewGender] = useState("");
+
+  // Edição de membro existente
+  const [editing, setEditing] = useState<any>(null);
+  const saveEdit = async () => {
+    if (!editing) return;
+    const prev = team;
+    setTeam(t => t.map(m => m.id === editing.id ? { ...m, name: editing.name, position: editing.position, gender: editing.gender } : m));
+    setEditing(null);
+    try {
+      await api.patch(`/api/teamqui/${editing.id}`, { name: editing.name, position: editing.position, gender: editing.gender });
+      toast({ title: "Membro atualizado!" });
+    } catch (e: any) {
+      setTeam(prev);
+      toast({ title: "Erro ao atualizar", description: e.message, variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     fetchTeam();
@@ -86,7 +104,8 @@ const Teamqui = () => {
         email: newEmail,
         password: newPassword,
         role: newRole,
-        position: newPosition
+        position: newPosition,
+        gender: newGender || null
       });
       toast({ title: "Sucesso", description: "Membro adicionado à equipe." });
       setIsAdding(false);
@@ -122,6 +141,7 @@ const Teamqui = () => {
     setNewPassword("");
     setNewRole("OPERATOR");
     setNewPosition("");
+    setNewGender("");
   };
 
   const filteredTeam = team.filter(m => 
@@ -181,6 +201,16 @@ const Teamqui = () => {
               <div className="space-y-2">
                 <Label>Cargo / Função (Tag)</Label>
                 <Input value={newPosition} onChange={e => setNewPosition(e.target.value)} placeholder="Ex: Designer, Tráfego, Copy..." />
+              </div>
+              <div className="space-y-2">
+                <Label>Gênero (saudação do Hub)</Label>
+                <Select value={newGender} onValueChange={setNewGender}>
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="F">Feminino — "bem-vinda"</SelectItem>
+                    <SelectItem value="M">Masculino — "bem-vindo"</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <button type="submit" className="w-full gradient-button py-3 mt-4 rounded-xl font-bold">
                 CADASTRAR MEMBRO
@@ -275,18 +305,63 @@ const Teamqui = () => {
                   </div>
                 </td>
                 <td className="p-4 text-right">
-                  <button 
-                    onClick={() => handleDelete(member.id)}
-                    className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center justify-end gap-1">
+                    {isAdmin && (
+                      <button
+                        onClick={() => setEditing({ id: member.id, name: member.name, position: member.position || "", gender: member.gender || "" })}
+                        className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                        title="Editar"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(member.id)}
+                      className="p-2 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* Modal Editar Membro */}
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent className="bg-secondary border-border">
+          <DialogHeader>
+            <DialogTitle>Editar Membro</DialogTitle>
+          </DialogHeader>
+          {editing && (
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label>Nome Completo</Label>
+                <Input value={editing.name} onChange={e => setEditing((p: any) => ({ ...p, name: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Cargo / Função (Tag)</Label>
+                <Input value={editing.position} onChange={e => setEditing((p: any) => ({ ...p, position: e.target.value }))} placeholder="Ex: Designer, Tráfego, Copy..." />
+              </div>
+              <div className="space-y-2">
+                <Label>Gênero (saudação do Hub)</Label>
+                <Select value={editing.gender || ""} onValueChange={v => setEditing((p: any) => ({ ...p, gender: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="F">Feminino — "bem-vinda"</SelectItem>
+                    <SelectItem value="M">Masculino — "bem-vindo"</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <button onClick={saveEdit} className="w-full gradient-button py-3 mt-2 rounded-xl font-bold">
+                SALVAR ALTERAÇÕES
+              </button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

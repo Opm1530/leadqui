@@ -8,7 +8,7 @@ const AppHeader = ({ extra, showHub = true }: { extra?: ReactNode; showHub?: boo
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   return (
-    <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-md border-b border-border">
+    <header className="sticky top-0 z-30 bg-background/70 backdrop-blur-md">
       <div className="max-w-6xl mx-auto flex justify-between items-center px-6 py-3">
         <button onClick={() => navigate("/hub")} className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-orange-400 to-yellow-400 shadow-lg shadow-orange-500/20">

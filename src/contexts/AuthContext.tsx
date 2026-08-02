@@ -7,6 +7,7 @@ type AuthUser = {
   email: string;
   role: "ADMIN" | "MANAGER" | "OPERATOR" | "CLIENT";
   position?: string;
+  gender?: "F" | "M" | null;
 };
 
 type AuthContextType = {

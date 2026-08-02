@@ -24,6 +24,7 @@ model User {
   password_hash         String
   role                  UserRole  @default(CLIENT)
   position              String?
+  gender                String?   // "F" | "M" — usado na saudação do Hub
   reset_token           String?   @unique
   reset_token_expires   DateTime?
   created_at            DateTime  @default(now())

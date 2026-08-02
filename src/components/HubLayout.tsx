@@ -4,7 +4,7 @@ import AppHeader from "./AppHeader";
 // Cabeçalho padrão para páginas fora do AppLayout (DashQui, Clientes, etc.)
 const HubLayout = () => {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       <AppHeader />
       <Outlet />
     </div>
