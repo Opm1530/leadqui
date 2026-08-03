@@ -1,8 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Upload, CheckCircle2, XCircle, Send, ExternalLink, FileText, Trash2, Link2 } from "lucide-react";
+import { Loader2, Upload, CheckCircle2, XCircle, Send, ExternalLink, FileText, Trash2, Link2, Paperclip } from "lucide-react";
 import { confirm } from "@/components/ConfirmDialog";
 import { CONTENT_STATUS, typeLabel, platformLabel, openEditorialFile } from "@/lib/editorial";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,7 +24,21 @@ export default function EditorialDetailModal({ content, isOpen, onClose, onChang
   const [busy, setBusy] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const [taskFiles, setTaskFiles] = useState<any[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Carrega os anexos da tarefa vinculada (a arte pode ter sido anexada pela tarefa)
+  useEffect(() => {
+    if (isOpen && content?.task_id) {
+      api.get(`/api/files?task_id=${content.task_id}`).then(d => setTaskFiles(d.files || [])).catch(() => setTaskFiles([]));
+    } else setTaskFiles([]);
+  }, [isOpen, content?.task_id]);
+
+  const baixarAnexo = (af: any) => {
+    const token = localStorage.getItem("pequi_token");
+    fetch(`/api/files/${af.id}/download`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.blob()).then(b => window.open(URL.createObjectURL(b), "_blank")).catch(() => {});
+  };
 
   if (!content) return null;
   const st = CONTENT_STATUS[content.status] || CONTENT_STATUS.IDEIA;
@@ -85,8 +99,8 @@ export default function EditorialDetailModal({ content, isOpen, onClose, onChang
             <div><p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-1">Descrição / Briefing</p><p className="text-foreground whitespace-pre-wrap">{content.description}</p></div>
           )}
 
-          {content.reference_url && (
-            <a href={content.reference_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-primary hover:underline text-sm">
+          {content.reference_url && /^https?:\/\//i.test(content.reference_url.trim()) && (
+            <a href={content.reference_url.trim()} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-primary hover:underline text-sm">
               <Link2 className="w-4 h-4" /> Abrir referência
             </a>
           )}
@@ -109,6 +123,22 @@ export default function EditorialDetailModal({ content, isOpen, onClose, onChang
             <button onClick={() => openEditorialFile(content.id)} className="inline-flex items-center gap-2 text-green-400 hover:text-green-300 text-sm">
               <FileText className="w-4 h-4" /> Ver conteúdo produzido ({content.produced_name}) <ExternalLink className="w-3 h-3" />
             </button>
+          )}
+
+          {/* Arte anexada pela tarefa vinculada */}
+          {taskFiles.length > 0 && (
+            <div>
+              <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-1 flex items-center gap-1"><Paperclip className="w-3 h-3" /> Arquivos da tarefa</p>
+              <div className="space-y-1.5">
+                {taskFiles.map(af => (
+                  <button key={af.id} onClick={() => baixarAnexo(af)} className="w-full text-left flex items-center gap-2 bg-secondary/40 rounded-lg px-3 py-1.5 hover:bg-secondary/60 transition">
+                    <FileText className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                    <span className="text-xs text-foreground truncate flex-1">{af.name}</span>
+                    <ExternalLink className="w-3 h-3 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Ações */}

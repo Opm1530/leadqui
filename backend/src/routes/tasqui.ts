@@ -129,6 +129,26 @@ router.patch("/tasks/:id", authenticateJWT, async (req: AuthRequest, res: Respon
       },
     });
 
+    // Sincroniza com o conteúdo do Editorial vinculado (tarefa → editorial)
+    if (status !== undefined) {
+      try {
+        const content = await (prisma as any).editorialContent.findFirst({ where: { task_id: taskId } });
+        if (content) {
+          // Concluiu/mandou pra revisão a produção → conteúdo vai para aprovação
+          if ((status === "CONCLUIDO" || status === "REVISAO") && ["EM_PRODUCAO", "AJUSTES"].includes(content.status)) {
+            await (prisma as any).editorialContent.update({ where: { id: content.id }, data: { status: "EM_APROVACAO" } });
+            await (prisma as any).notification.create({
+              data: { user_id: content.user_id, type: "EDITORIAL", title: "Conteúdo aguardando aprovação", message: content.title, link: "/editorial", reference_id: content.id },
+            }).catch(() => {});
+          }
+          // Reabriu a tarefa → conteúdo volta para produção
+          else if ((status === "PENDENTE" || status === "EM_ANDAMENTO") && content.status === "EM_APROVACAO") {
+            await (prisma as any).editorialContent.update({ where: { id: content.id }, data: { status: "EM_PRODUCAO" } });
+          }
+        }
+      } catch { /* não bloqueia a atualização da tarefa */ }
+    }
+
     res.json(task);
   } catch (error) {
     res.status(500).json({ error: "Erro ao atualizar tarefa" });
