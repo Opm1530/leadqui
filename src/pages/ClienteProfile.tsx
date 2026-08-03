@@ -349,7 +349,7 @@ const AutoReplyTab = ({ clientId, connection, rules, setRules, toast }: any) => 
     try {
       const d = await api.post("/api/techqui/comments/rules", {
         connection_id: connection.id, client_id: clientId, name: nome.trim(),
-        reply_type: "FIXA", fixed_reply: resposta.trim(), apply_to: "TODOS",
+        reply_type: "FIXO", fixed_reply: resposta.trim(), apply_to: "TODOS",
       });
       setRules((p: any[]) => [...p, d.rule]); setNome(""); setResposta("");
     } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
