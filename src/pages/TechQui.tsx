@@ -20,7 +20,7 @@ import {
   CheckCircle, XCircle, Clock, Loader2, RefreshCw, CalendarDays, Link2,
   TrendingUp, TrendingDown, DollarSign, Eye, MousePointerClick, Target,
   ChevronDown, ChevronUp, Play, Pause, AlertTriangle, Send, Image, Video,
-  LayoutGrid, Bot, History, Users, Unlink, Activity,
+  LayoutGrid, Bot, History, Users, Unlink, Activity, Search,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -162,8 +162,29 @@ const OAuthSelectModal = ({ sessionId, clientId, clients, onClose, onSaved, toas
   const [selectedPage, setSelectedPage]   = useState("");
   const [selectedAd, setSelectedAd]       = useState("");
   const [saving, setSaving]               = useState(false);
+  const [pageSearch, setPageSearch]       = useState("");
+  const [adSearch, setAdSearch]           = useState("");
 
   const clientName = clients.find((c: any) => c.id === clientId)?.name || clientId;
+
+  const norm = (s: any) => String(s || "").toLowerCase();
+  // Páginas: as que publicam (com Instagram) primeiro; filtra por nome/@usuário
+  const allPages: any[] = data?.pages || [];
+  const pages = allPages
+    .filter((p: any) => {
+      const q = norm(pageSearch);
+      return !q || norm(p.page_name).includes(q) || norm(p.instagram_username).includes(q);
+    })
+    .sort((a: any, b: any) => {
+      const aPub = a.instagram_username && a.source !== "bm" && a.page_id ? 0 : 1;
+      const bPub = b.instagram_username && b.source !== "bm" && b.page_id ? 0 : 1;
+      return aPub - bPub;
+    });
+  const allAds: any[] = data?.adAccounts || [];
+  const ads = allAds.filter((a: any) => {
+    const q = norm(adSearch);
+    return !q || norm(a.name).includes(q) || norm(a.id).includes(q);
+  });
 
   useEffect(() => {
     api.get(`/api/techqui/oauth/session/${sessionId}`)
@@ -209,13 +230,21 @@ const OAuthSelectModal = ({ sessionId, clientId, clients, onClose, onSaved, toas
             {/* Páginas / Instagram */}
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                Página do Facebook + Instagram
+                Página do Facebook + Instagram {allPages.length > 0 && <span className="text-muted-foreground/60 normal-case">({allPages.length})</span>}
               </Label>
-              {data.pages?.length === 0 ? (
+              {allPages.length === 0 ? (
                 <p className="text-xs text-muted-foreground">Nenhuma página encontrada nesta conta.</p>
               ) : (
                 <div className="space-y-2">
-                  {data.pages?.map((p: any) => {
+                  {allPages.length > 6 && (
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <Input value={pageSearch} onChange={e => setPageSearch(e.target.value)} placeholder="Buscar por nome ou @usuário..." className="pl-8 h-9 bg-secondary/50 border-border text-sm" />
+                    </div>
+                  )}
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {pages.length === 0 && <p className="text-xs text-muted-foreground py-2">Nenhuma página corresponde à busca.</p>}
+                  {pages.map((p: any) => {
                     const isBM = p.source === "bm" || !p.page_id;
                     const canPublish = !isBM && p.instagram_username;
                     return (
@@ -238,6 +267,7 @@ const OAuthSelectModal = ({ sessionId, clientId, clients, onClose, onSaved, toas
                       </button>
                     );
                   })}
+                  </div>
                 </div>
               )}
             </div>
@@ -245,13 +275,21 @@ const OAuthSelectModal = ({ sessionId, clientId, clients, onClose, onSaved, toas
             {/* Contas de Anúncios */}
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground uppercase tracking-wider">
-                Conta de Anúncios (Ad Account)
+                Conta de Anúncios (Ad Account) {allAds.length > 0 && <span className="text-muted-foreground/60 normal-case">({allAds.length})</span>}
               </Label>
-              {data.adAccounts?.length === 0 ? (
+              {allAds.length === 0 ? (
                 <p className="text-xs text-muted-foreground">Nenhuma conta de anúncios encontrada.</p>
               ) : (
                 <div className="space-y-2">
-                  {data.adAccounts?.map((a: any) => (
+                  {allAds.length > 6 && (
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <Input value={adSearch} onChange={e => setAdSearch(e.target.value)} placeholder="Buscar por nome ou ID..." className="pl-8 h-9 bg-secondary/50 border-border text-sm" />
+                    </div>
+                  )}
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {ads.length === 0 && <p className="text-xs text-muted-foreground py-2">Nenhuma conta corresponde à busca.</p>}
+                  {ads.map((a: any) => (
                     <button key={a.id} type="button" onClick={() => setSelectedAd(a.id)}
                       className={`w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-all ${selectedAd === a.id ? "border-primary bg-primary/10" : "border-border bg-secondary/30 hover:border-primary/50"}`}>
                       <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 mt-0.5 ${selectedAd === a.id ? "border-primary bg-primary" : "border-muted-foreground"}`} />
@@ -264,6 +302,7 @@ const OAuthSelectModal = ({ sessionId, clientId, clients, onClose, onSaved, toas
                       </div>
                     </button>
                   ))}
+                  </div>
                 </div>
               )}
             </div>
