@@ -415,12 +415,14 @@ router.get("/oauth/instagram/callback", async (req: Request, res: Response): Pro
 
     // 3. Buscar o ID correto para publicação via /me (o user_id do token é app-scoped e NÃO serve)
     let igUserId: string;
+    let igScopedId: string | null = null;
     let username: string | null = null;
     try {
       const meRes = await axios.get("https://graph.instagram.com/v21.0/me", {
-        params: { fields: "user_id,username", access_token: longToken },
+        params: { fields: "user_id,id,username", access_token: longToken },
       });
       igUserId = String(meRes.data.user_id);
+      igScopedId = meRes.data.id ? String(meRes.data.id) : null;
       username = meRes.data.username || null;
     } catch (e: any) {
       // fallback ao user_id do token se /me falhar
@@ -434,12 +436,14 @@ router.get("/oauth/instagram/callback", async (req: Request, res: Response): Pro
         client_id,
         connection_type:      "INSTAGRAM",
         instagram_account_id: igUserId,
+        ig_scoped_id:         igScopedId,
         instagram_username:   username,
         ig_access_token:      longToken,
         token_expires_at:     tokenExpiresAt,
       },
       update: {
         instagram_account_id: igUserId,
+        ig_scoped_id:         igScopedId,
         instagram_username:   username,
         ig_access_token:      longToken,
         updated_at:           new Date(),
@@ -1141,9 +1145,10 @@ export async function handleIncomingComment(comment: { comment_id: string; post_
     if (already) return;
 
     // Encontrar a conexão dona da conta que recebeu o comentário
+    // (o webhook pode enviar o id profissional OU o id app-scoped)
     const conn = comment.account_id
       ? await (prisma as any).clientMetaConnection.findFirst({
-          where: { instagram_account_id: comment.account_id },
+          where: { OR: [{ instagram_account_id: comment.account_id }, { ig_scoped_id: comment.account_id }] },
           include: { comment_rules: { where: { active: true } } },
         })
       : null;

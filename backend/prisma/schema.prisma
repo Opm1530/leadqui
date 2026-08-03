@@ -928,6 +928,7 @@ model ClientMetaConnection {
   id                    String   @id @default(uuid())
   client_id             String   @unique
   instagram_account_id  String?
+  ig_scoped_id          String?  // id app-scoped do /me (pode ser o id que o webhook envia)
   instagram_username    String?
   ad_account_id         String?
   page_id               String?
