@@ -6,8 +6,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, ListTodo, CalendarClock, TrendingUp, TrendingDown, Wallet, Check, Paperclip } from "lucide-react";
+import { ArrowLeft, Loader2, ListTodo, CalendarClock, TrendingUp, TrendingDown, Wallet, Check, Paperclip, Clapperboard } from "lucide-react";
 import { confirm } from "@/components/ConfirmDialog";
+import { CONTENT_STATUS, typeLabel } from "@/lib/editorial";
 
 const brl = (n: number) => (n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -51,6 +52,7 @@ const DashQui = () => {
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
 
   const posts = data?.posts || [];
+  const editorial = data?.editorial || [];
   const fin = data?.finance || {};
   const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
 
@@ -157,13 +159,32 @@ const DashQui = () => {
           </div>
         </div>
 
-        {/* Posts agendados */}
+        {/* Conteúdos a postar (Editorial) */}
         <div className="rounded-2xl border border-border bg-card/40 p-5">
-          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
-            <CalendarClock className="w-4 h-4 text-purple-400" /> Próximos posts ({posts.length})
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Clapperboard className="w-4 h-4 text-pink-400" /> Conteúdos a postar ({editorial.length})
+            </h2>
+            <button onClick={() => navigate("/editorial")} className="text-xs text-primary hover:underline">abrir Editorial</button>
+          </div>
           <div className="space-y-1.5 max-h-96 overflow-y-auto">
-            {posts.length === 0 && <p className="text-sm text-muted-foreground py-3 text-center">Nenhum post agendado.</p>}
+            {editorial.length === 0 && posts.length === 0 && <p className="text-sm text-muted-foreground py-3 text-center">Nenhum conteúdo agendado.</p>}
+            {editorial.map((c: any) => {
+              const st = CONTENT_STATUS[c.status] || CONTENT_STATUS.IDEIA;
+              return (
+                <button key={c.id} onClick={() => navigate("/editorial")} className="w-full text-left flex items-center gap-2 bg-secondary/40 rounded-lg px-3 py-2 hover:bg-secondary/60 transition">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${st.dot}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground truncate">{c.title}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {c.client?.name || "—"} · {typeLabel(c.content_type)}{c.scheduled_date ? ` · ${new Date(c.scheduled_date).toLocaleDateString("pt-BR")}` : ""}
+                    </p>
+                  </div>
+                  <span className={`hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${st.color}`}>{st.label}</span>
+                </button>
+              );
+            })}
+            {/* Posts do sistema antigo (se houver) */}
             {posts.map((p: any) => (
               <div key={p.id} className="bg-secondary/40 rounded-lg px-3 py-2">
                 <p className="text-sm text-foreground">{p.title || `${p.type} · ${p.platform}`}</p>

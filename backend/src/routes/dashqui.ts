@@ -33,6 +33,17 @@ router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
       take: 30,
     });
 
+    // Conteúdos do Editorial a postar (agendados de hoje em diante OU prontos p/ postar)
+    const editorial = await (prisma as any).editorialContent.findMany({
+      where: {
+        status: { not: "POSTADO" },
+        OR: [{ scheduled_date: { gte: start } }, { status: "AGUARDANDO_POSTAR" }],
+      },
+      include: { client: { select: { name: true } }, responsible: { select: { name: true } } },
+      orderBy: [{ scheduled_date: "asc" }, { created_at: "asc" }],
+      take: 40,
+    });
+
     // Movimentações financeiras do dia
     const invoicesDue = await (prisma as any).invoice.findMany({
       where: { due_date: { gte: start, lte: end } },
@@ -53,6 +64,7 @@ router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
     res.json({
       tasks,
       posts,
+      editorial,
       finance: {
         recebido_hoje: totalRecebidoHoje,
         a_receber_hoje: totalAReceberHoje,
