@@ -724,24 +724,118 @@ router.get("/ads/campaigns/:connectionId", authenticateJWT, async (req: AuthRequ
 });
 
 // ── Saúde da conexão (token) ──────────────────────────────────────────
+// Permissões que o app pede e o que cada uma habilita (para diagnóstico claro)
+const PERMISSION_LABELS: Record<string, string> = {
+  pages_show_list:            "Listar Páginas",
+  pages_read_engagement:      "Ler engajamento da Página",
+  pages_manage_engagement:    "Responder comentários da Página",
+  instagram_manage_comments:  "Responder comentários do Instagram",
+  instagram_content_publish:  "Publicar no Instagram",
+  ads_management:             "Gerenciar Anúncios",
+  ads_read:                   "Ler Anúncios",
+  business_management:        "Gerenciar Business",
+};
+
 router.get("/connections/:id/health", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { id: String(req.params.id) } });
     if (!conn) { res.status(404).json({ error: "Conexão não encontrada" }); return; }
-    const token = conn.access_token || conn.page_access_token || conn.ig_access_token;
-    if (!token) { res.json({ ok: false, error: "Sem token salvo" }); return; }
-    try {
-      await axios.get("https://graph.facebook.com/v20.0/me", { params: { access_token: token, fields: "id" } });
-      // Verifica se o token de anúncios ainda acessa a conta
-      let adsOk = true;
-      if (conn.ad_account_id) {
-        try { await axios.get(`https://graph.facebook.com/v20.0/${conn.ad_account_id}`, { params: { access_token: token, fields: "id,name" } }); }
-        catch { adsOk = false; }
-      }
-      res.json({ ok: true, ads_ok: adsOk });
-    } catch (e: any) {
-      res.json({ ok: false, error: e.response?.data?.error?.message || e.message });
+
+    const userToken = conn.access_token || conn.ig_access_token || conn.page_access_token;
+    const pageToken = conn.page_access_token || conn.access_token;
+    const checks: { key: string; label: string; ok: boolean; detail?: string }[] = [];
+    const add = (key: string, label: string, ok: boolean, detail?: string) => checks.push({ key, label, ok, detail });
+
+    if (!userToken) {
+      res.json({ ok: false, checks: [{ key: "token", label: "Token de acesso", ok: false, detail: "Nenhum token salvo — reconecte a conta." }] });
+      return;
     }
+
+    // 1. Token válido
+    let tokenOk = false;
+    try {
+      await axios.get("https://graph.facebook.com/v20.0/me", { params: { access_token: userToken, fields: "id,name" } });
+      tokenOk = true;
+      add("token", "Token de acesso válido", true);
+    } catch (e: any) {
+      add("token", "Token de acesso", false, e.response?.data?.error?.message || "Token inválido ou expirado — reconecte.");
+    }
+
+    // 2. Permissões concedidas
+    if (tokenOk) {
+      try {
+        const permRes = await axios.get("https://graph.facebook.com/v20.0/me/permissions", { params: { access_token: userToken } });
+        const perms: any[] = permRes.data.data || [];
+        const declined = perms.filter(p => p.status !== "granted").map(p => p.permission);
+        const granted = new Set(perms.filter(p => p.status === "granted").map(p => p.permission));
+        // Sinaliza as permissões relevantes que faltam
+        const wanted = conn.ad_account_id
+          ? ["pages_read_engagement", "instagram_manage_comments", "ads_management", "ads_read"]
+          : ["instagram_manage_comments", "instagram_content_publish"];
+        const missing = wanted.filter(w => !granted.has(w));
+        add(
+          "permissions",
+          "Permissões concedidas",
+          missing.length === 0,
+          missing.length === 0
+            ? undefined
+            : "Faltando: " + missing.map(m => PERMISSION_LABELS[m] || m).join(", ") + ". Reconecte marcando todas as permissões." +
+              (declined.length ? "" : ""),
+        );
+      } catch (e: any) {
+        add("permissions", "Permissões concedidas", false, "Não foi possível verificar as permissões.");
+      }
+    }
+
+    // 3. Página do Facebook acessível
+    if (conn.page_id) {
+      try {
+        await axios.get(`https://graph.facebook.com/v20.0/${conn.page_id}`, { params: { access_token: pageToken, fields: "id,name" } });
+        add("page", "Página do Facebook acessível", true, conn.page_name || undefined);
+      } catch (e: any) {
+        add("page", "Página do Facebook", false, e.response?.data?.error?.message || "Página inacessível — reconecte o Facebook.");
+      }
+    }
+
+    // 4. Instagram vinculado e acessível
+    if (conn.instagram_account_id) {
+      try {
+        const igRes = await axios.get(`https://graph.facebook.com/v20.0/${conn.instagram_account_id}`, {
+          params: { access_token: conn.ig_access_token || pageToken, fields: "id,username" },
+        });
+        add("instagram", "Instagram acessível", true, igRes.data.username ? `@${igRes.data.username}` : undefined);
+      } catch (e: any) {
+        add("instagram", "Instagram", false, e.response?.data?.error?.message || "Conta de Instagram inacessível.");
+      }
+    } else if (conn.page_id) {
+      add("instagram", "Instagram vinculado à Página", false, "Nenhuma conta de Instagram profissional vinculada a esta Página. Vincule no Meta Business Suite.");
+    }
+
+    // 5. Conta de anúncios
+    if (conn.ad_account_id) {
+      try {
+        await axios.get(`https://graph.facebook.com/v20.0/${conn.ad_account_id}`, { params: { access_token: userToken, fields: "id,name,account_status" } });
+        add("ads", "Conta de anúncios acessível", true, conn.ad_account_id);
+      } catch (e: any) {
+        add("ads", "Conta de anúncios", false, e.response?.data?.error?.message || "Conta de anúncios inacessível.");
+      }
+    }
+
+    // 6. Webhook de comentários (Instagram)
+    if (conn.instagram_account_id) {
+      try {
+        const subRes = await axios.get(`https://graph.facebook.com/v20.0/${conn.instagram_account_id}/subscribed_apps`, {
+          params: { access_token: conn.ig_access_token || pageToken },
+        });
+        const subscribed = (subRes.data.data || []).length > 0;
+        add("webhook", "Webhook de comentários ativo", subscribed, subscribed ? undefined : "Conta não inscrita nos webhooks — use 'Ativar auto-reply' na aba Comentários.");
+      } catch {
+        add("webhook", "Webhook de comentários", false, "Não foi possível verificar a inscrição do webhook.");
+      }
+    }
+
+    const ok = checks.every(c => c.ok);
+    res.json({ ok, ads_ok: checks.find(c => c.key === "ads")?.ok ?? true, checks });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 

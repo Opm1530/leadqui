@@ -20,7 +20,7 @@ import {
   CheckCircle, XCircle, Clock, Loader2, RefreshCw, CalendarDays, Link2,
   TrendingUp, TrendingDown, DollarSign, Eye, MousePointerClick, Target,
   ChevronDown, ChevronUp, Play, Pause, AlertTriangle, Send, Image, Video,
-  LayoutGrid, Bot, History, Users, Unlink,
+  LayoutGrid, Bot, History, Users, Unlink, Activity,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -285,6 +285,20 @@ const OAuthSelectModal = ({ sessionId, clientId, clients, onClose, onSaved, toas
 // ── Tab: Conexões ─────────────────────────────────────────────────────
 const ConnectionsTab = ({ clients, connections, onRefresh, toast }: any) => {
   const [connectingId, setConnectingId] = useState<string | null>(null);
+  const [healthById, setHealthById] = useState<Record<string, any>>({});
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+
+  const diagnose = async (connId: string) => {
+    // alterna: se já mostrando, fecha
+    if (healthById[connId]) { setHealthById(h => { const n = { ...h }; delete n[connId]; return n; }); return; }
+    setCheckingId(connId);
+    try {
+      const d = await api.get(`/api/techqui/connections/${connId}/health`);
+      setHealthById(h => ({ ...h, [connId]: d }));
+    } catch (e: any) {
+      toast({ title: "Erro no diagnóstico", description: e.message, variant: "destructive" });
+    } finally { setCheckingId(null); }
+  };
 
   const startOAuth = async (clientId: string, via: "facebook" | "instagram" = "facebook") => {
     setConnectingId(clientId);
@@ -352,8 +366,10 @@ const ConnectionsTab = ({ clients, connections, onRefresh, toast }: any) => {
           const conn = connectedMap[client.id];
           const isConnecting = connectingId === client.id;
 
+          const health = healthById[conn?.id];
           return (
-            <motion.div key={client.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4 flex items-center gap-4">
+            <motion.div key={client.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="glass-card p-4">
+             <div className="flex items-center gap-4">
               {/* Avatar */}
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
                 <span className="text-white font-bold text-sm">{client.name[0]}</span>
@@ -415,6 +431,18 @@ const ConnectionsTab = ({ clients, connections, onRefresh, toast }: any) => {
                   <Instagram className="w-3.5 h-3.5 mr-1.5" />
                   {conn?.has_instagram ? "✓ Instagram" : "Instagram"}
                 </Button>
+                {/* Diagnóstico */}
+                {conn && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => diagnose(conn.id)}
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-white/5"
+                    title="Diagnosticar conexão"
+                  >
+                    {checkingId === conn.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
+                  </Button>
+                )}
                 {/* Desvincular tudo */}
                 {conn && (
                   <Button
@@ -428,6 +456,27 @@ const ConnectionsTab = ({ clients, connections, onRefresh, toast }: any) => {
                   </Button>
                 )}
               </div>
+             </div>
+
+              {/* Painel de diagnóstico */}
+              {health && (
+                <div className="mt-3 pt-3 border-t border-white/5 space-y-1.5">
+                  {(health.checks || []).map((c: any) => (
+                    <div key={c.key} className="flex items-start gap-2 text-xs">
+                      {c.ok
+                        ? <CheckCircle className="w-3.5 h-3.5 text-green-400 shrink-0 mt-0.5" />
+                        : <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />}
+                      <div className="min-w-0">
+                        <span className={c.ok ? "text-foreground" : "text-red-300 font-medium"}>{c.label}</span>
+                        {c.detail && <span className="text-muted-foreground"> — {c.detail}</span>}
+                      </div>
+                    </div>
+                  ))}
+                  {!health.ok && (
+                    <p className="text-[11px] text-amber-300/80 pt-1">Dica: reconecte a conta (botão Facebook/Instagram) marcando <b>todas</b> as permissões solicitadas.</p>
+                  )}
+                </div>
+              )}
             </motion.div>
           );
         })}
