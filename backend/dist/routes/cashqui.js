@@ -9,6 +9,9 @@ const auth_1 = require("../middlewares/auth");
 const axios_1 = __importDefault(require("axios"));
 const https_1 = __importDefault(require("https"));
 const dates_1 = require("../lib/dates");
+const multer_1 = __importDefault(require("multer"));
+const storage_1 = require("../lib/storage");
+const receiptUpload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateJWT);
 router.use(auth_1.requireStaff);
@@ -200,6 +203,54 @@ router.delete("/invoices/:id", async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+// Comprovante da fatura
+router.post("/invoices/:id/receipt", receiptUpload.single("file"), async (req, res) => {
+    const file = req.file;
+    if (!file) {
+        res.status(400).json({ error: "Arquivo obrigatório" });
+        return;
+    }
+    try {
+        const id = String(req.params.id);
+        const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const key = `invoices/${id}/${Date.now()}-${safe}`;
+        await (0, storage_1.uploadFile)(key, file.buffer, file.mimetype);
+        const invoice = await prisma_1.default.invoice.update({ where: { id }, data: { receipt_key: key, receipt_name: file.originalname } });
+        res.json({ invoice });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+router.get("/invoices/:id/receipt", async (req, res) => {
+    try {
+        const inv = await prisma_1.default.invoice.findUnique({ where: { id: String(req.params.id) } });
+        if (!inv?.receipt_key) {
+            res.status(404).json({ error: "Sem comprovante" });
+            return;
+        }
+        const { body, mime } = await (0, storage_1.getFile)(inv.receipt_key);
+        res.setHeader("Content-Type", mime || "application/octet-stream");
+        res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(inv.receipt_name || "comprovante")}"`);
+        body.pipe(res);
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+router.delete("/invoices/:id/receipt", async (req, res) => {
+    try {
+        const inv = await prisma_1.default.invoice.findUnique({ where: { id: String(req.params.id) } });
+        if (inv?.receipt_key) {
+            await (0, storage_1.deleteFile)(inv.receipt_key).catch(() => { });
+        }
+        await prisma_1.default.invoice.update({ where: { id: String(req.params.id) }, data: { receipt_key: null, receipt_name: null } });
+        res.json({ success: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 // ── Despesas ──────────────────────────────────────────────────────────
 router.get("/expenses", async (req, res) => {
     try {
@@ -240,6 +291,42 @@ router.post("/expenses", async (req, res) => {
     }
     catch (error) {
         res.status(500).json({ error: error.message });
+    }
+});
+// Anexar comprovante a uma despesa
+router.post("/expenses/:id/receipt", receiptUpload.single("file"), async (req, res) => {
+    const file = req.file;
+    if (!file) {
+        res.status(400).json({ error: "Arquivo obrigatório" });
+        return;
+    }
+    try {
+        const id = String(req.params.id);
+        const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const key = `expenses/${id}/${Date.now()}-${safe}`;
+        await (0, storage_1.uploadFile)(key, file.buffer, file.mimetype);
+        const expense = await prisma_1.default.expense.update({ where: { id }, data: { receipt_key: key, receipt_name: file.originalname } });
+        res.json({ expense });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+// Baixar comprovante da despesa
+router.get("/expenses/:id/receipt", async (req, res) => {
+    try {
+        const exp = await prisma_1.default.expense.findUnique({ where: { id: String(req.params.id) } });
+        if (!exp?.receipt_key) {
+            res.status(404).json({ error: "Sem comprovante" });
+            return;
+        }
+        const { body, mime } = await (0, storage_1.getFile)(exp.receipt_key);
+        res.setHeader("Content-Type", mime || "application/octet-stream");
+        res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(exp.receipt_name || "comprovante")}"`);
+        body.pipe(res);
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 router.put("/expenses/:id", async (req, res) => {
@@ -328,6 +415,52 @@ router.get("/fixed-expenses", async (req, res) => {
             orderBy: { due_day: "asc" },
         });
         res.json({ fixed_expenses: items });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+// Despesas fixas "a pagar" — perto do vencimento e ainda não pagas neste mês
+router.get("/fixed-expenses/pending", async (_req, res) => {
+    try {
+        const now = new Date();
+        const hojeDia = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Sao_Paulo", day: "2-digit" }).format(now));
+        const ini = new Date(`${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(now).slice(0, 7)}-01T00:00:00-03:00`);
+        const fim = new Date(ini);
+        fim.setMonth(fim.getMonth() + 1);
+        const fixas = await prisma_1.default.fixedExpense.findMany({ where: { active: true } });
+        const pagasMes = await prisma_1.default.expense.findMany({
+            where: { fixed_expense_id: { not: null }, date: { gte: ini, lt: fim } },
+            select: { fixed_expense_id: true },
+        });
+        const pagasIds = new Set(pagasMes.map((e) => e.fixed_expense_id));
+        // Mostra as que faltam pagar e já estão perto do dia (5 dias antes) ou vencidas no mês
+        const pendentes = fixas.filter((f) => !pagasIds.has(f.id) && hojeDia >= f.due_day - 5);
+        res.json({ pending: pendentes });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+// Marca uma despesa fixa como paga → cria a despesa registrada
+router.post("/fixed-expenses/:id/pay", async (req, res) => {
+    try {
+        const fixa = await prisma_1.default.fixedExpense.findFirst({ where: { id: String(req.params.id) } });
+        if (!fixa) {
+            res.status(404).json({ error: "Despesa fixa não encontrada" });
+            return;
+        }
+        const expense = await prisma_1.default.expense.create({
+            data: {
+                user_id: req.user.id,
+                description: fixa.description,
+                amount: fixa.amount,
+                category: fixa.category,
+                date: new Date(),
+                fixed_expense_id: fixa.id,
+            },
+        });
+        res.status(201).json({ expense });
     }
     catch (error) {
         res.status(500).json({ error: error.message });

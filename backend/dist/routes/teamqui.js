@@ -29,6 +29,7 @@ router.get("/", auth_1.authenticateJWT, async (req, res) => {
                 email: true,
                 role: true,
                 position: true,
+                gender: true,
                 created_at: true,
             },
             orderBy: { name: "asc" }
@@ -46,7 +47,7 @@ router.post("/", auth_1.authenticateJWT, async (req, res) => {
         res.status(403).json({ error: "Acesso negado" });
         return;
     }
-    const { name, email, password, role, position } = req.body;
+    const { name, email, password, role, position, gender } = req.body;
     if (!name || !email || !password || !role) {
         res.status(400).json({ error: "Todos os campos são obrigatórios" });
         return;
@@ -69,6 +70,7 @@ router.post("/", auth_1.authenticateJWT, async (req, res) => {
                 password_hash,
                 role: role,
                 position,
+                gender,
             },
             select: {
                 id: true,
@@ -76,12 +78,46 @@ router.post("/", auth_1.authenticateJWT, async (req, res) => {
                 email: true,
                 role: true,
                 position: true,
+                gender: true,
             }
         });
         res.status(201).json(newUser);
     }
     catch (error) {
         res.status(500).json({ error: "Erro ao criar membro" });
+    }
+});
+// ── PATCH /api/teamqui/:id ── (atualiza cargo/posição) ────────────────
+router.patch("/:id", auth_1.authenticateJWT, async (req, res) => {
+    if (req.user?.role !== "ADMIN") {
+        res.status(403).json({ error: "Acesso negado" });
+        return;
+    }
+    const id = String(req.params.id);
+    const { role, position, name, gender } = req.body;
+    if (role && !AGENCY_ROLES.includes(role)) {
+        res.status(400).json({ error: "Cargo inválido para equipe" });
+        return;
+    }
+    if (id === req.user.id && role && role !== "ADMIN") {
+        res.status(400).json({ error: "Você não pode rebaixar o próprio cargo." });
+        return;
+    }
+    try {
+        const user = await prisma_1.default.user.update({
+            where: { id },
+            data: {
+                ...(role && { role: role }),
+                ...(position !== undefined && { position }),
+                ...(name !== undefined && name !== "" && { name }),
+                ...(gender !== undefined && { gender }),
+            },
+            select: { id: true, name: true, email: true, role: true, position: true, gender: true },
+        });
+        res.json(user);
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 // ── DELETE /api/teamqui/:id ───────────────────────────────────────────

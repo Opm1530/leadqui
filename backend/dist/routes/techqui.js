@@ -11,15 +11,16 @@ const auth_1 = require("../middlewares/auth");
 const axios_1 = __importDefault(require("axios"));
 const openai_1 = __importDefault(require("openai"));
 const companySettings_1 = require("../lib/companySettings");
+const crypto_1 = require("../lib/crypto");
 const trello_1 = require("../lib/trello");
 // Escolhe a API/token corretos para operações de Instagram numa conexão.
 // Prioriza Instagram Login (ig_access_token / graph.instagram.com);
 // senão usa Facebook Page token (graph.facebook.com).
 function igContext(conn) {
     if (conn?.ig_access_token) {
-        return { base: "https://graph.instagram.com/v21.0", token: conn.ig_access_token };
+        return { base: "https://graph.instagram.com/v21.0", token: (0, crypto_1.dec)(conn.ig_access_token) };
     }
-    return { base: "https://graph.facebook.com/v20.0", token: conn?.page_access_token || conn?.access_token || null };
+    return { base: "https://graph.facebook.com/v20.0", token: (0, crypto_1.dec)(conn?.page_access_token || conn?.access_token) };
 }
 const router = (0, express_1.Router)();
 // ── Webhook Trello (público) ──────────────────────────────────────────
@@ -109,6 +110,10 @@ router.post("/webhook/instagram", express_json_raw, async (req, res) => {
     try {
         const body = req.body;
         console.log("[Webhook Instagram] Recebido:", JSON.stringify(body));
+        // Registra o evento cru para diagnóstico
+        await prisma_1.default.webhookEvent.create({
+            data: { source: "instagram", object: body?.object || null, body: JSON.stringify(body || {}) },
+        }).catch(() => { });
         if (body.object !== "instagram")
             return;
         for (const entry of body.entry || []) {
@@ -160,15 +165,17 @@ router.get("/oauth/start", auth_1.authenticateJWT, async (req, res) => {
         return;
     }
     try {
+        // Credenciais do app da Meta são da agência (do dono), não por usuário
+        const ownerId = await (0, companySettings_1.getCompanySettingsUserId)();
         const settings = await prisma_1.default.techQuiSettings.findUnique({
-            where: { user_id: req.user.id },
+            where: { user_id: ownerId },
         });
         if (!settings?.meta_app_id) {
             res.status(400).json({ error: "Configure o App ID da Meta em TechQui → Configurações antes de conectar." });
             return;
         }
         // State codifica: client_id + user_id (para recuperar no callback)
-        const state = Buffer.from(JSON.stringify({ client_id: clientId, user_id: req.user.id })).toString("base64url");
+        const state = Buffer.from(JSON.stringify({ client_id: clientId, user_id: ownerId })).toString("base64url");
         const redirectUri = process.env.META_OAUTH_REDIRECT_URI;
         const oauthUrl = `https://www.facebook.com/v20.0/dialog/oauth?client_id=${settings.meta_app_id}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(META_SCOPES)}&state=${state}&response_type=code`;
         res.json({ url: oauthUrl });
@@ -201,13 +208,14 @@ router.get("/oauth/callback", async (req, res) => {
             return;
         }
         const redirectUri = process.env.META_OAUTH_REDIRECT_URI;
+        const metaSecret = (0, crypto_1.dec)(settings.meta_app_secret);
         // 1. Token curto → token longo
         const tokenRes = await axios_1.default.get("https://graph.facebook.com/v20.0/oauth/access_token", {
-            params: { client_id: settings.meta_app_id, client_secret: settings.meta_app_secret, redirect_uri: redirectUri, code },
+            params: { client_id: settings.meta_app_id, client_secret: metaSecret, redirect_uri: redirectUri, code },
         });
         const shortToken = tokenRes.data.access_token;
         const longTokenRes = await axios_1.default.get("https://graph.facebook.com/v20.0/oauth/access_token", {
-            params: { grant_type: "fb_exchange_token", client_id: settings.meta_app_id, client_secret: settings.meta_app_secret, fb_exchange_token: shortToken },
+            params: { grant_type: "fb_exchange_token", client_id: settings.meta_app_id, client_secret: metaSecret, fb_exchange_token: shortToken },
         });
         const longToken = longTokenRes.data.access_token;
         const expiresIn = longTokenRes.data.expires_in || 5184000;
@@ -355,7 +363,6 @@ const IG_SCOPES = [
     "instagram_business_basic",
     "instagram_business_content_publish",
     "instagram_business_manage_comments",
-    "instagram_business_manage_messages",
 ].join(",");
 // GET /api/techqui/oauth/instagram/start?client_id=xxx
 router.get("/oauth/instagram/start", auth_1.authenticateJWT, async (req, res) => {
@@ -365,12 +372,13 @@ router.get("/oauth/instagram/start", auth_1.authenticateJWT, async (req, res) =>
         return;
     }
     try {
-        const settings = await prisma_1.default.techQuiSettings.findUnique({ where: { user_id: req.user.id } });
+        const ownerId = await (0, companySettings_1.getCompanySettingsUserId)();
+        const settings = await prisma_1.default.techQuiSettings.findUnique({ where: { user_id: ownerId } });
         if (!settings?.instagram_app_id) {
             res.status(400).json({ error: "Configure o Instagram App ID em TechQui → Configurações." });
             return;
         }
-        const state = Buffer.from(JSON.stringify({ client_id: clientId, user_id: req.user.id })).toString("base64url");
+        const state = Buffer.from(JSON.stringify({ client_id: clientId, user_id: ownerId })).toString("base64url");
         const redirectUri = process.env.INSTAGRAM_OAUTH_REDIRECT_URI;
         const url = `https://www.instagram.com/oauth/authorize?client_id=${settings.instagram_app_id}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(IG_SCOPES)}&state=${state}`;
         res.json({ url });
@@ -401,10 +409,11 @@ router.get("/oauth/instagram/callback", async (req, res) => {
             return;
         }
         const redirectUri = process.env.INSTAGRAM_OAUTH_REDIRECT_URI;
+        const igSecret = (0, crypto_1.dec)(settings.instagram_app_secret);
         // 1. Trocar code por token curto (form-urlencoded)
         const form = new URLSearchParams({
             client_id: settings.instagram_app_id,
-            client_secret: settings.instagram_app_secret,
+            client_secret: igSecret || "",
             grant_type: "authorization_code",
             redirect_uri: redirectUri,
             code: code.replace(/#_$/, ""), // Instagram às vezes anexa "#_"
@@ -415,19 +424,21 @@ router.get("/oauth/instagram/callback", async (req, res) => {
         const shortToken = tokenRes.data.access_token;
         // 2. Trocar por token de longa duração (60 dias)
         const longRes = await axios_1.default.get("https://graph.instagram.com/access_token", {
-            params: { grant_type: "ig_exchange_token", client_secret: settings.instagram_app_secret, access_token: shortToken },
+            params: { grant_type: "ig_exchange_token", client_secret: igSecret, access_token: shortToken },
         });
         const longToken = longRes.data.access_token;
         const expiresIn = longRes.data.expires_in || 5184000;
         const tokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
         // 3. Buscar o ID correto para publicação via /me (o user_id do token é app-scoped e NÃO serve)
         let igUserId;
+        let igScopedId = null;
         let username = null;
         try {
             const meRes = await axios_1.default.get("https://graph.instagram.com/v21.0/me", {
-                params: { fields: "user_id,username", access_token: longToken },
+                params: { fields: "user_id,id,username", access_token: longToken },
             });
             igUserId = String(meRes.data.user_id);
+            igScopedId = meRes.data.id ? String(meRes.data.id) : null;
             username = meRes.data.username || null;
         }
         catch (e) {
@@ -441,12 +452,14 @@ router.get("/oauth/instagram/callback", async (req, res) => {
                 client_id,
                 connection_type: "INSTAGRAM",
                 instagram_account_id: igUserId,
+                ig_scoped_id: igScopedId,
                 instagram_username: username,
                 ig_access_token: longToken,
                 token_expires_at: tokenExpiresAt,
             },
             update: {
                 instagram_account_id: igUserId,
+                ig_scoped_id: igScopedId,
                 instagram_username: username,
                 ig_access_token: longToken,
                 updated_at: new Date(),
@@ -762,13 +775,164 @@ router.get("/ads/campaigns/:connectionId", auth_1.authenticateJWT, async (req, r
         const fields = "id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(" + date_preset + "){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,cost_per_action_type,purchase_roas}";
         const url = `https://graph.facebook.com/v20.0/${conn.ad_account_id}/campaigns`;
         const resp = await axios_1.default.get(url, {
-            params: { fields, access_token: conn.access_token, limit: 50 },
+            params: { fields, access_token: (0, crypto_1.dec)(conn.access_token), limit: 50 },
         });
         res.json(resp.data);
     }
     catch (e) {
         const metaErr = e.response?.data?.error?.message || e.message;
         res.status(500).json({ error: metaErr });
+    }
+});
+// ── Saúde da conexão (token) ──────────────────────────────────────────
+// Permissões que o app pede e o que cada uma habilita (para diagnóstico claro)
+const PERMISSION_LABELS = {
+    pages_show_list: "Listar Páginas",
+    pages_read_engagement: "Ler engajamento da Página",
+    pages_manage_engagement: "Responder comentários da Página",
+    instagram_manage_comments: "Responder comentários do Instagram",
+    instagram_content_publish: "Publicar no Instagram",
+    ads_management: "Gerenciar Anúncios",
+    ads_read: "Ler Anúncios",
+    business_management: "Gerenciar Business",
+};
+router.get("/connections/:id/health", auth_1.authenticateJWT, async (req, res) => {
+    try {
+        const conn = await prisma_1.default.clientMetaConnection.findUnique({ where: { id: String(req.params.id) } });
+        if (!conn) {
+            res.status(404).json({ error: "Conexão não encontrada" });
+            return;
+        }
+        const fbToken = (0, crypto_1.dec)(conn.access_token || conn.page_access_token); // token do Facebook (Página/BM)
+        const pageToken = (0, crypto_1.dec)(conn.page_access_token || conn.access_token);
+        const igToken = (0, crypto_1.dec)(conn.ig_access_token); // token do Instagram Login (graph.instagram.com)
+        const hasFb = !!(fbToken || conn.page_id || conn.ad_account_id);
+        const IG_BASE = "https://graph.instagram.com/v21.0";
+        const FB_BASE = "https://graph.facebook.com/v20.0";
+        const checks = [];
+        const add = (key, label, ok, detail) => checks.push({ key, label, ok, detail });
+        if (!fbToken && !igToken) {
+            res.json({ ok: false, checks: [{ key: "token", label: "Token de acesso", ok: false, detail: "Nenhum token salvo — reconecte a conta." }] });
+            return;
+        }
+        // ── Conexão via Instagram Login (graph.instagram.com) ──
+        if (igToken) {
+            let igOk = false;
+            try {
+                const meRes = await axios_1.default.get(`${IG_BASE}/me`, { params: { access_token: igToken, fields: "id,username,account_type" } });
+                igOk = true;
+                add("instagram", "Instagram conectado", true, meRes.data.username ? `@${meRes.data.username}` : undefined);
+            }
+            catch (e) {
+                add("instagram", "Instagram", false, e.response?.data?.error?.message || "Token do Instagram inválido ou expirado — reconecte.");
+            }
+            if (igOk && conn.instagram_account_id) {
+                try {
+                    const subRes = await axios_1.default.get(`${IG_BASE}/${conn.instagram_account_id}/subscribed_apps`, { params: { access_token: igToken } });
+                    const subscribed = (subRes.data.data || []).length > 0;
+                    add("webhook", "Webhook de comentários ativo", subscribed, subscribed ? undefined : "Conta não inscrita nos webhooks — use 'Ativar auto-reply' na aba Comentários.");
+                }
+                catch { /* alguns tokens não permitem consultar; não trava */ }
+            }
+        }
+        // ── Conexão via Facebook (Página/Ads) ──
+        if (hasFb && fbToken) {
+            let fbTokenOk = false;
+            try {
+                await axios_1.default.get(`${FB_BASE}/me`, { params: { access_token: fbToken, fields: "id,name" } });
+                fbTokenOk = true;
+                add("token", "Token do Facebook válido", true);
+            }
+            catch (e) {
+                add("token", "Token do Facebook", false, e.response?.data?.error?.message || "Token inválido ou expirado — reconecte o Facebook.");
+            }
+            if (fbTokenOk) {
+                try {
+                    const permRes = await axios_1.default.get(`${FB_BASE}/me/permissions`, { params: { access_token: fbToken } });
+                    const granted = new Set((permRes.data.data || []).filter((p) => p.status === "granted").map((p) => p.permission));
+                    const wanted = conn.ad_account_id
+                        ? ["pages_read_engagement", "instagram_manage_comments", "ads_management", "ads_read"]
+                        : ["pages_read_engagement", "instagram_manage_comments"];
+                    const missing = wanted.filter(w => !granted.has(w));
+                    add("permissions", "Permissões concedidas", missing.length === 0, missing.length === 0 ? undefined : "Faltando: " + missing.map(m => PERMISSION_LABELS[m] || m).join(", ") + ". Reconecte marcando todas as permissões.");
+                }
+                catch {
+                    add("permissions", "Permissões concedidas", false, "Não foi possível verificar as permissões.");
+                }
+            }
+            if (conn.page_id) {
+                try {
+                    await axios_1.default.get(`${FB_BASE}/${conn.page_id}`, { params: { access_token: pageToken, fields: "id,name" } });
+                    add("page", "Página do Facebook acessível", true, conn.page_name || undefined);
+                }
+                catch (e) {
+                    add("page", "Página do Facebook", false, e.response?.data?.error?.message || "Página inacessível — reconecte o Facebook.");
+                }
+            }
+            // Instagram vinculado à Página (só quando NÃO é conexão via Instagram Login)
+            if (!igToken) {
+                if (conn.instagram_account_id) {
+                    try {
+                        const igRes = await axios_1.default.get(`${FB_BASE}/${conn.instagram_account_id}`, { params: { access_token: pageToken, fields: "id,username" } });
+                        add("instagram", "Instagram acessível", true, igRes.data.username ? `@${igRes.data.username}` : undefined);
+                    }
+                    catch (e) {
+                        add("instagram", "Instagram", false, e.response?.data?.error?.message || "Conta de Instagram inacessível.");
+                    }
+                }
+                else if (conn.page_id) {
+                    add("instagram", "Instagram vinculado à Página", false, "Nenhuma conta de Instagram profissional vinculada a esta Página. Vincule no Meta Business Suite.");
+                }
+            }
+            if (conn.ad_account_id) {
+                try {
+                    await axios_1.default.get(`${FB_BASE}/${conn.ad_account_id}`, { params: { access_token: fbToken, fields: "id,name,account_status" } });
+                    add("ads", "Conta de anúncios acessível", true, conn.ad_account_id);
+                }
+                catch (e) {
+                    add("ads", "Conta de anúncios", false, e.response?.data?.error?.message || "Conta de anúncios inacessível.");
+                }
+            }
+        }
+        else if (hasFb && !fbToken) {
+            add("token", "Token do Facebook", false, "Facebook conectado sem token válido — reconecte o Facebook.");
+        }
+        const ok = checks.length > 0 && checks.every(c => c.ok);
+        res.json({ ok, ads_ok: checks.find(c => c.key === "ads")?.ok ?? true, checks });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+// ── Ação de escrita numa campanha (pausar/ativar/orçamento) ───────────
+router.post("/ads/campaigns/:connectionId/action", auth_1.authenticateJWT, async (req, res) => {
+    const { campaign_id, action, daily_budget } = req.body;
+    try {
+        const conn = await prisma_1.default.clientMetaConnection.findUnique({ where: { id: String(req.params.connectionId) } });
+        if (!conn?.access_token) {
+            res.status(400).json({ error: "Conexão sem token" });
+            return;
+        }
+        if (!campaign_id) {
+            res.status(400).json({ error: "campaign_id obrigatório" });
+            return;
+        }
+        const params = { access_token: (0, crypto_1.dec)(conn.access_token) };
+        if (action === "pause")
+            params.status = "PAUSED";
+        else if (action === "activate")
+            params.status = "ACTIVE";
+        else if (action === "budget")
+            params.daily_budget = String(Math.round(Number(daily_budget) * 100)); // Meta usa centavos
+        else {
+            res.status(400).json({ error: "Ação inválida" });
+            return;
+        }
+        await axios_1.default.post(`https://graph.facebook.com/v20.0/${campaign_id}`, null, { params });
+        res.json({ success: true });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.response?.data?.error?.message || e.message });
     }
 });
 // ── Comentários: Regras ───────────────────────────────────────────────
@@ -956,7 +1120,7 @@ async function runAdsAnalysis(connectionId, userId, triggeredBy) {
         // 1. Buscar campanhas + métricas últimos 7 dias via Meta Marketing API
         const fields = "id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(last_7d){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,purchase_roas}";
         const campResp = await axios_1.default.get(`https://graph.facebook.com/v20.0/${conn.ad_account_id}/campaigns`, {
-            params: { fields, access_token: conn.access_token, limit: 50 },
+            params: { fields, access_token: (0, crypto_1.dec)(conn.access_token), limit: 50 },
         });
         const campaigns = campResp.data.data || [];
         if (!campaigns.length)
@@ -1012,7 +1176,7 @@ async function executeSuggestion(suggestionId) {
             return;
         const conn = sug.analysis.connection;
         const payload = JSON.parse(sug.action_payload || "{}");
-        const token = conn.access_token;
+        const token = (0, crypto_1.dec)(conn.access_token);
         let result = "Executado com sucesso";
         try {
             switch (sug.action_type) {
@@ -1054,26 +1218,36 @@ async function handleIncomingComment(comment) {
         const already = await prisma_1.default.instagramCommentLog.findUnique({ where: { comment_id: comment.comment_id } });
         if (already)
             return;
-        // Encontrar a conexão dona da conta que recebeu o comentário
-        const conn = comment.account_id
-            ? await prisma_1.default.clientMetaConnection.findFirst({
-                where: { instagram_account_id: comment.account_id },
+        // Encontrar TODAS as conexões da conta (o mesmo Instagram pode estar em vários clientes),
+        // pois a regra de auto-reply pode estar em qualquer uma delas.
+        const conns = comment.account_id
+            ? await prisma_1.default.clientMetaConnection.findMany({
+                where: { OR: [{ instagram_account_id: comment.account_id }, { ig_scoped_id: comment.account_id }] },
                 include: { comment_rules: { where: { active: true } } },
             })
-            : null;
-        if (!conn) {
+            : [];
+        if (!conns.length) {
             console.warn("[CommentHandler] Conexão não encontrada para conta", comment.account_id);
             return;
         }
-        const { base, token: igToken } = igContext(conn);
-        if (!igToken)
-            return;
-        const rules = conn.comment_rules || [];
+        // Junta as regras de todas as conexões, guardando a conexão de cada regra
+        const rulesConn = new Map();
+        const rules = [];
+        for (const c of conns)
+            for (const r of (c.comment_rules || [])) {
+                rules.push(r);
+                rulesConn.set(r.id, c);
+            }
         if (!rules.length)
             return;
         // Encontrar regra aplicável
         const rule = findMatchingRule(rules, comment.post_id, comment.text);
         if (!rule)
+            return;
+        // Usa a conexão dona da regra que casou (com token válido)
+        const conn = rulesConn.get(rule.id) || conns.find((c) => c.ig_access_token || c.page_access_token || c.access_token);
+        const { base, token: igToken } = igContext(conn);
+        if (!igToken)
             return;
         let replyText = null;
         if (rule.reply_type === "FIXO") {

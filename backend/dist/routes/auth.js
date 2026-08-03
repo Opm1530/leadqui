@@ -38,6 +38,8 @@ router.post("/login", async (req, res) => {
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                position: user.position,
+                gender: user.gender,
             },
         });
     }
@@ -158,7 +160,7 @@ router.get("/me", auth_1.authenticateJWT, async (req, res) => {
     try {
         const user = await prisma_1.default.user.findUnique({
             where: { id: req.user.id },
-            select: { id: true, name: true, email: true, role: true, created_at: true },
+            select: { id: true, name: true, email: true, role: true, position: true, gender: true, created_at: true },
         });
         if (!user) {
             res.status(404).json({ error: "Usuário não encontrado" });

@@ -14,5 +14,9 @@ export declare function getCompanySettings(): Promise<{
     notification_instance: string | null;
     notification_group_id: string | null;
     notification_group_name: string | null;
+    r2_account_id: string | null;
+    r2_access_key_id: string | null;
+    r2_secret_key: string | null;
+    r2_bucket: string | null;
 } | null>;
 //# sourceMappingURL=companySettings.d.ts.map

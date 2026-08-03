@@ -484,6 +484,7 @@ router.get("/settings", async (req, res) => {
         openai_api_key: settings.openai_api_key ? "••••••••" : null,
         anthropic_api_key: settings.anthropic_api_key ? "••••••••" : null,
         evolution_api_key: settings.evolution_api_key ? "••••••••" : null,
+        r2_secret_key: settings.r2_secret_key ? "••••••••" : null,
     } : null;
     res.json({ settings: masked });
 });

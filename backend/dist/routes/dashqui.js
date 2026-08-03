@@ -20,10 +20,10 @@ router.get("/", async (_req, res) => {
         const { start, end } = hojeSP();
         // Tarefas do dia (prazo até hoje, não concluídas, não arquivadas)
         const tasks = await prisma_1.default.task.findMany({
-            where: { archived: false, status: { not: "CONCLUIDO" }, due_date: { lte: end } },
-            include: { client: { select: { name: true } }, responsible: { select: { name: true } } },
+            where: { archived: false, status: { not: "CONCLUIDO" }, OR: [{ due_date: { lte: end } }, { due_date: null }] },
+            include: { client: { select: { name: true } }, responsible: { select: { id: true, name: true } } },
             orderBy: { due_date: "asc" },
-            take: 50,
+            take: 200,
         });
         // Posts agendados (do dia em diante, ainda não publicados)
         const posts = await prisma_1.default.calendarPost.findMany({
@@ -31,6 +31,16 @@ router.get("/", async (_req, res) => {
             include: { client: { select: { name: true } } },
             orderBy: { scheduled_date: "asc" },
             take: 30,
+        });
+        // Conteúdos do Editorial a postar (agendados de hoje em diante OU prontos p/ postar)
+        const editorial = await prisma_1.default.editorialContent.findMany({
+            where: {
+                status: { not: "POSTADO" },
+                OR: [{ scheduled_date: { gte: start } }, { status: "AGUARDANDO_POSTAR" }],
+            },
+            include: { client: { select: { name: true } }, responsible: { select: { name: true } } },
+            orderBy: [{ scheduled_date: "asc" }, { created_at: "asc" }],
+            take: 40,
         });
         // Movimentações financeiras do dia
         const invoicesDue = await prisma_1.default.invoice.findMany({
@@ -50,6 +60,7 @@ router.get("/", async (_req, res) => {
         res.json({
             tasks,
             posts,
+            editorial,
             finance: {
                 recebido_hoje: totalRecebidoHoje,
                 a_receber_hoje: totalAReceberHoje,

@@ -10,6 +10,7 @@ const auth_1 = require("../middlewares/auth");
 const production_1 = require("../lib/production");
 const approval_1 = require("../lib/approval");
 const dates_1 = require("../lib/dates");
+const crypto_1 = require("../lib/crypto");
 const router = (0, express_1.Router)();
 // ── GET /api/tasqui/tasks ─────────────────────────────────────────────
 router.get("/tasks", auth_1.authenticateJWT, async (req, res) => {
@@ -129,10 +130,44 @@ router.patch("/tasks/:id", auth_1.authenticateJWT, async (req, res) => {
                 ...(archived !== undefined && { archived: !!archived }),
             },
         });
+        // Sincroniza com o conteúdo do Editorial vinculado (tarefa → editorial)
+        if (status !== undefined) {
+            try {
+                const content = await prisma_1.default.editorialContent.findFirst({ where: { task_id: taskId } });
+                if (content) {
+                    // Concluiu/mandou pra revisão a produção → conteúdo vai para aprovação
+                    if ((status === "CONCLUIDO" || status === "REVISAO") && ["EM_PRODUCAO", "AJUSTES"].includes(content.status)) {
+                        await prisma_1.default.editorialContent.update({ where: { id: content.id }, data: { status: "EM_APROVACAO" } });
+                        await prisma_1.default.notification.create({
+                            data: { user_id: content.user_id, type: "EDITORIAL", title: "Conteúdo aguardando aprovação", message: content.title, link: "/editorial", reference_id: content.id },
+                        }).catch(() => { });
+                    }
+                    // Reabriu a tarefa → conteúdo volta para produção
+                    else if ((status === "PENDENTE" || status === "EM_ANDAMENTO") && content.status === "EM_APROVACAO") {
+                        await prisma_1.default.editorialContent.update({ where: { id: content.id }, data: { status: "EM_PRODUCAO" } });
+                    }
+                }
+            }
+            catch { /* não bloqueia a atualização da tarefa */ }
+        }
         res.json(task);
     }
     catch (error) {
         res.status(500).json({ error: "Erro ao atualizar tarefa" });
+    }
+});
+// ── DELETE /api/tasqui/tasks/:id ──────────────────────────────────────
+router.delete("/tasks/:id", auth_1.authenticateJWT, async (req, res) => {
+    if (req.user?.role === "CLIENT") {
+        res.status(403).json({ error: "Acesso negado" });
+        return;
+    }
+    try {
+        await prisma_1.default.task.delete({ where: { id: String(req.params.id) } });
+        res.json({ success: true });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
     }
 });
 // ── GET /api/tasqui/projects ──────────────────────────────────────────
@@ -534,7 +569,7 @@ router.get("/traffic/:id/meta-metrics", auth_1.authenticateJWT, async (req, res)
         }
         const fields = `id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(${date_preset}){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,purchase_roas}`;
         const resp = await axios_1.default.get(`https://graph.facebook.com/v20.0/${campaign.meta_campaign_id}`, {
-            params: { fields, access_token: conn.access_token },
+            params: { fields, access_token: (0, crypto_1.dec)(conn.access_token) },
         });
         res.json(resp.data);
     }
@@ -552,7 +587,7 @@ router.get("/traffic/meta-campaigns/:clientId", auth_1.authenticateJWT, async (r
             return;
         }
         const resp = await axios_1.default.get(`https://graph.facebook.com/v20.0/${conn.ad_account_id}/campaigns`, {
-            params: { fields: "id,name,status,objective", access_token: conn.access_token, limit: 50 },
+            params: { fields: "id,name,status,objective", access_token: (0, crypto_1.dec)(conn.access_token), limit: 50 },
         });
         res.json(resp.data);
     }
@@ -608,6 +643,45 @@ router.post("/calendar/:id/publish-instagram", auth_1.authenticateJWT, async (re
             },
         });
         res.status(201).json({ instagram_post: igPost });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+// ── Comentários da tarefa ──────────────────────────────────────────────
+router.get("/tasks/:id/comments", auth_1.authenticateJWT, async (req, res) => {
+    if (req.user?.role === "CLIENT") {
+        res.status(403).json({ error: "Acesso negado" });
+        return;
+    }
+    try {
+        const comments = await prisma_1.default.taskComment.findMany({
+            where: { task_id: String(req.params.id) },
+            include: { user: { select: { id: true, name: true } } },
+            orderBy: { created_at: "asc" },
+        });
+        res.json({ comments });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+router.post("/tasks/:id/comments", auth_1.authenticateJWT, async (req, res) => {
+    if (req.user?.role === "CLIENT") {
+        res.status(403).json({ error: "Acesso negado" });
+        return;
+    }
+    const { body } = req.body;
+    if (!body || !String(body).trim()) {
+        res.status(400).json({ error: "Comentário vazio" });
+        return;
+    }
+    try {
+        const comment = await prisma_1.default.taskComment.create({
+            data: { task_id: String(req.params.id), user_id: req.user.id, body: String(body).trim() },
+            include: { user: { select: { id: true, name: true } } },
+        });
+        res.status(201).json({ comment });
     }
     catch (e) {
         res.status(500).json({ error: e.message });

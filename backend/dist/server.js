@@ -32,6 +32,9 @@ const demands_1 = __importDefault(require("./routes/demands"));
 const influencers_1 = __importDefault(require("./routes/influencers"));
 const onboarding_1 = __importDefault(require("./routes/onboarding"));
 const dashqui_1 = __importDefault(require("./routes/dashqui"));
+const files_1 = __importDefault(require("./routes/files"));
+const editorial_1 = __importDefault(require("./routes/editorial"));
+const public_1 = __importDefault(require("./routes/public"));
 const instagramScheduler_1 = require("./lib/instagramScheduler");
 const adsAnalyzerJob_1 = require("./lib/adsAnalyzerJob");
 const app = (0, express_1.default)();
@@ -101,12 +104,15 @@ app.use("/api/notifications", notifications_1.default);
 app.use("/api/techqui", techqui_1.default);
 app.use("/api/vault", vault_1.default);
 app.use("/api/legal", legal_1.default); // páginas públicas (privacidade, termos, exclusão)
+app.use("/api/public", public_1.default); // mídia pública (arte para a Meta baixar) — sem login
 app.use("/api/assistant", assistant_1.default);
 app.use("/api/whatsapp", whatsapp_1.default);
 app.use("/api/demands", demands_1.default);
 app.use("/api/influencers", influencers_1.default);
 app.use("/api/onboarding", onboarding_1.default);
 app.use("/api/dashqui", dashqui_1.default);
+app.use("/api/files", files_1.default);
+app.use("/api/editorial", editorial_1.default);
 app.use("/api", resources_1.default);
 // ── 404 ───────────────────────────────────────────────────────────────
 app.use((_req, res) => {

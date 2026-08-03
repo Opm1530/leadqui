@@ -7,6 +7,7 @@ exports.publishScheduledPosts = publishScheduledPosts;
 exports.startInstagramScheduler = startInstagramScheduler;
 const axios_1 = __importDefault(require("axios"));
 const prisma_1 = __importDefault(require("./prisma"));
+const crypto_1 = require("./crypto");
 async function publishScheduledPosts() {
     const now = new Date();
     try {
@@ -18,7 +19,7 @@ async function publishScheduledPosts() {
             const conn = post.connection;
             // Prioriza Instagram Login (ig_access_token); senão Facebook Page token
             const useIg = !!conn?.ig_access_token;
-            const igToken = useIg ? conn.ig_access_token : (conn?.page_access_token || conn?.access_token);
+            const igToken = useIg ? (0, crypto_1.dec)(conn.ig_access_token) : (0, crypto_1.dec)(conn?.page_access_token || conn?.access_token);
             if (!conn?.instagram_account_id || !igToken) {
                 await prisma_1.default.instagramScheduledPost.update({
                     where: { id: post.id },
@@ -86,6 +87,13 @@ async function publishScheduledPosts() {
                     where: { instagram_post_id: post.id },
                     data: { status: "PUBLICADO" },
                 });
+                // Fecha o ciclo do Editorial: conteúdo vira POSTADO
+                if (post.editorial_content_id) {
+                    await prisma_1.default.editorialContent.update({
+                        where: { id: post.editorial_content_id },
+                        data: { status: "POSTADO", posted_at: new Date() },
+                    }).catch(() => { });
+                }
                 console.log(`[InstagramScheduler] Post ${post.id} publicado — media_id: ${published.data.id}`);
             }
             catch (err) {
