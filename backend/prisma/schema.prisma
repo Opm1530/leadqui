@@ -531,6 +531,17 @@ model TaskComment {
   @@map("task_comments")
 }
 
+// Registro cru de webhooks recebidos (debug/diagnóstico)
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  source      String   @default("instagram")
+  object      String?
+  body        String
+  received_at DateTime @default(now())
+
+  @@map("webhook_events")
+}
+
 enum TaskStatus {
   PENDENTE
   EM_ANDAMENTO

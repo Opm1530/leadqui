@@ -98,6 +98,10 @@ router.post("/webhook/instagram", express_json_raw, async (req: Request, res: Re
   try {
     const body = req.body;
     console.log("[Webhook Instagram] Recebido:", JSON.stringify(body));
+    // Registra o evento cru para diagnóstico
+    await (prisma as any).webhookEvent.create({
+      data: { source: "instagram", object: body?.object || null, body: JSON.stringify(body || {}) },
+    }).catch(() => {});
     if (body.object !== "instagram") return;
     for (const entry of body.entry || []) {
       const accountId = entry.id; // ID da conta que recebeu o comentário
