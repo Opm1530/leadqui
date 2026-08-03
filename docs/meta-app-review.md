@@ -3,6 +3,11 @@
 > Objetivo: liberar **Acesso Avançado** das permissões para funcionar nas contas dos **clientes**.
 > Enquanto não sai, tudo já funciona na conta da própria Pequi (que tem papel no app).
 
+> **Estratégia em 2 levas** (App Review é incremental — o aprovado fica aprovado):
+> - **1ª leva (agora):** conexão + Instagram (publicar + comentários). Inclui `business_management` (para achar o IG no Business Manager, **não** para Ads).
+> - **2ª leva (depois):** `ads_read` + `ads_management` — abrir nova solicitação quando quiser. Nenhuma mudança de código é necessária.
+> No painel, apague `ads_read` e `ads_management` desta submissão (mantenha `business_management`).
+
 ## 🥇 Regras de ouro (leia antes)
 1. **Escreva os campos de justificativa em INGLÊS.** Os revisores são internacionais; PT reduz a chance de aprovação.
 2. **A tela do app pode estar em português** no screencast — tudo bem. Só narre/descreva os passos em inglês na caixa de instruções.
@@ -54,15 +59,16 @@ No campo de credenciais do App Review, cole login + senha + esta frase:
 ---
 
 ### 3) `business_management`
-**Para que serve (PT):** acessar os ativos (contas de anúncio, contas IG) que estão dentro do Business Manager do cliente.
+**Para que serve (PT):** descobrir e acessar a **conta profissional de Instagram** que está dentro do Business Manager do cliente, quando o IG não está vinculado direto a uma Página. (Não é usada para Ads nesta submissão.)
 **Justification (EN):**
-> We use `business_management` to discover and access the business assets (ad accounts and Instagram accounts) the user manages inside their Business Manager, so the agency can operate them for the client.
+> We use `business_management` to discover the client's Instagram professional account that lives inside their Business Manager (when the Instagram account is not directly linked to a Facebook Page). This lets the agency connect and manage the correct Instagram account for content publishing and comment management on behalf of the client who granted access.
 
-**Reviewer steps (EN):** connect Facebook; the app enumerates ad accounts and IG accounts from the user's Business — visible in "Meta → Conexões" and "Meta → Meta Ads".
+**Reviewer steps (EN):**
+> 1. Log in and open "Clientes" → select a client → "Meta" tab → "Conexões". 2. Click "Conectar Facebook" (or "Conectar Instagram") and complete login. 3. The app reads the Business Manager to locate the Instagram professional account and shows it available to connect — this uses `business_management`.
 
 ---
 
-### 4) `ads_read`
+### 4) `ads_read`  — ⏳ 2ª LEVA (não enviar agora)
 **Para que serve (PT):** ler campanhas e métricas de anúncios.
 **Justification (EN):**
 > We use `ads_read` to display the client's ad campaigns and their performance metrics inside the agency dashboard for reporting and monitoring.
@@ -72,7 +78,7 @@ No campo de credenciais do App Review, cole login + senha + esta frase:
 
 ---
 
-### 5) `ads_management`
+### 5) `ads_management`  — ⏳ 2ª LEVA (não enviar agora)
 **Para que serve (PT):** agir sobre campanhas — pausar/ativar e ajustar orçamento.
 **Justification (EN):**
 > We use `ads_management` to let the agency take actions on the client's campaigns (pause/resume and adjust daily budget) directly from our dashboard, based on the agency's optimization decisions.
@@ -134,4 +140,5 @@ No painel do app → **Webhooks**:
 - [ ] Justificativas em **inglês** coladas.
 - [ ] Passo-a-passo do revisor em **inglês** no campo de instruções.
 
-> Ordem sugerida de envio: `pages_show_list` → `pages_read_engagement` → `business_management` → `ads_read` → `ads_management` → `instagram_manage_comments` → `instagram_content_publish`.
+> **Ordem sugerida — 1ª leva (agora):** `pages_show_list` → `pages_read_engagement` → `business_management` → `instagram_basic`/`instagram_business_basic` → `instagram_manage_comments`/`instagram_business_manage_comments` → `instagram_content_publish`/`instagram_business_content_publish`.
+> **2ª leva (depois):** `ads_read` → `ads_management`.
