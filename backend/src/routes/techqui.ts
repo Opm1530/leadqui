@@ -1151,24 +1151,30 @@ export async function handleIncomingComment(comment: { comment_id: string; post_
     const already = await (prisma as any).instagramCommentLog.findUnique({ where: { comment_id: comment.comment_id } });
     if (already) return;
 
-    // Encontrar a conexão dona da conta que recebeu o comentário
-    // (o webhook pode enviar o id profissional OU o id app-scoped)
-    const conn = comment.account_id
-      ? await (prisma as any).clientMetaConnection.findFirst({
+    // Encontrar TODAS as conexões da conta (o mesmo Instagram pode estar em vários clientes),
+    // pois a regra de auto-reply pode estar em qualquer uma delas.
+    const conns: any[] = comment.account_id
+      ? await (prisma as any).clientMetaConnection.findMany({
           where: { OR: [{ instagram_account_id: comment.account_id }, { ig_scoped_id: comment.account_id }] },
           include: { comment_rules: { where: { active: true } } },
         })
-      : null;
-    if (!conn) { console.warn("[CommentHandler] Conexão não encontrada para conta", comment.account_id); return; }
+      : [];
+    if (!conns.length) { console.warn("[CommentHandler] Conexão não encontrada para conta", comment.account_id); return; }
 
-    const { base, token: igToken } = igContext(conn);
-    if (!igToken) return;
-    const rules: any[] = conn.comment_rules || [];
+    // Junta as regras de todas as conexões, guardando a conexão de cada regra
+    const rulesConn = new Map<string, any>();
+    const rules: any[] = [];
+    for (const c of conns) for (const r of (c.comment_rules || [])) { rules.push(r); rulesConn.set(r.id, c); }
     if (!rules.length) return;
 
     // Encontrar regra aplicável
     const rule = findMatchingRule(rules, comment.post_id, comment.text);
     if (!rule) return;
+
+    // Usa a conexão dona da regra que casou (com token válido)
+    const conn = rulesConn.get(rule.id) || conns.find((c: any) => c.ig_access_token || c.page_access_token || c.access_token);
+    const { base, token: igToken } = igContext(conn);
+    if (!igToken) return;
 
     let replyText: string | null = null;
     if (rule.reply_type === "FIXO") {
