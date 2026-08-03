@@ -87,6 +87,14 @@ export async function publishScheduledPosts() {
           data:  { status: "PUBLICADO" },
         });
 
+        // Fecha o ciclo do Editorial: conteúdo vira POSTADO
+        if (post.editorial_content_id) {
+          await (prisma as any).editorialContent.update({
+            where: { id: post.editorial_content_id },
+            data:  { status: "POSTADO", posted_at: new Date() },
+          }).catch(() => {});
+        }
+
         console.log(`[InstagramScheduler] Post ${post.id} publicado — media_id: ${published.data.id}`);
       } catch (err: any) {
         const msg = err.response?.data?.error?.message || err.message;

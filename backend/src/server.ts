@@ -30,6 +30,7 @@ import onboardingRoutes from "./routes/onboarding";
 import dashquiRoutes from "./routes/dashqui";
 import filesRoutes from "./routes/files";
 import editorialRoutes from "./routes/editorial";
+import publicRoutes from "./routes/public";
 import { startInstagramScheduler } from "./lib/instagramScheduler";
 import { startAdsAnalyzerJob } from "./lib/adsAnalyzerJob";
 
@@ -104,6 +105,7 @@ app.use("/api/notifications", notificationsRoutes);
 app.use("/api/techqui", techquiRoutes);
 app.use("/api/vault", vaultRoutes);
 app.use("/api/legal", legalRoutes); // páginas públicas (privacidade, termos, exclusão)
+app.use("/api/public", publicRoutes); // mídia pública (arte para a Meta baixar) — sem login
 app.use("/api/assistant", assistantRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/demands", demandsRoutes);

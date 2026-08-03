@@ -4,6 +4,7 @@ import prisma from "../lib/prisma";
 import { authenticateJWT, AuthRequest } from "../middlewares/auth";
 import { uploadFile, getFile, deleteFile } from "../lib/storage";
 import { dayDate } from "../lib/dates";
+import { signMedia, publicApiBase, resolveContentMedia, mediaTypeFor } from "../lib/editorialMedia";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
@@ -55,6 +56,38 @@ async function clientHasActiveConnection(clientId: string): Promise<boolean> {
   if (!conn) return false;
   const hasIg = !!conn.ig_access_token || (!!conn.instagram_account_id && (!!conn.page_access_token || !!conn.access_token));
   return hasIg;
+}
+
+// Cria (ou atualiza) o post agendado no Instagram a partir de um conteúdo aprovado.
+// Retorna um aviso quando não foi possível agendar (sem quebrar a aprovação).
+async function scheduleContentPost(content: any): Promise<string | null> {
+  if (!content.auto_schedule || !content.scheduled_date) return null;
+  const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { client_id: content.client_id } });
+  const canPublish = !!conn && (!!conn.ig_access_token || (!!conn.page_access_token && !!conn.instagram_account_id));
+  if (!conn || !canPublish) return "Cliente sem conexão ativa do Instagram — publicação automática não agendada.";
+  const media = await resolveContentMedia(content);
+  if (!media) return "Nenhuma arte encontrada (anexe o conteúdo produzido) — publicação automática não agendada.";
+  const base = publicApiBase();
+  if (!base) return "URL pública do sistema não configurada — publicação automática não agendada.";
+
+  const url = `${base}/api/public/media/${signMedia(content.id)}`;
+  const caption = [content.caption, content.hashtags].filter(Boolean).join("\n\n") || null;
+  const data: any = {
+    connection_id: conn.id,
+    client_id: content.client_id,
+    caption,
+    media_urls: JSON.stringify([url]),
+    media_type: mediaTypeFor(content),
+    scheduled_at: content.scheduled_date,
+    editorial_content_id: content.id,
+    status: "AGENDADO",
+  };
+  const existing = await (prisma as any).instagramScheduledPost.findFirst({
+    where: { editorial_content_id: content.id, status: { in: ["AGENDADO", "ERRO"] } },
+  });
+  if (existing) await (prisma as any).instagramScheduledPost.update({ where: { id: existing.id }, data });
+  else await (prisma as any).instagramScheduledPost.create({ data });
+  return null;
 }
 
 // ── GET /api/editorial ─────────────────────────────────────────────────
@@ -228,7 +261,10 @@ router.post("/:id/approve", authenticateJWT, async (req: AuthRequest, res: Respo
     });
     await syncTask(id);
     await notify(content.responsible_id, "Conteúdo aprovado ✅", `${content.title} — pronto para postar`, content.id);
-    res.json(content);
+    // Se estiver marcado para agendar, cria o post automático
+    let scheduleWarning: string | null = null;
+    try { scheduleWarning = await scheduleContentPost(content); } catch (e: any) { scheduleWarning = e.message; }
+    res.json({ ...content, schedule_warning: scheduleWarning });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 

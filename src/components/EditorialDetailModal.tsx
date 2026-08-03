@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Upload, CheckCircle2, XCircle, Send, ExternalLink, FileText, Trash2, Link2, Paperclip } from "lucide-react";
-import { confirm } from "@/components/ConfirmDialog";
+import { confirm, alertDialog } from "@/components/ConfirmDialog";
 import { CONTENT_STATUS, typeLabel, platformLabel, openEditorialFile } from "@/lib/editorial";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -58,9 +58,12 @@ export default function EditorialDetailModal({ content, isOpen, onClose, onChang
   const act = async (path: string, body?: any) => {
     setBusy(true);
     try {
-      if (body) await api.post(`/api/editorial/${content.id}/${path}`, body);
-      else await api.post(`/api/editorial/${content.id}/${path}`, {});
+      const d = await api.post(`/api/editorial/${content.id}/${path}`, body || {});
       setRejecting(false); setFeedback("");
+      if (path === "approve") {
+        if (d?.schedule_warning) await alertDialog(`Aprovado, mas: ${d.schedule_warning}`);
+        else if (content.auto_schedule) await alertDialog("Aprovado e agendado! Será publicado automaticamente na data prevista.");
+      }
       onChanged();
     } finally { setBusy(false); }
   };

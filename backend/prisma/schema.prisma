@@ -956,6 +956,7 @@ model InstagramScheduledPost {
   caption         String?
   media_urls      String                    // JSON: string[]
   media_type      InstagramMediaType        @default(IMAGE)
+  editorial_content_id String?              // origem: conteúdo do Editorial (opcional)
   scheduled_at    DateTime
   status          InstagramPostStatus       @default(AGENDADO)
   instagram_media_id String?
