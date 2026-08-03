@@ -50,6 +50,7 @@ model User {
   vault_credentials VaultCredential[]
   editorial_created     EditorialContent[] @relation("EditorialCreator")
   editorial_responsible EditorialContent[] @relation("EditorialResponsible")
+  task_comments         TaskComment[]
 
   @@map("users")
 }
@@ -512,8 +513,22 @@ model Task {
   client      Client  @relation(fields: [client_id], references: [id], onDelete: Cascade)
   responsible User?   @relation("ResponsibleUser", fields: [responsible_id], references: [id])
   editorial   EditorialContent?
+  comments    TaskComment[]
 
   @@map("tasks")
+}
+
+model TaskComment {
+  id         String   @id @default(uuid())
+  task_id    String
+  user_id    String
+  body       String
+  created_at DateTime @default(now())
+
+  task Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id])
+
+  @@map("task_comments")
 }
 
 enum TaskStatus {

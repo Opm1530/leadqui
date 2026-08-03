@@ -19,7 +19,7 @@ router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
 
     // Tarefas do dia (prazo até hoje, não concluídas, não arquivadas)
     const tasks = await (prisma as any).task.findMany({
-      where: { archived: false, status: { not: "CONCLUIDO" }, due_date: { lte: end } },
+      where: { archived: false, status: { not: "CONCLUIDO" }, OR: [{ due_date: { lte: end } }, { due_date: null }] },
       include: { client: { select: { name: true } }, responsible: { select: { id: true, name: true } } },
       orderBy: { due_date: "asc" },
       take: 200,

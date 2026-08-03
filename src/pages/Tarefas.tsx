@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Loader2, Search, Check, Trash2, ListTodo, Rows3, LayoutList, Plus } from "lucide-react";
+import { TaskDetailModal } from "@/components/TaskDetailModal";
 
 const STATUS: Record<string, { label: string; color: string }> = {
   PENDENTE:     { label: "Pendente", color: "bg-yellow-500/15 text-yellow-300" },
@@ -37,6 +38,7 @@ const Tarefas = () => {
   const emptyForm = { title: "", description: "", client_id: "", responsible_id: "", priority: "MEDIA", due_date: "" };
   const [form, setForm] = useState(emptyForm);
   const [attach, setAttach] = useState<File[]>([]);
+  const [selected, setSelected] = useState<any>(null);
 
   const load = () => {
     setLoading(true);
@@ -97,13 +99,13 @@ const Tarefas = () => {
         <button onClick={() => toggle(t)} className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 ${done ? "bg-green-600 border-green-600" : "border-muted-foreground/40 hover:border-green-500"}`}>
           {done && <Check className="w-3.5 h-3.5 text-white" />}
         </button>
-        <div className="flex-1 min-w-0">
+        <button onClick={() => setSelected(t)} className="flex-1 min-w-0 text-left">
           <p className={`text-sm font-medium ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>{t.title}</p>
           <p className="text-[11px] text-muted-foreground">
             {t.client?.name || "—"}{t.responsible?.name ? ` · ${t.responsible.name}` : ""}
             {t.due_date && <span className={atrasada ? "text-red-400" : ""}> · {new Date(t.due_date).toLocaleDateString("pt-BR")}{atrasada ? " (atrasada)" : ""}</span>}
           </p>
-        </div>
+        </button>
         <span className={`hidden sm:inline text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS[t.status]?.color}`}>{STATUS[t.status]?.label}</span>
         <span className={`hidden md:inline text-[10px] font-bold ${PRIO[t.priority]}`}>{t.priority}</span>
         <button onClick={() => remover(t)} className="p-1.5 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
@@ -210,6 +212,8 @@ const Tarefas = () => {
           })}
         </div>
       )}
+
+      <TaskDetailModal task={selected} isOpen={!!selected} onClose={() => setSelected(null)} onUpdate={load} team={teamAll} />
     </div>
   );
 };

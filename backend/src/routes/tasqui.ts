@@ -619,4 +619,30 @@ router.post("/calendar/:id/publish-instagram", authenticateJWT, async (req: Auth
   }
 });
 
+// ── Comentários da tarefa ──────────────────────────────────────────────
+router.get("/tasks/:id/comments", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  if (req.user?.role === "CLIENT") { res.status(403).json({ error: "Acesso negado" }); return; }
+  try {
+    const comments = await (prisma as any).taskComment.findMany({
+      where: { task_id: String(req.params.id) },
+      include: { user: { select: { id: true, name: true } } },
+      orderBy: { created_at: "asc" },
+    });
+    res.json({ comments });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.post("/tasks/:id/comments", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
+  if (req.user?.role === "CLIENT") { res.status(403).json({ error: "Acesso negado" }); return; }
+  const { body } = req.body;
+  if (!body || !String(body).trim()) { res.status(400).json({ error: "Comentário vazio" }); return; }
+  try {
+    const comment = await (prisma as any).taskComment.create({
+      data: { task_id: String(req.params.id), user_id: req.user!.id, body: String(body).trim() },
+      include: { user: { select: { id: true, name: true } } },
+    });
+    res.status(201).json({ comment });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
 export default router;
