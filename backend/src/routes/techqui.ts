@@ -353,7 +353,6 @@ const IG_SCOPES = [
   "instagram_business_basic",
   "instagram_business_content_publish",
   "instagram_business_manage_comments",
-  "instagram_business_manage_messages",
 ].join(",");
 
 // GET /api/techqui/oauth/instagram/start?client_id=xxx
