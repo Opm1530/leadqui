@@ -4,6 +4,7 @@ import { authenticateJWT, AuthRequest } from "../middlewares/auth";
 import axios from "axios";
 import OpenAI from "openai";
 import { getCompanySettings, getCompanySettingsUserId } from "../lib/companySettings";
+import { dec } from "../lib/crypto";
 import { getTrelloBoards, getTrelloLists, getTrelloLabels, getTrelloMembers, getCardMediaUrls, getTrelloCreds, ensureTrelloWebhook } from "../lib/trello";
 
 // Escolhe a API/token corretos para operações de Instagram numa conexão.
@@ -11,9 +12,9 @@ import { getTrelloBoards, getTrelloLists, getTrelloLabels, getTrelloMembers, get
 // senão usa Facebook Page token (graph.facebook.com).
 function igContext(conn: any): { base: string; token: string | null } {
   if (conn?.ig_access_token) {
-    return { base: "https://graph.instagram.com/v21.0", token: conn.ig_access_token };
+    return { base: "https://graph.instagram.com/v21.0", token: dec(conn.ig_access_token) };
   }
-  return { base: "https://graph.facebook.com/v20.0", token: conn?.page_access_token || conn?.access_token || null };
+  return { base: "https://graph.facebook.com/v20.0", token: dec(conn?.page_access_token || conn?.access_token) };
 }
 
 const router = Router();
@@ -194,15 +195,16 @@ router.get("/oauth/callback", async (req: Request, res: Response): Promise<void>
     }
 
     const redirectUri = process.env.META_OAUTH_REDIRECT_URI!;
+    const metaSecret = dec(settings.meta_app_secret);
 
     // 1. Token curto → token longo
     const tokenRes = await axios.get("https://graph.facebook.com/v20.0/oauth/access_token", {
-      params: { client_id: settings.meta_app_id, client_secret: settings.meta_app_secret, redirect_uri: redirectUri, code },
+      params: { client_id: settings.meta_app_id, client_secret: metaSecret, redirect_uri: redirectUri, code },
     });
     const shortToken: string = tokenRes.data.access_token;
 
     const longTokenRes = await axios.get("https://graph.facebook.com/v20.0/oauth/access_token", {
-      params: { grant_type: "fb_exchange_token", client_id: settings.meta_app_id, client_secret: settings.meta_app_secret, fb_exchange_token: shortToken },
+      params: { grant_type: "fb_exchange_token", client_id: settings.meta_app_id, client_secret: metaSecret, fb_exchange_token: shortToken },
     });
     const longToken: string = longTokenRes.data.access_token;
     const expiresIn: number = longTokenRes.data.expires_in || 5184000;
@@ -398,11 +400,12 @@ router.get("/oauth/instagram/callback", async (req: Request, res: Response): Pro
       res.redirect(`${frontendBase}/techqui?oauth=error&msg=instagram_app_nao_configurado`); return;
     }
     const redirectUri = process.env.INSTAGRAM_OAUTH_REDIRECT_URI!;
+    const igSecret = dec(settings.instagram_app_secret);
 
     // 1. Trocar code por token curto (form-urlencoded)
     const form = new URLSearchParams({
       client_id:     settings.instagram_app_id,
-      client_secret: settings.instagram_app_secret,
+      client_secret: igSecret || "",
       grant_type:    "authorization_code",
       redirect_uri:  redirectUri,
       code:          code.replace(/#_$/, ""), // Instagram às vezes anexa "#_"
@@ -414,7 +417,7 @@ router.get("/oauth/instagram/callback", async (req: Request, res: Response): Pro
 
     // 2. Trocar por token de longa duração (60 dias)
     const longRes = await axios.get("https://graph.instagram.com/access_token", {
-      params: { grant_type: "ig_exchange_token", client_secret: settings.instagram_app_secret, access_token: shortToken },
+      params: { grant_type: "ig_exchange_token", client_secret: igSecret, access_token: shortToken },
     });
     const longToken: string = longRes.data.access_token;
     const expiresIn: number = longRes.data.expires_in || 5184000;
@@ -724,7 +727,7 @@ router.get("/ads/campaigns/:connectionId", authenticateJWT, async (req: AuthRequ
     const fields = "id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(" + date_preset + "){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,cost_per_action_type,purchase_roas}";
     const url = `https://graph.facebook.com/v20.0/${conn.ad_account_id}/campaigns`;
     const resp = await axios.get(url, {
-      params: { fields, access_token: conn.access_token, limit: 50 },
+      params: { fields, access_token: dec(conn.access_token), limit: 50 },
     });
     res.json(resp.data);
   } catch (e: any) {
@@ -751,9 +754,9 @@ router.get("/connections/:id/health", authenticateJWT, async (req: AuthRequest, 
     const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { id: String(req.params.id) } });
     if (!conn) { res.status(404).json({ error: "Conexão não encontrada" }); return; }
 
-    const fbToken = conn.access_token || conn.page_access_token;   // token do Facebook (Página/BM)
-    const pageToken = conn.page_access_token || conn.access_token;
-    const igToken = conn.ig_access_token;                           // token do Instagram Login (graph.instagram.com)
+    const fbToken = dec(conn.access_token || conn.page_access_token);   // token do Facebook (Página/BM)
+    const pageToken = dec(conn.page_access_token || conn.access_token);
+    const igToken = dec(conn.ig_access_token);                          // token do Instagram Login (graph.instagram.com)
     const hasFb = !!(fbToken || conn.page_id || conn.ad_account_id);
     const IG_BASE = "https://graph.instagram.com/v21.0";
     const FB_BASE = "https://graph.facebook.com/v20.0";
@@ -859,7 +862,7 @@ router.post("/ads/campaigns/:connectionId/action", authenticateJWT, async (req: 
     if (!conn?.access_token) { res.status(400).json({ error: "Conexão sem token" }); return; }
     if (!campaign_id) { res.status(400).json({ error: "campaign_id obrigatório" }); return; }
 
-    const params: any = { access_token: conn.access_token };
+    const params: any = { access_token: dec(conn.access_token) };
     if (action === "pause") params.status = "PAUSED";
     else if (action === "activate") params.status = "ACTIVE";
     else if (action === "budget") params.daily_budget = String(Math.round(Number(daily_budget) * 100)); // Meta usa centavos
@@ -1046,7 +1049,7 @@ export async function runAdsAnalysis(connectionId: string, userId: string, trigg
     // 1. Buscar campanhas + métricas últimos 7 dias via Meta Marketing API
     const fields = "id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(last_7d){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,purchase_roas}";
     const campResp = await axios.get(`https://graph.facebook.com/v20.0/${conn.ad_account_id}/campaigns`, {
-      params: { fields, access_token: conn.access_token, limit: 50 },
+      params: { fields, access_token: dec(conn.access_token), limit: 50 },
     });
     const campaigns = campResp.data.data || [];
     if (!campaigns.length) return;
@@ -1108,7 +1111,7 @@ async function executeSuggestion(suggestionId: string) {
 
     const conn    = sug.analysis.connection;
     const payload = JSON.parse(sug.action_payload || "{}");
-    const token   = conn.access_token;
+    const token   = dec(conn.access_token);
 
     let result = "Executado com sucesso";
     try {

@@ -5,6 +5,7 @@ import { authenticateJWT, AuthRequest } from "../middlewares/auth";
 import { sendPostToProduction } from "../lib/production";
 import { sendApprovalToGroup } from "../lib/approval";
 import { dayDate } from "../lib/dates";
+import { dec } from "../lib/crypto";
 
 const router = Router();
 
@@ -563,7 +564,7 @@ router.get("/traffic/:id/meta-metrics", authenticateJWT, async (req: AuthRequest
     }
     const fields = `id,name,status,objective,daily_budget,lifetime_budget,insights.date_preset(${date_preset}){spend,impressions,clicks,ctr,cpc,reach,frequency,actions,purchase_roas}`;
     const resp = await axios.get(`https://graph.facebook.com/v20.0/${campaign.meta_campaign_id}`, {
-      params: { fields, access_token: conn.access_token },
+      params: { fields, access_token: dec(conn.access_token) },
     });
     res.json(resp.data);
   } catch (e: any) {
@@ -580,7 +581,7 @@ router.get("/traffic/meta-campaigns/:clientId", authenticateJWT, async (req: Aut
       res.status(400).json({ error: "Cliente sem Ad Account configurado" }); return;
     }
     const resp = await axios.get(`https://graph.facebook.com/v20.0/${conn.ad_account_id}/campaigns`, {
-      params: { fields: "id,name,status,objective", access_token: conn.access_token, limit: 50 },
+      params: { fields: "id,name,status,objective", access_token: dec(conn.access_token), limit: 50 },
     });
     res.json(resp.data);
   } catch (e: any) {

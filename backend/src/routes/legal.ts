@@ -80,9 +80,9 @@ router.get("/privacidade", (_req: Request, res: Response) => {
 
     <h3>4. Armazenamento e segurança</h3>
     <p>Os dados são armazenados em banco de dados privado, em servidores com acesso restrito. Todo o
-    tráfego trafega por conexão criptografada (HTTPS/TLS). Tokens de acesso e credenciais sensíveis
-    ficam com acesso restrito e nunca são expostos na interface do usuário. Aplicamos controles de
-    acesso por função (papel) de usuário.</p>
+    tráfego trafega por conexão criptografada (HTTPS/TLS). Os <strong>tokens de acesso e segredos de
+    aplicativo são criptografados em repouso</strong> (AES-256-GCM) e nunca são expostos na interface
+    do usuário. Aplicamos controles de acesso por função (papel) de usuário.</p>
 
     <h3>5. Retenção e exclusão de dados</h3>
     <p>Mantemos os dados enquanto a conta estiver conectada. Você pode desconectar uma conta a qualquer

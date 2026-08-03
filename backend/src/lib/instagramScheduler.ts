@@ -1,5 +1,6 @@
 import axios from "axios";
 import prisma from "./prisma";
+import { dec } from "./crypto";
 
 export async function publishScheduledPosts() {
   const now = new Date();
@@ -13,7 +14,7 @@ export async function publishScheduledPosts() {
       const conn = post.connection;
       // Prioriza Instagram Login (ig_access_token); senão Facebook Page token
       const useIg   = !!conn?.ig_access_token;
-      const igToken = useIg ? conn.ig_access_token : (conn?.page_access_token || conn?.access_token);
+      const igToken = useIg ? dec(conn.ig_access_token) : dec(conn?.page_access_token || conn?.access_token);
       if (!conn?.instagram_account_id || !igToken) {
         await (prisma as any).instagramScheduledPost.update({
           where: { id: post.id },
