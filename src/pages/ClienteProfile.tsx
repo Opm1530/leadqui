@@ -244,14 +244,34 @@ const ConexoesTab = ({ clientId, connection, reload, toast }: any) => {
     <div className="space-y-3">
       {/* Saúde da conexão */}
       {connection && (
-        <div className={`rounded-xl border p-3 flex items-center justify-between ${health?.ok ? "border-green-500/20 bg-green-500/5" : health && !health.ok ? "border-red-500/20 bg-red-500/5" : "border-border bg-card/40"}`}>
-          <div className="text-sm">
-            {checking ? <span className="text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Verificando token...</span>
-              : health?.ok ? <span className="text-green-400">✓ Conexão saudável{health.ads_ok === false ? " · ⚠️ sem acesso à conta de anúncios" : ""}</span>
-              : health ? <span className="text-red-400">✗ Token com problema — reconecte. <span className="text-muted-foreground">({health.error})</span></span>
-              : <span className="text-muted-foreground">—</span>}
+        <div className={`rounded-xl border p-3 ${health?.ok ? "border-green-500/20 bg-green-500/5" : health && !health.ok ? "border-red-500/20 bg-red-500/5" : "border-border bg-card/40"}`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm min-w-0">
+              {checking ? <span className="text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Verificando conexão...</span>
+                : health?.ok ? <span className="text-green-400">✓ Conexão saudável</span>
+                : health ? <span className="text-amber-400">⚠️ Conexão com pendências — veja abaixo</span>
+                : <span className="text-muted-foreground">Clique em "verificar" para diagnosticar a conexão</span>}
+            </div>
+            <button onClick={verificar} className="text-xs text-primary hover:underline shrink-0">verificar</button>
           </div>
-          <button onClick={verificar} className="text-xs text-primary hover:underline">verificar</button>
+          {/* Detalhe das checagens */}
+          {health && !checking && Array.isArray(health.checks) && (
+            <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
+              {health.checks.map((c: any) => (
+                <div key={c.key} className="flex items-start gap-2 text-xs">
+                  <span className={`shrink-0 mt-0.5 ${c.ok ? "text-green-400" : "text-red-400"}`}>{c.ok ? "✓" : "✗"}</span>
+                  <div className="min-w-0">
+                    <span className={c.ok ? "text-foreground" : "text-red-300 font-medium"}>{c.label}</span>
+                    {c.detail && <span className="text-muted-foreground"> — {c.detail}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Formato antigo (fallback) */}
+          {health && !checking && !Array.isArray(health.checks) && health.error && (
+            <p className="mt-1 text-xs text-red-300">{health.error}</p>
+          )}
         </div>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
