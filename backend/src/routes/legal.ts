@@ -5,7 +5,7 @@ const router = Router();
 const EMPRESA = "Pequi Digital";
 const CONTATO = "ginannymoreira@gmail.com";
 const DOMINIO = "https://leadqui.vps.pequi.digital";
-const ATUALIZADO = "09 de junho de 2026";
+const ATUALIZADO = "03 de agosto de 2026";
 
 const layout = (titulo: string, conteudo: string) => `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -79,8 +79,10 @@ router.get("/privacidade", (_req: Request, res: Response) => {
     respostas) e quando exigido por lei.</p>
 
     <h3>4. Armazenamento e segurança</h3>
-    <p>Os dados são armazenados em servidores seguros. Tokens de acesso e credenciais sensíveis são
-    protegidos com criptografia. Aplicamos controles de acesso por função de usuário.</p>
+    <p>Os dados são armazenados em banco de dados privado, em servidores com acesso restrito. Todo o
+    tráfego trafega por conexão criptografada (HTTPS/TLS). Tokens de acesso e credenciais sensíveis
+    ficam com acesso restrito e nunca são expostos na interface do usuário. Aplicamos controles de
+    acesso por função (papel) de usuário.</p>
 
     <h3>5. Retenção e exclusão de dados</h3>
     <p>Mantemos os dados enquanto a conta estiver conectada. Você pode desconectar uma conta a qualquer
@@ -147,8 +149,9 @@ router.get("/exclusao-de-dados", (_req: Request, res: Response) => {
 
     <h3>Como solicitar</h3>
     <ul>
-      <li><strong>Pela plataforma:</strong> acesse TechQui → Conexões e desvincule a conta. Isso remove
-      imediatamente os tokens de acesso e dados relacionados àquela conta.</li>
+      <li><strong>Pela plataforma:</strong> desvincule a conta em <em>TechQui → Conexões</em> ou no
+      <em>perfil do cliente → aba Meta → Conexões</em>. Isso remove imediatamente os tokens de acesso
+      e dados relacionados àquela conta.</li>
       <li><strong>Por e-mail:</strong> envie um pedido para <a href="mailto:${CONTATO}">${CONTATO}</a>
       com o assunto "Exclusão de Dados", informando a conta a ser removida.</li>
     </ul>
