@@ -4,9 +4,9 @@
 > Enquanto não sai, tudo já funciona na conta da própria Pequi (que tem papel no app).
 
 > **Estratégia em 2 levas** (App Review é incremental — o aprovado fica aprovado):
-> - **1ª leva (agora):** conexão + Instagram (publicar + comentários). Inclui `business_management` (para achar o IG no Business Manager, **não** para Ads).
-> - **2ª leva (depois):** `ads_read` + `ads_management` — abrir nova solicitação quando quiser. Nenhuma mudança de código é necessária.
-> No painel, apague `ads_read` e `ads_management` desta submissão (mantenha `business_management`).
+> - **1ª leva (agora) — só Instagram Login:** `instagram_business_basic`, `instagram_business_content_publish`, `instagram_business_manage_comments` (+ `public_profile`). Tudo testável com a conta @pequi via Instagram Login, sem depender de Página do Facebook.
+> - **2ª leva (depois) — Facebook/Ads:** `pages_show_list`, `pages_read_engagement`, `business_management`, `ads_read`, `ads_management` (e, se um dia precisar do IG via Página, `instagram_content_publish`/`instagram_manage_comments`/`instagram_basic`).
+> No painel, remova desta submissão: `instagram_content_publish`, `instagram_manage_comments`, `pages_show_list`, `pages_read_engagement`, `business_management`, `instagram_basic`, `ads_read`, `ads_management`.
 
 ## 🥇 Regras de ouro (leia antes)
 1. **Escreva os campos de justificativa em INGLÊS.** Os revisores são internacionais; PT reduz a chance de aprovação.
