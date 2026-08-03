@@ -214,6 +214,12 @@ router.post("/:id/reject", authenticateJWT, async (req: AuthRequest, res: Respon
       where: { id }, data: { status: "AJUSTES", feedback: feedback || null }, include,
     });
     await syncTask(id);
+    // Registra o ajuste como comentário na tarefa vinculada, para o responsável ver
+    if (content.task_id && feedback && String(feedback).trim()) {
+      await (prisma as any).taskComment.create({
+        data: { task_id: content.task_id, user_id: req.user!.id, body: `🔧 Ajuste solicitado: ${String(feedback).trim()}` },
+      }).catch(() => {});
+    }
     await notify(content.responsible_id, "Conteúdo precisa de ajustes", feedback || content.title, content.id);
     res.json(content);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
