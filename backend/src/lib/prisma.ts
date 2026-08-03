@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { encField } from "./crypto";
 
 const prisma = new PrismaClient({
@@ -12,7 +12,7 @@ const ENC_FIELDS: Record<string, string[]> = {
   TechQuiSettings: ["meta_app_secret", "instagram_app_secret"],
 };
 
-prisma.$use(async (params: Prisma.MiddlewareParams, next: (p: Prisma.MiddlewareParams) => Promise<any>) => {
+(prisma as any).$use(async (params: any, next: (p: any) => Promise<any>) => {
   const fields = params.model ? ENC_FIELDS[params.model] : undefined;
   if (fields && ["create", "update", "updateMany", "upsert"].includes(params.action)) {
     const encData = (data: any) => {
