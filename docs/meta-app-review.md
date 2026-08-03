@@ -25,15 +25,15 @@
 - **Webhook Verify Token:** `pequi_webhook_2026` (env `META_WEBHOOK_VERIFY_TOKEN`)
 - **Privacidade / Termos / Exclusão de dados:** páginas públicas em `/api/legal/*` (confirme as URLs no painel).
 
-## 👤 Usuário de teste para o revisor (crie um antes de enviar)
-Crie um login de equipe em **TeamQui** só para a Meta, e um cliente de teste já com uma conta conectada:
+## 👤 Usuário de teste para o revisor (JÁ CRIADO)
 ```
-Login (reviewer):  reviewer@pequidigital.com.br
-Senha:             (defina uma simples e coloque no campo "credentials")
-Cliente de teste:  "Conta Demo" — já com Instagram/Página conectados
+URL:   https://leadqui.vps.pequi.digital
+Email: reviewer@pequidigital.com.br
+Senha: MetaReview#2026
+Cliente demo: "Conta Demo"  (o revisor conecta o próprio Instagram nele)
 ```
-No campo de credenciais do App Review, cole login + senha + esta frase:
-> "After login you land on the Hub. Follow the step-by-step below for each permission."
+> **NÃO forneça credenciais de Instagram** — apenas o login do app acima. O revisor conecta a própria conta profissional de Instagram.
+> A Meta pede que os passos de teste fiquem **dentro da caixa de descrição de cada permissão** (não numa aba separada). Por isso cada permissão abaixo já traz o bloco "HOW TO TEST".
 
 ---
 
