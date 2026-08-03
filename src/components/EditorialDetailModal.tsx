@@ -75,7 +75,7 @@ export default function EditorialDetailModal({ content, isOpen, onClose, onChang
     finally { setBusy(false); }
   };
 
-  const fmt = (d?: string) => d ? new Date(d).toLocaleDateString("pt-BR") : "—";
+  const fmt = (d?: string) => d ? new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 
   return (
     <Dialog open={isOpen} onOpenChange={(o) => !o && onClose()}>

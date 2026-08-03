@@ -245,7 +245,7 @@ const Editorial = () => {
                         <p className="text-sm font-medium text-foreground truncate">{it.title}</p>
                         <p className="text-[11px] text-muted-foreground truncate">{it.client?.name || "—"} · {typeLabel(it.content_type)}{it.responsible?.name ? ` · ${it.responsible.name}` : ""}</p>
                       </div>
-                      {it.scheduled_date && <span className="text-[11px] text-muted-foreground shrink-0">{new Date(it.scheduled_date).toLocaleDateString("pt-BR")}</span>}
+                      {it.scheduled_date && <span className="text-[11px] text-muted-foreground shrink-0">{new Date(it.scheduled_date).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>}
                       <span className={`hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${st.color}`}>{st.label}</span>
                     </button>
                   );

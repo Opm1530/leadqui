@@ -27,6 +27,17 @@ const empty = {
   auto_schedule: false,
 };
 
+// ISO (UTC) → valor local "yyyy-mm-ddThh:mm" para o input datetime-local
+const toLocalInput = (iso?: string) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+// "yyyy-mm-dd" (do calendário) → "yyyy-mm-ddT09:00"
+const withDefaultTime = (v?: string) => (v && v.length === 10 ? `${v}T09:00` : (v || ""));
+
 export default function EditorialFormModal({ open, onClose, onSaved, clients, team, editing, defaultClientId, defaultDate }: Props) {
   const [form, setForm] = useState<any>(empty);
   const [saving, setSaving] = useState(false);
@@ -43,11 +54,11 @@ export default function EditorialFormModal({ open, onClose, onSaved, clients, te
         responsible_id: editing.responsible_id || "", reference_url: editing.reference_url || "",
         caption: editing.caption || "", hashtags: editing.hashtags || "",
         content_type: editing.content_type || "POST", platform: editing.platform || "INSTAGRAM",
-        scheduled_date: editing.scheduled_date ? editing.scheduled_date.slice(0, 10) : "", priority: "MEDIA",
+        scheduled_date: toLocalInput(editing.scheduled_date), priority: "MEDIA",
         auto_schedule: !!editing.auto_schedule,
       });
     } else {
-      setForm({ ...empty, client_id: defaultClientId || "", scheduled_date: defaultDate || "" });
+      setForm({ ...empty, client_id: defaultClientId || "", scheduled_date: withDefaultTime(defaultDate) });
     }
   }, [open, editing, defaultClientId, defaultDate]);
 
@@ -64,7 +75,8 @@ export default function EditorialFormModal({ open, onClose, onSaved, clients, te
       const payload = {
         ...form,
         responsible_id: form.responsible_id || null,
-        scheduled_date: form.scheduled_date || null,
+        // envia instante exato (ISO/UTC) quando há data+hora
+        scheduled_date: form.scheduled_date ? new Date(form.scheduled_date).toISOString() : null,
       };
       if (editing) await api.patch(`/api/editorial/${editing.id}`, payload);
       else await api.post("/api/editorial", payload);
@@ -100,7 +112,7 @@ export default function EditorialFormModal({ open, onClose, onSaved, clients, te
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground uppercase tracking-widest">Tipo</Label>
               <Select value={form.content_type} onValueChange={v => set("content_type", v)}>
@@ -115,10 +127,10 @@ export default function EditorialFormModal({ open, onClose, onSaved, clients, te
                 <SelectContent>{PLATFORMS.map(p => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase tracking-widest">Publicação</Label>
-              <Input type="date" value={form.scheduled_date} onChange={e => set("scheduled_date", e.target.value)} className="bg-secondary border-border" />
-            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground uppercase tracking-widest">Data e horário da publicação</Label>
+            <Input type="datetime-local" value={form.scheduled_date} onChange={e => set("scheduled_date", e.target.value)} className="bg-secondary border-border" />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground uppercase tracking-widest">Descrição / Briefing</Label>
