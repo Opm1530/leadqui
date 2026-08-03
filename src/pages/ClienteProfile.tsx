@@ -10,13 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import api from "@/lib/api";
 import { askInvoiceReceipt, openInvoiceReceipt } from "@/lib/receipts";
 import ClientTaskBoard from "@/components/ClientTaskBoard";
-import ClientCalendar from "@/components/ClientCalendar";
 import ClientEditorial from "@/components/ClientEditorial";
 import AdsManager from "@/components/AdsManager";
 import ClientFiles from "@/components/ClientFiles";
 import {
   ArrowLeft, Loader2, Building2, FolderOpen, Kanban, ClipboardList, Plus, Check,
-  DollarSign, Lock, Eye, Star, ListTodo, Receipt, CalendarClock, Instagram, Facebook, BarChart2, MessageSquare, Trash2, Clapperboard,
+  DollarSign, Lock, Eye, Star, ListTodo, Receipt, Instagram, Facebook, BarChart2, MessageSquare, Trash2, Clapperboard,
 } from "lucide-react";
 
 const brl = (n: number) => (n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -25,17 +24,26 @@ const TABS = [
   { id: "geral", label: "Visão Geral", icon: Building2 },
   { id: "tarefas", label: "Tarefas", icon: ListTodo },
   { id: "editorial", label: "Editorial", icon: Clapperboard },
-  { id: "calendario", label: "Calendário", icon: CalendarClock },
-  { id: "conexoes", label: "Conexões", icon: Instagram },
-  { id: "ads", label: "Meta Ads", icon: BarChart2 },
-  { id: "autoreply", label: "Auto-reply", icon: MessageSquare },
+  { id: "meta", label: "Meta", icon: Instagram },
   { id: "financas", label: "Finanças", icon: DollarSign },
-  { id: "senhas", label: "Senhas", icon: Lock },
-  { id: "contrato", label: "Contrato", icon: Receipt },
-  { id: "arquivos", label: "Arquivos", icon: FolderOpen },
   { id: "influencers", label: "Influencers", icon: Star },
   { id: "dados", label: "Dados", icon: ClipboardList },
 ];
+
+// Barra de sub-abas (usada dentro de Meta e Dados)
+const SubTabs = ({ value, onChange, items }: any) => (
+  <div className="flex flex-wrap gap-1.5 border-b border-border pb-3">
+    {items.map((it: any) => {
+      const active = value === it.id;
+      return (
+        <button key={it.id} onClick={() => onChange(it.id)}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${active ? "bg-white/10 text-white" : "text-muted-foreground hover:bg-white/5 hover:text-white"}`}>
+          <it.icon className={`w-3.5 h-3.5 ${active ? "text-orange-500" : ""}`} /> {it.label}
+        </button>
+      );
+    })}
+  </div>
+);
 
 const ClienteProfile = () => {
   const { id } = useParams();
@@ -44,6 +52,8 @@ const ClienteProfile = () => {
   const [client, setClient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("geral");
+  const [metaSub, setMetaSub] = useState("conexoes");
+  const [dadosSub, setDadosSub] = useState("info");
 
   const [tasks, setTasks] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -75,15 +85,13 @@ const ClienteProfile = () => {
     if (!id) return;
     if (tab === "tarefas" || tab === "geral") api.get(`/api/tasqui/tasks?clientId=${id}`).then(setTasks).catch(() => {});
     if (tab === "financas" || tab === "geral") api.get(`/api/cashqui/invoices?client_id=${id}`).then(d => setInvoices(d.invoices || [])).catch(() => {});
-    if (tab === "senhas") api.get(`/api/vault?client_id=${id}`).then(d => setVault(d.credentials || d.vault || [])).catch(() => {});
-    if (tab === "trafego") api.get(`/api/tasqui/traffic?clientId=${id}`).then(d => setTraffic(d.campaigns || d || [])).catch(() => {});
+    if (tab === "dados" && dadosSub === "senhas") api.get(`/api/vault?client_id=${id}`).then(d => setVault(d.credentials || d.vault || [])).catch(() => {});
     if (tab === "influencers") api.get(`/api/influencers/partnerships?client_id=${id}`).then(d => setPartnerships(d.partnerships || [])).catch(() => {});
-    if (tab === "calendario") api.get(`/api/tasqui/calendar?client_id=${id}`).then(d => setPosts(Array.isArray(d) ? d : (d.posts || []))).catch(() => {});
-    if (tab === "conexoes" || tab === "ads" || tab === "autoreply") loadConnection();
-    if (tab === "autoreply") api.get(`/api/techqui/comments/rules?client_id=${id}`).then(d => setRules(d.rules || [])).catch(() => {});
-    if (tab === "ads") api.get(`/api/techqui/ads/analyses?client_id=${id}`).then(d => setAnalyses(d.analyses || [])).catch(() => {});
-    if (tab === "dados") api.get(`/api/onboarding/${id}`).then(d => setOnboarding(d.onboarding)).catch(() => {});
-  }, [tab, id]);
+    if (tab === "meta") loadConnection();
+    if (tab === "meta" && metaSub === "autoreply") api.get(`/api/techqui/comments/rules?client_id=${id}`).then(d => setRules(d.rules || [])).catch(() => {});
+    if (tab === "meta" && metaSub === "ads") api.get(`/api/techqui/ads/analyses?client_id=${id}`).then(d => setAnalyses(d.analyses || [])).catch(() => {});
+    if (tab === "dados" && dadosSub === "info") api.get(`/api/onboarding/${id}`).then(d => setOnboarding(d.onboarding)).catch(() => {});
+  }, [tab, metaSub, dadosSub, id]);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
   if (!client) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Cliente não encontrado.</div>;
@@ -146,21 +154,35 @@ const ClienteProfile = () => {
       {tab === "tarefas" && <ClientTaskBoard clientId={id!} tasks={tasks} setTasks={setTasks} team={team} reload={reloadTasks} />}
       {tab === "editorial" && <ClientEditorial clientId={id!} clientName={client?.name || ""} team={team} />}
       {tab === "financas" && <FinancasTab clientId={id!} invoices={invoices} setInvoices={setInvoices} toast={toast} navigate={navigate} />}
-      {tab === "senhas" && <SenhasTab vault={vault} navigate={navigate} />}
-      {tab === "arquivos" && <ClientFiles clientId={id!} />}
-      {tab === "contrato" && <ContratoTab clientId={id!} client={client} toast={toast} />}
-      {tab === "calendario" && <ClientCalendar clientId={id!} />}
-
-      {tab === "conexoes" && <ConexoesTab clientId={id!} connection={connection} reload={loadConnection} toast={toast} />}
-
-      {tab === "ads" && <AdsManager clientId={id!} connection={connection} />}
-
-      {tab === "autoreply" && <AutoReplyTab clientId={id!} connection={connection} rules={rules} setRules={setRules} toast={toast} />}
+      {tab === "meta" && (
+        <div className="space-y-4">
+          <SubTabs value={metaSub} onChange={setMetaSub} items={[
+            { id: "conexoes", label: "Conexões", icon: Instagram },
+            { id: "ads", label: "Meta Ads", icon: BarChart2 },
+            { id: "autoreply", label: "Auto-reply", icon: MessageSquare },
+          ]} />
+          {metaSub === "conexoes" && <ConexoesTab clientId={id!} connection={connection} reload={loadConnection} toast={toast} />}
+          {metaSub === "ads" && <AdsManager clientId={id!} connection={connection} />}
+          {metaSub === "autoreply" && <AutoReplyTab clientId={id!} connection={connection} rules={rules} setRules={setRules} toast={toast} />}
+        </div>
+      )}
 
       {tab === "influencers" && <InfluencersTab clientId={id!} partnerships={partnerships} setPartnerships={setPartnerships} navigate={navigate} toast={toast} />}
 
       {tab === "dados" && (
         <div className="space-y-4">
+          <SubTabs value={dadosSub} onChange={setDadosSub} items={[
+            { id: "info", label: "Dados", icon: ClipboardList },
+            { id: "senhas", label: "Senhas", icon: Lock },
+            { id: "contrato", label: "Contrato", icon: Receipt },
+            { id: "arquivos", label: "Arquivos", icon: FolderOpen },
+          ]} />
+
+          {dadosSub === "senhas" && <SenhasTab vault={vault} navigate={navigate} />}
+          {dadosSub === "contrato" && <ContratoTab clientId={id!} client={client} toast={toast} />}
+          {dadosSub === "arquivos" && <ClientFiles clientId={id!} />}
+
+          {dadosSub === "info" && (
           <div className="rounded-2xl border border-border bg-card/40 p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-semibold text-foreground">Dados do cliente</h2>
@@ -195,6 +217,7 @@ const ClienteProfile = () => {
               </div>
             )}
           </div>
+          )}
         </div>
       )}
       </main>
