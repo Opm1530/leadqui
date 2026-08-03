@@ -96,7 +96,7 @@ const Hub = () => {
       name: "Editorial",
       description: "Planejamento e produção de conteúdos: calendário, aprovação e sincronia com tarefas.",
       icon: Clapperboard,
-      color: "from-pink-500 to-rose-600",
+      color: "from-fuchsia-500 to-purple-600",
       route: "/editorial",
       adminOnly: false,
     },

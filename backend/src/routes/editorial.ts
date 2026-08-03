@@ -49,6 +49,14 @@ const include = {
   creator: { select: { id: true, name: true } },
 };
 
+// Verifica se o cliente tem uma conexão ativa do Instagram (para agendar publicação)
+async function clientHasActiveConnection(clientId: string): Promise<boolean> {
+  const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { client_id: clientId } });
+  if (!conn) return false;
+  const hasIg = !!conn.ig_access_token || (!!conn.instagram_account_id && (!!conn.page_access_token || !!conn.access_token));
+  return hasIg;
+}
+
 // ── GET /api/editorial ─────────────────────────────────────────────────
 // Filtros opcionais: clientId, responsibleId, status, from, to (data de publicação)
 router.get("/", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
@@ -74,8 +82,16 @@ router.get("/", authenticateJWT, async (req: AuthRequest, res: Response): Promis
 // ── POST /api/editorial ── (cria conteúdo + tarefa vinculada) ──────────
 router.post("/", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
   if (!canManage(req.user?.role)) { res.status(403).json({ error: "Acesso negado" }); return; }
-  const { title, description, client_id, responsible_id, reference_url, caption, hashtags, content_type, platform, scheduled_date, priority } = req.body;
+  const { title, description, client_id, responsible_id, reference_url, caption, hashtags, content_type, platform, scheduled_date, priority, auto_schedule } = req.body;
   if (!title || !client_id) { res.status(400).json({ error: "Título e cliente são obrigatórios" }); return; }
+  // Validação do agendamento de publicação
+  if (auto_schedule) {
+    if (!scheduled_date) { res.status(400).json({ error: "Defina a data de publicação para agendar." }); return; }
+    if (!(await clientHasActiveConnection(client_id))) {
+      res.status(400).json({ error: "Este cliente não tem uma conexão ativa do Instagram. Conecte em Meta → Conexões antes de agendar." });
+      return;
+    }
+  }
   try {
     // Cria a tarefa vinculada para o responsável (se houver)
     let task_id: string | null = null;
@@ -107,6 +123,7 @@ router.post("/", authenticateJWT, async (req: AuthRequest, res: Response): Promi
         content_type: content_type || "POST",
         platform: platform || "INSTAGRAM",
         scheduled_date: scheduled_date ? dayDate(scheduled_date) : null,
+        auto_schedule: !!auto_schedule,
         status: responsible_id ? "EM_PRODUCAO" : "IDEIA",
       },
       include,
@@ -127,8 +144,19 @@ router.patch("/:id", authenticateJWT, async (req: AuthRequest, res: Response): P
   }
   if (b.scheduled_date !== undefined) data.scheduled_date = b.scheduled_date ? dayDate(b.scheduled_date) : null;
   if (b.responsible_id !== undefined) data.responsible_id = b.responsible_id || null;
+  if (b.auto_schedule !== undefined) data.auto_schedule = !!b.auto_schedule;
   try {
     const prev = await (prisma as any).editorialContent.findUnique({ where: { id } });
+    // Valida agendamento (precisa de data + conexão ativa do cliente)
+    if (b.auto_schedule) {
+      const cliId = prev?.client_id;
+      const schedDate = data.scheduled_date !== undefined ? data.scheduled_date : prev?.scheduled_date;
+      if (!schedDate) { res.status(400).json({ error: "Defina a data de publicação para agendar." }); return; }
+      if (cliId && !(await clientHasActiveConnection(cliId))) {
+        res.status(400).json({ error: "Este cliente não tem uma conexão ativa do Instagram. Conecte em Meta → Conexões antes de agendar." });
+        return;
+      }
+    }
     const content = await (prisma as any).editorialContent.update({ where: { id }, data, include });
 
     // Se ganhou responsável e ainda não tinha tarefa, cria uma

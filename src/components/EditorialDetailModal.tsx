@@ -84,6 +84,7 @@ export default function EditorialDetailModal({ content, isOpen, onClose, onChang
             </span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary border border-border text-muted-foreground">{typeLabel(content.content_type)}</span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-secondary border border-border text-muted-foreground">{platformLabel(content.platform)}</span>
+            {content.auto_schedule && <span className="text-[10px] px-2 py-0.5 rounded-full bg-fuchsia-500/10 border border-fuchsia-500/20 text-fuchsia-300">⏰ Agendada</span>}
           </div>
           <DialogTitle className="text-left mt-2">{content.title}</DialogTitle>
         </DialogHeader>

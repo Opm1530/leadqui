@@ -163,7 +163,7 @@ const DashQui = () => {
         <div className="rounded-2xl border border-border bg-card/40 p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Clapperboard className="w-4 h-4 text-pink-400" /> Conteúdos a postar ({editorial.length})
+              <Clapperboard className="w-4 h-4 text-fuchsia-400" /> Conteúdos a postar ({editorial.length})
             </h2>
             <button onClick={() => navigate("/editorial")} className="text-xs text-primary hover:underline">abrir Editorial</button>
           </div>

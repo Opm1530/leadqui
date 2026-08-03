@@ -555,6 +555,7 @@ model EditorialContent {
   platform       String   @default("INSTAGRAM")  // INSTAGRAM | TIKTOK | FACEBOOK | YOUTUBE | OUTRO
   status         ContentStatus @default(EM_PRODUCAO)
   scheduled_date DateTime?              // data de publicação prevista
+  auto_schedule  Boolean  @default(false) // se deve ser agendado para publicação automática
   produced_key   String?               // arquivo produzido (R2)
   produced_name  String?
   feedback       String?               // motivo dos ajustes ao reprovar

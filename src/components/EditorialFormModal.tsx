@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, CalendarClock, CheckCircle2, AlertCircle } from "lucide-react";
 import { CONTENT_TYPES, PLATFORMS } from "@/lib/editorial";
 import api from "@/lib/api";
 
@@ -23,14 +24,19 @@ interface Props {
 const empty = {
   title: "", description: "", client_id: "", responsible_id: "", reference_url: "",
   caption: "", hashtags: "", content_type: "POST", platform: "INSTAGRAM", scheduled_date: "", priority: "MEDIA",
+  auto_schedule: false,
 };
 
 export default function EditorialFormModal({ open, onClose, onSaved, clients, team, editing, defaultClientId, defaultDate }: Props) {
   const [form, setForm] = useState<any>(empty);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [connections, setConnections] = useState<any[]>([]);
 
   useEffect(() => {
     if (!open) return;
+    setError("");
+    api.get("/api/techqui/connections").then(d => setConnections(d.connections || [])).catch(() => setConnections([]));
     if (editing) {
       setForm({
         title: editing.title || "", description: editing.description || "", client_id: editing.client_id || "",
@@ -38,16 +44,21 @@ export default function EditorialFormModal({ open, onClose, onSaved, clients, te
         caption: editing.caption || "", hashtags: editing.hashtags || "",
         content_type: editing.content_type || "POST", platform: editing.platform || "INSTAGRAM",
         scheduled_date: editing.scheduled_date ? editing.scheduled_date.slice(0, 10) : "", priority: "MEDIA",
+        auto_schedule: !!editing.auto_schedule,
       });
     } else {
       setForm({ ...empty, client_id: defaultClientId || "", scheduled_date: defaultDate || "" });
     }
   }, [open, editing, defaultClientId, defaultDate]);
 
+  const conn = connections.find((c: any) => c.client_id === form.client_id);
+  const clientConnected = !!conn && !!conn.has_instagram;
+
   const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
   const save = async () => {
     if (!form.title.trim() || !form.client_id) return;
+    setError("");
     setSaving(true);
     try {
       const payload = {
@@ -59,6 +70,8 @@ export default function EditorialFormModal({ open, onClose, onSaved, clients, te
       else await api.post("/api/editorial", payload);
       onSaved();
       onClose();
+    } catch (e: any) {
+      setError(e?.message || "Não foi possível salvar.");
     } finally { setSaving(false); }
   };
 
@@ -123,10 +136,36 @@ export default function EditorialFormModal({ open, onClose, onSaved, clients, te
             <Label className="text-xs text-muted-foreground uppercase tracking-widest">Hashtags</Label>
             <Input value={form.hashtags} onChange={e => set("hashtags", e.target.value)} className="bg-secondary border-border" placeholder="#marketing #social" />
           </div>
+
+          {/* Agendamento de publicação */}
+          <div className="rounded-xl border border-border bg-secondary/30 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <CalendarClock className="w-4 h-4 text-fuchsia-400" />
+                <span className="text-sm font-medium text-foreground">Agendar publicação automática</span>
+              </div>
+              <Switch checked={form.auto_schedule} onCheckedChange={(v: boolean) => set("auto_schedule", v)} />
+            </div>
+            {form.auto_schedule && (
+              <div className="space-y-1.5 pt-1">
+                {!form.scheduled_date && (
+                  <p className="text-[11px] text-amber-300 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Defina a data de publicação acima para agendar.</p>
+                )}
+                {form.client_id && (
+                  clientConnected
+                    ? <p className="text-[11px] text-green-400 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Cliente com conexão ativa{conn?.instagram_username ? ` (@${conn.instagram_username})` : ""}.</p>
+                    : <p className="text-[11px] text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Cliente sem conexão ativa do Instagram — conecte em Meta → Conexões.</p>
+                )}
+                <p className="text-[10px] text-muted-foreground">A publicação automática só ocorre após o conteúdo ser aprovado e depende da conta conectada.</p>
+              </div>
+            )}
+          </div>
+
+          {error && <p className="text-xs text-red-400 flex items-center gap-1"><AlertCircle className="w-3.5 h-3.5" /> {error}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} className="border-border">Cancelar</Button>
-          <Button onClick={save} disabled={saving || !form.title.trim() || !form.client_id} className="gradient-button">
+          <Button onClick={save} disabled={saving || !form.title.trim() || !form.client_id || (form.auto_schedule && (!form.scheduled_date || !clientConnected))} className="gradient-button">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (editing ? "Salvar" : "Criar conteúdo")}
           </Button>
         </DialogFooter>
