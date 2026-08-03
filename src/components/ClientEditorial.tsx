@@ -3,7 +3,7 @@ import { Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import api from "@/lib/api";
 import { useRole } from "@/hooks/useRole";
-import { CONTENT_STATUS, typeLabel } from "@/lib/editorial";
+import { CONTENT_STATUS, SCHEDULE_STATUS, typeLabel } from "@/lib/editorial";
 import EditorialFormModal from "@/components/EditorialFormModal";
 import EditorialDetailModal from "@/components/EditorialDetailModal";
 
@@ -48,6 +48,9 @@ export default function ClientEditorial({ clientId, clientName, team = [] }: Pro
                   <p className="text-sm text-foreground truncate">{it.title}</p>
                   <p className="text-[11px] text-muted-foreground truncate">{typeLabel(it.content_type)}{it.responsible?.name ? ` · ${it.responsible.name}` : ""}{it.scheduled_date ? ` · ${new Date(it.scheduled_date).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}</p>
                 </div>
+                {it.schedule_status && SCHEDULE_STATUS[it.schedule_status] && (
+                  <span className={`hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${SCHEDULE_STATUS[it.schedule_status].color}`}>⏰ {SCHEDULE_STATUS[it.schedule_status].label}</span>
+                )}
                 <span className={`hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${st.color}`}>{st.label}</span>
               </button>
             );

@@ -11,6 +11,14 @@ export const CONTENT_STATUS: Record<string, { label: string; color: string; dot:
 
 export const STATUS_ORDER = ["IDEIA", "EM_PRODUCAO", "AJUSTES", "EM_APROVACAO", "AGUARDANDO_POSTAR", "POSTADO"];
 
+// Status do agendamento automático (post no Instagram)
+export const SCHEDULE_STATUS: Record<string, { label: string; color: string }> = {
+  AGENDADO:  { label: "Agendado",  color: "text-fuchsia-300 bg-fuchsia-500/10 border-fuchsia-500/20" },
+  PUBLICADO: { label: "Publicado", color: "text-green-300 bg-green-500/10 border-green-500/20" },
+  ERRO:      { label: "Erro ao publicar", color: "text-red-300 bg-red-500/10 border-red-500/20" },
+  CANCELADO: { label: "Cancelado", color: "text-slate-300 bg-slate-500/10 border-slate-500/20" },
+};
+
 export const CONTENT_TYPES = [
   { id: "REELS", label: "Reels" },
   { id: "POST", label: "Post" },

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Upload, CheckCircle2, XCircle, Send, ExternalLink, FileText, Trash2, Link2, Paperclip } from "lucide-react";
 import { confirm, alertDialog } from "@/components/ConfirmDialog";
-import { CONTENT_STATUS, typeLabel, platformLabel, openEditorialFile } from "@/lib/editorial";
+import { CONTENT_STATUS, SCHEDULE_STATUS, typeLabel, platformLabel, openEditorialFile } from "@/lib/editorial";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
 import api from "@/lib/api";
@@ -98,6 +98,14 @@ export default function EditorialDetailModal({ content, isOpen, onClose, onChang
             <span><b className="text-foreground">Responsável:</b> {content.responsible?.name || "—"}</span>
             <span><b className="text-foreground">Publicação:</b> {fmt(content.scheduled_date)}</span>
           </div>
+
+          {content.schedule_status && SCHEDULE_STATUS[content.schedule_status] && (
+            <div className={`rounded-lg border px-3 py-2 text-xs ${SCHEDULE_STATUS[content.schedule_status].color}`}>
+              <span className="font-bold">⏰ Publicação automática: {SCHEDULE_STATUS[content.schedule_status].label}</span>
+              {content.schedule_status === "ERRO" && content.schedule_error && <p className="mt-0.5 opacity-90">{content.schedule_error}</p>}
+              {content.schedule_status === "PUBLICADO" && content.schedule_published_at && <span className="opacity-80"> · {new Date(content.schedule_published_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>}
+            </div>
+          )}
 
           {content.description && (
             <div><p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-1">Descrição / Briefing</p><p className="text-foreground whitespace-pre-wrap">{content.description}</p></div>

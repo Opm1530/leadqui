@@ -4,7 +4,7 @@ import { ArrowLeft, Plus, Loader2, CalendarDays, List, ChevronLeft, ChevronRight
 import api from "@/lib/api";
 import { useRole } from "@/hooks/useRole";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CONTENT_STATUS, STATUS_ORDER, typeLabel } from "@/lib/editorial";
+import { CONTENT_STATUS, STATUS_ORDER, SCHEDULE_STATUS, typeLabel } from "@/lib/editorial";
 import EditorialFormModal from "@/components/EditorialFormModal";
 import EditorialDetailModal from "@/components/EditorialDetailModal";
 
@@ -139,9 +139,11 @@ const Editorial = () => {
 
   const Chip = ({ it }: { it: any }) => {
     const st = CONTENT_STATUS[it.status] || CONTENT_STATUS.IDEIA;
+    const schedIcon = it.schedule_status === "PUBLICADO" ? "✓" : it.schedule_status === "ERRO" ? "⚠" : it.schedule_status === "AGENDADO" ? "⏰" : "";
     return (
-      <button onClick={() => setSelected(it)} className={`w-full text-left px-1.5 py-1 rounded-md border ${st.color} truncate flex items-center gap-1 text-[10px] leading-tight hover:brightness-125 transition`}>
+      <button onClick={() => setSelected(it)} title={it.schedule_status && SCHEDULE_STATUS[it.schedule_status] ? SCHEDULE_STATUS[it.schedule_status].label : undefined} className={`w-full text-left px-1.5 py-1 rounded-md border ${st.color} truncate flex items-center gap-1 text-[10px] leading-tight hover:brightness-125 transition`}>
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${st.dot}`} /> <span className="truncate">{it.title}</span>
+        {schedIcon && <span className="shrink-0">{schedIcon}</span>}
       </button>
     );
   };
@@ -246,6 +248,9 @@ const Editorial = () => {
                         <p className="text-[11px] text-muted-foreground truncate">{it.client?.name || "—"} · {typeLabel(it.content_type)}{it.responsible?.name ? ` · ${it.responsible.name}` : ""}</p>
                       </div>
                       {it.scheduled_date && <span className="text-[11px] text-muted-foreground shrink-0">{new Date(it.scheduled_date).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>}
+                      {it.schedule_status && SCHEDULE_STATUS[it.schedule_status] && (
+                        <span className={`hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${SCHEDULE_STATUS[it.schedule_status].color}`}>⏰ {SCHEDULE_STATUS[it.schedule_status].label}</span>
+                      )}
                       <span className={`hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${st.color}`}>{st.label}</span>
                     </button>
                   );

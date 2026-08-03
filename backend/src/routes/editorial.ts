@@ -50,6 +50,25 @@ const include = {
   creator: { select: { id: true, name: true } },
 };
 
+// Anexa o status do post agendado (AGENDADO/PUBLICADO/ERRO) a cada conteúdo
+async function attachScheduleStatus(items: any[]): Promise<void> {
+  const ids = items.map(i => i.id);
+  if (!ids.length) return;
+  const posts = await (prisma as any).instagramScheduledPost.findMany({
+    where: { editorial_content_id: { in: ids } },
+    orderBy: { created_at: "desc" },
+    select: { editorial_content_id: true, status: true, error_message: true, scheduled_at: true, published_at: true },
+  });
+  const byContent: Record<string, any> = {};
+  for (const p of posts) if (!byContent[p.editorial_content_id]) byContent[p.editorial_content_id] = p;
+  for (const it of items) {
+    const p = byContent[it.id];
+    it.schedule_status = p?.status || null;
+    it.schedule_error = p?.error_message || null;
+    it.schedule_published_at = p?.published_at || null;
+  }
+}
+
 // Verifica se o cliente tem uma conexão ativa do Instagram (para agendar publicação)
 async function clientHasActiveConnection(clientId: string): Promise<boolean> {
   const conn = await (prisma as any).clientMetaConnection.findUnique({ where: { client_id: clientId } });
@@ -108,6 +127,7 @@ router.get("/", authenticateJWT, async (req: AuthRequest, res: Response): Promis
     const items = await (prisma as any).editorialContent.findMany({
       where, include, orderBy: [{ scheduled_date: "asc" }, { created_at: "desc" }],
     });
+    await attachScheduleStatus(items);
     res.json(items);
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
