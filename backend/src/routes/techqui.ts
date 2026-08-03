@@ -146,8 +146,10 @@ router.get("/oauth/start", authenticateJWT, async (req: AuthRequest, res: Respon
   if (!clientId) { res.status(400).json({ error: "client_id obrigatório" }); return; }
 
   try {
+    // Credenciais do app da Meta são da agência (do dono), não por usuário
+    const ownerId = await getCompanySettingsUserId();
     const settings = await (prisma as any).techQuiSettings.findUnique({
-      where: { user_id: req.user!.id },
+      where: { user_id: ownerId },
     });
 
     if (!settings?.meta_app_id) {
@@ -156,7 +158,7 @@ router.get("/oauth/start", authenticateJWT, async (req: AuthRequest, res: Respon
     }
 
     // State codifica: client_id + user_id (para recuperar no callback)
-    const state = Buffer.from(JSON.stringify({ client_id: clientId, user_id: req.user!.id })).toString("base64url");
+    const state = Buffer.from(JSON.stringify({ client_id: clientId, user_id: ownerId })).toString("base64url");
 
     const redirectUri = process.env.META_OAUTH_REDIRECT_URI!;
     const oauthUrl = `https://www.facebook.com/v20.0/dialog/oauth?client_id=${settings.meta_app_id}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(META_SCOPES)}&state=${state}&response_type=code`;
@@ -360,12 +362,13 @@ router.get("/oauth/instagram/start", authenticateJWT, async (req: AuthRequest, r
   const clientId = String(req.query.client_id || "");
   if (!clientId) { res.status(400).json({ error: "client_id obrigatório" }); return; }
   try {
-    const settings = await (prisma as any).techQuiSettings.findUnique({ where: { user_id: req.user!.id } });
+    const ownerId = await getCompanySettingsUserId();
+    const settings = await (prisma as any).techQuiSettings.findUnique({ where: { user_id: ownerId } });
     if (!settings?.instagram_app_id) {
       res.status(400).json({ error: "Configure o Instagram App ID em TechQui → Configurações." });
       return;
     }
-    const state = Buffer.from(JSON.stringify({ client_id: clientId, user_id: req.user!.id })).toString("base64url");
+    const state = Buffer.from(JSON.stringify({ client_id: clientId, user_id: ownerId })).toString("base64url");
     const redirectUri = process.env.INSTAGRAM_OAUTH_REDIRECT_URI!;
     const url = `https://www.instagram.com/oauth/authorize?client_id=${settings.instagram_app_id}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(IG_SCOPES)}&state=${state}`;
     res.json({ url });
