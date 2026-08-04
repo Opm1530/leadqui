@@ -21,6 +21,7 @@ import { Calendar, Trash2, User, Briefcase, Tag, Archive, Send, Loader2 } from "
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import FileViewerModal, { ViewFile } from "@/components/FileViewerModal";
 
 interface TaskDetailModalProps {
   task: any;
@@ -58,6 +59,7 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, team }: TaskD
 
   // Anexos da tarefa
   const [files, setFiles] = useState<any[]>([]);
+  const [viewFile, setViewFile] = useState<ViewFile | null>(null);
   const [uploading, setUploading] = useState(false);
   useEffect(() => {
     if (task?.id && isOpen) api.get(`/api/files?task_id=${task.id}`).then(d => setFiles(d.files || [])).catch(() => setFiles([]));
@@ -91,11 +93,7 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, team }: TaskD
     } catch { toast({ title: "Erro ao anexar", variant: "destructive" }); }
     finally { setUploading(false); e.target.value = ""; }
   };
-  const baixarAnexo = (af: any) => {
-    const token = localStorage.getItem("pequi_token");
-    fetch(`/api/files/${af.id}/download`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.blob()).then(b => window.open(URL.createObjectURL(b), "_blank")).catch(() => {});
-  };
+  const baixarAnexo = (af: any) => setViewFile({ name: af.name, mime: af.mime, url: `/api/files/${af.id}/download` });
   const delAnexo = async (af: any) => {
     await api.delete(`/api/files/${af.id}`).catch(() => {});
     setFiles(p => p.filter(x => x.id !== af.id));
@@ -319,6 +317,7 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, team }: TaskD
           </button>
         </DialogFooter>
       </DialogContent>
+      <FileViewerModal file={viewFile} onClose={() => setViewFile(null)} />
     </Dialog>
   );
 }

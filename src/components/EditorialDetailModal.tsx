@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Upload, CheckCircle2, XCircle, Send, ExternalLink, FileText, Trash2, Link2, Paperclip } from "lucide-react";
 import { confirm, alertDialog } from "@/components/ConfirmDialog";
-import { CONTENT_STATUS, SCHEDULE_STATUS, typeLabel, platformLabel, openEditorialFile } from "@/lib/editorial";
+import { CONTENT_STATUS, SCHEDULE_STATUS, typeLabel, platformLabel } from "@/lib/editorial";
+import FileViewerModal, { ViewFile } from "@/components/FileViewerModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
 import api from "@/lib/api";
@@ -25,6 +26,7 @@ export default function EditorialDetailModal({ content, isOpen, onClose, onChang
   const [rejecting, setRejecting] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [taskFiles, setTaskFiles] = useState<any[]>([]);
+  const [viewFile, setViewFile] = useState<ViewFile | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Carrega os anexos da tarefa vinculada (a arte pode ter sido anexada pela tarefa)
@@ -34,11 +36,7 @@ export default function EditorialDetailModal({ content, isOpen, onClose, onChang
     } else setTaskFiles([]);
   }, [isOpen, content?.task_id]);
 
-  const baixarAnexo = (af: any) => {
-    const token = localStorage.getItem("pequi_token");
-    fetch(`/api/files/${af.id}/download`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.blob()).then(b => window.open(URL.createObjectURL(b), "_blank")).catch(() => {});
-  };
+  const baixarAnexo = (af: any) => setViewFile({ name: af.name, mime: af.mime, url: `/api/files/${af.id}/download` });
 
   if (!content) return null;
   const st = CONTENT_STATUS[content.status] || CONTENT_STATUS.IDEIA;
@@ -132,7 +130,7 @@ export default function EditorialDetailModal({ content, isOpen, onClose, onChang
           )}
 
           {content.produced_key && (
-            <button onClick={() => openEditorialFile(content.id)} className="inline-flex items-center gap-2 text-green-400 hover:text-green-300 text-sm">
+            <button onClick={() => setViewFile({ name: content.produced_name || "conteudo", url: `/api/editorial/${content.id}/file` })} className="inline-flex items-center gap-2 text-green-400 hover:text-green-300 text-sm">
               <FileText className="w-4 h-4" /> Ver conteúdo produzido ({content.produced_name}) <ExternalLink className="w-3 h-3" />
             </button>
           )}
@@ -204,6 +202,7 @@ export default function EditorialDetailModal({ content, isOpen, onClose, onChang
           </div>
         </div>
       </DialogContent>
+      <FileViewerModal file={viewFile} onClose={() => setViewFile(null)} />
     </Dialog>
   );
 }

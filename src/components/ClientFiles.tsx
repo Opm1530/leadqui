@@ -1,10 +1,11 @@
 import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect, useRef } from "react";
-import { Loader2, Upload, Trash2, FileIcon, Download, Folder, FolderPlus, ArrowLeft } from "lucide-react";
+import { Loader2, Upload, Trash2, FileIcon, Download, Folder, FolderPlus, ArrowLeft, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
+import FileViewerModal, { ViewFile } from "@/components/FileViewerModal";
 
 const fmtSize = (b: number) => b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
 
@@ -19,6 +20,8 @@ export default function ClientFiles({ clientId }: { clientId: string }) {
   const [newFolder, setNewFolder] = useState("");
   const [showNewFolder, setShowNewFolder] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [viewing, setViewing] = useState<ViewFile | null>(null);
+  const abrir = (f: any) => setViewing({ name: f.name, mime: f.mime, url: `/api/files/${f.id}/download` });
 
   const load = () => {
     setLoading(true);
@@ -66,9 +69,12 @@ export default function ClientFiles({ clientId }: { clientId: string }) {
 
   const baixar = (f: any) => {
     const token = localStorage.getItem("pequi_token");
-    // abre em nova aba com o token via fetch → blob
     fetch(`/api/files/${f.id}/download`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.blob()).then(b => { const url = URL.createObjectURL(b); window.open(url, "_blank"); })
+      .then(r => r.blob()).then(b => {
+        const url = URL.createObjectURL(b);
+        const a = document.createElement("a"); a.href = url; a.download = f.name; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      })
       .catch(() => toast({ title: "Erro ao baixar", variant: "destructive" }));
   };
 
@@ -131,16 +137,19 @@ export default function ClientFiles({ clientId }: { clientId: string }) {
           {files.map(f => (
             <div key={f.id} className="flex items-center gap-3 bg-secondary/40 rounded-lg px-3 py-2">
               <FileIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-              <button onClick={() => baixar(f)} className="flex-1 min-w-0 text-left">
+              <button onClick={() => abrir(f)} className="flex-1 min-w-0 text-left">
                 <p className="text-sm text-foreground truncate hover:text-primary">{f.name}</p>
                 <p className="text-[11px] text-muted-foreground">{fmtSize(f.size)} · {new Date(f.created_at).toLocaleDateString("pt-BR")}</p>
               </button>
-              <button onClick={() => baixar(f)} className="p-1.5 text-muted-foreground hover:text-foreground"><Download className="w-4 h-4" /></button>
+              <button onClick={() => abrir(f)} title="Visualizar" className="p-1.5 text-muted-foreground hover:text-foreground"><Eye className="w-4 h-4" /></button>
+              <button onClick={() => baixar(f)} title="Baixar" className="p-1.5 text-muted-foreground hover:text-foreground"><Download className="w-4 h-4" /></button>
               <button onClick={() => remover(f)} className="p-1.5 text-muted-foreground hover:text-destructive"><Trash2 className="w-4 h-4" /></button>
             </div>
           ))}
         </div>
       )}
+
+      <FileViewerModal file={viewing} onClose={() => setViewing(null)} />
     </div>
   );
 }
