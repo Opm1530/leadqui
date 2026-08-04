@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Loader2, CalendarDays, List, ChevronLeft, ChevronRight, Clapperboard } from "lucide-react";
 import api from "@/lib/api";
 import { useRole } from "@/hooks/useRole";
+import { useAuth } from "@/contexts/AuthContext";
+import MinhaProducao from "@/components/MinhaProducao";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CONTENT_STATUS, STATUS_ORDER, SCHEDULE_STATUS, typeLabel } from "@/lib/editorial";
 import EditorialFormModal from "@/components/EditorialFormModal";
@@ -17,6 +19,7 @@ const parseDate = (s?: string) => s ? new Date(s) : null;
 const Editorial = () => {
   const navigate = useNavigate();
   const { isAdmin, role } = useRole();
+  const { user } = useAuth();
   const canManage = isAdmin || role === "MANAGER";
 
   const [items, setItems] = useState<any[]>([]);
@@ -168,6 +171,9 @@ const Editorial = () => {
           </button>
         )}
       </div>
+
+      {/* Painel do produtor (designer/operador): fluxo de subir arte */}
+      {!canManage && <MinhaProducao items={items} userId={user?.id} onChanged={refresh} onOpen={setSelected} />}
 
       {/* Barra de controle */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
