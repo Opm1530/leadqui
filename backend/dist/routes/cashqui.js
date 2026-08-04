@@ -10,11 +10,13 @@ const axios_1 = __importDefault(require("axios"));
 const https_1 = __importDefault(require("https"));
 const dates_1 = require("../lib/dates");
 const multer_1 = __importDefault(require("multer"));
+const os_1 = __importDefault(require("os"));
 const storage_1 = require("../lib/storage");
-const receiptUpload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+const receiptUpload = (0, multer_1.default)({ dest: os_1.default.tmpdir(), limits: { fileSize: 50 * 1024 * 1024 } });
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateJWT);
 router.use(auth_1.requireStaff);
+router.use((0, auth_1.denyRoles)("DESIGNER")); // Designer não acessa o financeiro
 // ── Dashboard ─────────────────────────────────────────────────────────
 router.get("/dashboard", async (req, res) => {
     try {
@@ -214,7 +216,7 @@ router.post("/invoices/:id/receipt", receiptUpload.single("file"), async (req, r
         const id = String(req.params.id);
         const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
         const key = `invoices/${id}/${Date.now()}-${safe}`;
-        await (0, storage_1.uploadFile)(key, file.buffer, file.mimetype);
+        await (0, storage_1.uploadTempFile)(key, file.path, file.mimetype, file.size);
         const invoice = await prisma_1.default.invoice.update({ where: { id }, data: { receipt_key: key, receipt_name: file.originalname } });
         res.json({ invoice });
     }
@@ -304,7 +306,7 @@ router.post("/expenses/:id/receipt", receiptUpload.single("file"), async (req, r
         const id = String(req.params.id);
         const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
         const key = `expenses/${id}/${Date.now()}-${safe}`;
-        await (0, storage_1.uploadFile)(key, file.buffer, file.mimetype);
+        await (0, storage_1.uploadTempFile)(key, file.path, file.mimetype, file.size);
         const expense = await prisma_1.default.expense.update({ where: { id }, data: { receipt_key: key, receipt_name: file.originalname } });
         res.json({ expense });
     }

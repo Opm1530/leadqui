@@ -9,11 +9,11 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const auth_1 = require("../middlewares/auth");
 const router = (0, express_1.Router)();
 // Todos os membros da agência (ADMIN, MANAGER, OPERATOR)
-const AGENCY_ROLES = ["ADMIN", "MANAGER", "OPERATOR"];
+const AGENCY_ROLES = ["ADMIN", "MANAGER", "OPERATOR", "DESIGNER"];
 // ── GET /api/teamqui ──────────────────────────────────────────────────
 // Listar todos os membros da equipe (disponível para ADMIN, MANAGER e OPERATOR)
 router.get("/", auth_1.authenticateJWT, async (req, res) => {
-    const allowedRoles = ["ADMIN", "MANAGER", "OPERATOR"];
+    const allowedRoles = ["ADMIN", "MANAGER", "OPERATOR", "DESIGNER"];
     if (!allowedRoles.includes(req.user?.role || "")) {
         res.status(403).json({ error: "Acesso negado" });
         return;
@@ -21,7 +21,7 @@ router.get("/", auth_1.authenticateJWT, async (req, res) => {
     try {
         const team = await prisma_1.default.user.findMany({
             where: {
-                role: { in: ["ADMIN", "MANAGER", "OPERATOR"] }
+                role: { in: ["ADMIN", "MANAGER", "OPERATOR", "DESIGNER"] }
             },
             select: {
                 id: true,

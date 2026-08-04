@@ -5,14 +5,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));
+const os_1 = __importDefault(require("os"));
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const auth_1 = require("../middlewares/auth");
 const storage_1 = require("../lib/storage");
 const dates_1 = require("../lib/dates");
 const editorialMedia_1 = require("../lib/editorialMedia");
 const router = (0, express_1.Router)();
-const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
-const isStaff = (r) => ["ADMIN", "MANAGER", "OPERATOR"].includes(r || "");
+const upload = (0, multer_1.default)({ dest: os_1.default.tmpdir(), limits: { fileSize: 1024 * 1024 * 1024 } }); // 1GB, streaming em disco
+const isStaff = (r) => ["ADMIN", "MANAGER", "OPERATOR", "DESIGNER"].includes(r || "");
 const canManage = (r) => ["ADMIN", "MANAGER"].includes(r || "");
 // Mapeia o status do conteúdo para o status da tarefa vinculada
 function taskStatusFor(contentStatus) {
@@ -307,7 +308,7 @@ router.post("/:id/submit", auth_1.authenticateJWT, upload.single("file"), async 
                 await (0, storage_1.deleteFile)(c.produced_key).catch(() => { });
             const safe = (req.file.originalname || "arquivo").replace(/[^\w.\-]+/g, "_");
             const key = `editorial/${id}/${Date.now()}-${safe}`;
-            await (0, storage_1.uploadFile)(key, req.file.buffer, req.file.mimetype);
+            await (0, storage_1.uploadTempFile)(key, req.file.path, req.file.mimetype, req.file.size);
             data.produced_key = key;
             data.produced_name = req.file.originalname;
         }

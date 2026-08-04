@@ -1,13 +1,14 @@
 import { Router, Response } from "express";
 import multer from "multer";
+import os from "os";
 import prisma from "../lib/prisma";
 import { authenticateJWT, AuthRequest } from "../middlewares/auth";
-import { uploadFile, getFile, deleteFile } from "../lib/storage";
+import { uploadTempFile, getFile, deleteFile } from "../lib/storage";
 import { dayDate } from "../lib/dates";
 import { signMedia, publicApiBase, resolveContentMedia, mediaTypeFor } from "../lib/editorialMedia";
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1024 * 1024 * 1024 } }); // 1GB
+const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 1024 * 1024 * 1024 } }); // 1GB, streaming em disco
 
 const isStaff = (r?: string) => ["ADMIN", "MANAGER", "OPERATOR", "DESIGNER"].includes(r || "");
 const canManage = (r?: string) => ["ADMIN", "MANAGER"].includes(r || "");
@@ -259,7 +260,7 @@ router.post("/:id/submit", authenticateJWT, upload.single("file"), async (req: A
       if (c.produced_key) await deleteFile(c.produced_key).catch(() => {});
       const safe = (req.file.originalname || "arquivo").replace(/[^\w.\-]+/g, "_");
       const key = `editorial/${id}/${Date.now()}-${safe}`;
-      await uploadFile(key, req.file.buffer, req.file.mimetype);
+      await uploadTempFile(key, req.file.path, req.file.mimetype, req.file.size);
       data.produced_key = key;
       data.produced_name = req.file.originalname;
     }

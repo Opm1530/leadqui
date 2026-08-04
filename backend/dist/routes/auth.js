@@ -9,6 +9,7 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const uuid_1 = require("uuid");
 const resend_1 = require("resend");
 const prisma_1 = __importDefault(require("../lib/prisma"));
+const authRateLimit_1 = require("../lib/authRateLimit");
 const auth_1 = require("../middlewares/auth");
 const router = (0, express_1.Router)();
 const resend = new resend_1.Resend(process.env.RESEND_API_KEY);
@@ -20,16 +21,20 @@ router.post("/login", async (req, res) => {
         return;
     }
     try {
+        const ip = req.ip || "unknown";
         const user = await prisma_1.default.user.findUnique({ where: { email: email.toLowerCase().trim() } });
         if (!user) {
+            (0, authRateLimit_1.registerLoginFailure)(ip);
             res.status(401).json({ error: "Credenciais inválidas" });
             return;
         }
         const passwordValid = await bcryptjs_1.default.compare(password, user.password_hash);
         if (!passwordValid) {
+            (0, authRateLimit_1.registerLoginFailure)(ip);
             res.status(401).json({ error: "Credenciais inválidas" });
             return;
         }
+        (0, authRateLimit_1.registerLoginSuccess)(ip); // login ok → zera o contador de falhas do IP
         const token = jsonwebtoken_1.default.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "7d" });
         res.json({
             token,

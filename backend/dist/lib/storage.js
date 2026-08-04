@@ -1,11 +1,17 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isStorageConfigured = isStorageConfigured;
 exports.uploadFile = uploadFile;
+exports.uploadStream = uploadStream;
+exports.uploadTempFile = uploadTempFile;
 exports.getFile = getFile;
 exports.deleteFile = deleteFile;
 const client_s3_1 = require("@aws-sdk/client-s3");
 const companySettings_1 = require("./companySettings");
+const fs_1 = __importDefault(require("fs"));
 // Cria um cliente S3 apontando para o Cloudflare R2 usando as credenciais da empresa.
 async function r2Client() {
     const s = (await (0, companySettings_1.getCompanySettings)());
@@ -26,6 +32,22 @@ async function uploadFile(key, body, mime) {
     if (!r2)
         throw new Error("Armazenamento (R2) não configurado nas Configurações.");
     await r2.client.send(new client_s3_1.PutObjectCommand({ Bucket: r2.bucket, Key: key, Body: body, ContentType: mime }));
+}
+// Envia por streaming (sem carregar o arquivo inteiro na RAM). Precisa do tamanho exato.
+async function uploadStream(key, body, mime, contentLength) {
+    const r2 = await r2Client();
+    if (!r2)
+        throw new Error("Armazenamento (R2) não configurado nas Configurações.");
+    await r2.client.send(new client_s3_1.PutObjectCommand({ Bucket: r2.bucket, Key: key, Body: body, ContentType: mime, ContentLength: contentLength }));
+}
+// Envia um arquivo temporário (do multer em disco) por streaming e SEMPRE o remove ao final.
+async function uploadTempFile(key, filePath, mime, size) {
+    try {
+        await uploadStream(key, fs_1.default.createReadStream(filePath), mime, size);
+    }
+    finally {
+        fs_1.default.promises.unlink(filePath).catch(() => { });
+    }
 }
 async function getFile(key) {
     const r2 = await r2Client();

@@ -5,9 +5,10 @@ import axios from "axios";
 import https from "https";
 import { dayDate } from "../lib/dates";
 import multer from "multer";
-import { uploadFile, getFile, deleteFile } from "../lib/storage";
+import os from "os";
+import { uploadTempFile, getFile, deleteFile } from "../lib/storage";
 
-const receiptUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+const receiptUpload = multer({ dest: os.tmpdir(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 const router = Router();
 router.use(authenticateJWT);
@@ -220,7 +221,7 @@ router.post("/invoices/:id/receipt", receiptUpload.single("file"), async (req: A
     const id = String(req.params.id);
     const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
     const key = `invoices/${id}/${Date.now()}-${safe}`;
-    await uploadFile(key, file.buffer, file.mimetype);
+    await uploadTempFile(key, file.path, file.mimetype, file.size);
     const invoice = await (prisma as any).invoice.update({ where: { id }, data: { receipt_key: key, receipt_name: file.originalname } });
     res.json({ invoice });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
@@ -301,7 +302,7 @@ router.post("/expenses/:id/receipt", receiptUpload.single("file"), async (req: A
     const id = String(req.params.id);
     const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
     const key = `expenses/${id}/${Date.now()}-${safe}`;
-    await uploadFile(key, file.buffer, file.mimetype);
+    await uploadTempFile(key, file.path, file.mimetype, file.size);
     const expense = await (prisma as any).expense.update({ where: { id }, data: { receipt_key: key, receipt_name: file.originalname } });
     res.json({ expense });
   } catch (e: any) { res.status(500).json({ error: e.message }); }

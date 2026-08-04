@@ -10,6 +10,7 @@ const vault_1 = require("../lib/vault");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateJWT);
 router.use(auth_1.requireStaff);
+router.use((0, auth_1.denyRoles)("DESIGNER")); // Designer não acessa o cofre de senhas
 // Roles que podem revelar senhas
 const CAN_REVEAL = ["ADMIN", "MANAGER"];
 // ── GET /api/vault?client_id=xxx ──────────────────────────────────────

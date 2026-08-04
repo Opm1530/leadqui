@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.requireStaff = exports.requireAdmin = exports.authenticateJWT = void 0;
+exports.denyRoles = exports.requireStaff = exports.requireAdmin = exports.authenticateJWT = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const authenticateJWT = (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -33,7 +33,7 @@ exports.requireAdmin = requireAdmin;
 // Permite apenas equipe interna (ADMIN, MANAGER, OPERATOR).
 // Bloqueia clientes externos (CLIENT) de acessar dados compartilhados da empresa.
 const requireStaff = (req, res, next) => {
-    const staffRoles = ["ADMIN", "MANAGER", "OPERATOR"];
+    const staffRoles = ["ADMIN", "MANAGER", "OPERATOR", "DESIGNER"];
     if (!req.user || !staffRoles.includes(req.user.role)) {
         res.status(403).json({ error: "Acesso restrito à equipe interna" });
         return;
@@ -41,4 +41,13 @@ const requireStaff = (req, res, next) => {
     next();
 };
 exports.requireStaff = requireStaff;
+// Bloqueia cargos específicos (ex.: DESIGNER não acessa cofre/financeiro).
+const denyRoles = (...roles) => (req, res, next) => {
+    if (req.user && roles.includes(req.user.role)) {
+        res.status(403).json({ error: "Seu cargo não tem acesso a este recurso." });
+        return;
+    }
+    next();
+};
+exports.denyRoles = denyRoles;
 //# sourceMappingURL=auth.js.map

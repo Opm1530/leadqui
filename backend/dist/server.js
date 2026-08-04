@@ -8,6 +8,7 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const auth_1 = __importDefault(require("./routes/auth"));
+const authRateLimit_1 = require("./lib/authRateLimit");
 const leads_1 = __importDefault(require("./routes/leads"));
 const instances_1 = __importDefault(require("./routes/instances"));
 const campaigns_1 = __importDefault(require("./routes/campaigns"));
@@ -54,21 +55,11 @@ app.use((0, helmet_1.default)({
     },
     crossOriginEmbedderPolicy: false, // compatibilidade com uploads de imagem
 }));
-// Rate limiting simples para rotas de auth (proteção contra brute-force)
-const authAttempts = new Map();
+// Rate limiting de login — só bloqueia após muitas FALHAS (login com sucesso zera).
 app.use("/api/auth/login", (req, res, next) => {
-    const ip = req.ip || "unknown";
-    const now = Date.now();
-    const entry = authAttempts.get(ip);
-    if (entry && now < entry.resetAt) {
-        if (entry.count >= 10) {
-            res.status(429).json({ error: "Muitas tentativas. Aguarde 15 minutos." });
-            return;
-        }
-        entry.count++;
-    }
-    else {
-        authAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    if ((0, authRateLimit_1.isLoginBlocked)(req.ip || "unknown")) {
+        res.status(429).json({ error: "Muitas tentativas. Aguarde 15 minutos." });
+        return;
     }
     next();
 });

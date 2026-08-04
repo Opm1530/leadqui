@@ -5,11 +5,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));
+const os_1 = __importDefault(require("os"));
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const auth_1 = require("../middlewares/auth");
 const storage_1 = require("../lib/storage");
 const router = (0, express_1.Router)();
-const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } }); // 200MB
+// Grava em disco temporário (RAM baixa) e sobe por streaming — suporta arquivos grandes (1GB)
+const upload = (0, multer_1.default)({ dest: os_1.default.tmpdir(), limits: { fileSize: 1024 * 1024 * 1024 } });
 router.use(auth_1.authenticateJWT);
 router.use(auth_1.requireStaff);
 // Status do armazenamento
@@ -75,7 +77,7 @@ router.post("/", upload.single("file"), async (req, res) => {
     try {
         const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
         const key = `clients/${client_id}/${Date.now()}-${safe}`;
-        await (0, storage_1.uploadFile)(key, file.buffer, file.mimetype);
+        await (0, storage_1.uploadTempFile)(key, file.path, file.mimetype, file.size);
         const saved = await prisma_1.default.clientFile.create({
             data: { client_id, task_id, folder_id, user_id: req.user.id, name: file.originalname, key, size: file.size, mime: file.mimetype },
         });

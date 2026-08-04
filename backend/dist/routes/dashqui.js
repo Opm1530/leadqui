@@ -15,7 +15,7 @@ function hojeSP() {
     return { start: new Date(`${dia}T00:00:00-03:00`), end: new Date(`${dia}T23:59:59-03:00`) };
 }
 // ── GET /api/dashqui ──────────────────────────────────────────────────
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
     try {
         const { start, end } = hojeSP();
         // Tarefas do dia (prazo até hoje, não concluídas, não arquivadas)
@@ -57,18 +57,20 @@ router.get("/", async (_req, res) => {
         const totalRecebidoHoje = invoicesPaid.reduce((a, i) => a + (i.amount || 0), 0);
         const totalAReceberHoje = invoicesDue.filter((i) => i.status !== "PAGO").reduce((a, i) => a + (i.amount || 0), 0);
         const totalDespesasHoje = expenses.reduce((a, e) => a + (e.amount || 0), 0);
+        // Financeiro só para quem gere (ADMIN/MANAGER); designer/operador não recebe
+        const canSeeFinance = ["ADMIN", "MANAGER"].includes(req.user?.role || "");
         res.json({
             tasks,
             posts,
             editorial,
-            finance: {
+            finance: canSeeFinance ? {
                 recebido_hoje: totalRecebidoHoje,
                 a_receber_hoje: totalAReceberHoje,
                 despesas_hoje: totalDespesasHoje,
                 invoices_due: invoicesDue,
                 invoices_paid: invoicesPaid,
                 expenses,
-            },
+            } : null,
         });
     }
     catch (e) {
