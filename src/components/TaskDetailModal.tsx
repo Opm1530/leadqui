@@ -21,6 +21,7 @@ import { Calendar, Trash2, User, Briefcase, Tag, Archive, Send, Loader2 } from "
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/hooks/useRole";
 import FileViewerModal, { ViewFile } from "@/components/FileViewerModal";
 import { backgroundUpload } from "@/contexts/UploadContext";
 
@@ -44,6 +45,8 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, team }: TaskD
   });
   const { toast } = useToast();
   const { user } = useAuth();
+  const { role } = useRole();
+  const isDesigner = role === "DESIGNER";
 
   // Sincroniza o formulário sempre que a tarefa aberta muda (evita modal vazio)
   useEffect(() => {
@@ -197,8 +200,9 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, team }: TaskD
               <Select
                 value={formData.responsible_id || "unassigned"}
                 onValueChange={(val) => setFormData({...formData, responsible_id: val === "unassigned" ? null : val})}
+                disabled={isDesigner}
               >
-                <SelectTrigger className="bg-white/5 border-white/10">
+                <SelectTrigger className="bg-white/5 border-white/10 disabled:opacity-100 disabled:cursor-default">
                   <SelectValue placeholder="Sem responsável" />
                 </SelectTrigger>
                 <SelectContent>

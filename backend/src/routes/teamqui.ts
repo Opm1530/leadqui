@@ -11,7 +11,7 @@ const AGENCY_ROLES = ["ADMIN", "MANAGER", "OPERATOR", "DESIGNER"];
 // ── GET /api/teamqui ──────────────────────────────────────────────────
 // Listar todos os membros da equipe (disponível para ADMIN, MANAGER e OPERATOR)
 router.get("/", authenticateJWT, async (req: AuthRequest, res: Response): Promise<void> => {
-  const allowedRoles = ["ADMIN", "MANAGER", "OPERATOR"];
+  const allowedRoles = ["ADMIN", "MANAGER", "OPERATOR", "DESIGNER"];
   if (!allowedRoles.includes(req.user?.role || "")) {
     res.status(403).json({ error: "Acesso negado" });
     return;
