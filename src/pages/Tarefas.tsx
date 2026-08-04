@@ -2,6 +2,8 @@ import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRole } from "@/hooks/useRole";
 import { backgroundUpload } from "@/contexts/UploadContext";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -24,6 +26,10 @@ const PRIO: Record<string, string> = { BAIXA: "text-muted-foreground", MEDIA: "t
 const Tarefas = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { isAdmin, role } = useRole();
+  // Quem não gere (designer/operador) vê só as próprias tarefas
+  const mineOnly = !(isAdmin || role === "MANAGER");
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -73,6 +79,7 @@ const Tarefas = () => {
   const responsaveis = useMemo(() => Array.from(new Map(tasks.filter(t => t.responsible?.id).map(t => [t.responsible.id, t.responsible])).values()), [tasks]);
 
   const filtered = tasks.filter(t => {
+    if (mineOnly && t.responsible_id !== user?.id) return false;
     const s = search.toLowerCase();
     const mS = !s || t.title.toLowerCase().includes(s) || t.client?.name?.toLowerCase().includes(s);
     const mC = fClient === "all" || t.client_id === fClient;
@@ -125,14 +132,14 @@ const Tarefas = () => {
           <ListTodo className="w-5 h-5 text-white" />
         </div>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-foreground">Todas as tarefas</h1>
+          <h1 className="text-2xl font-bold text-foreground">{mineOnly ? "Minhas tarefas" : "Todas as tarefas"}</h1>
           <p className="text-muted-foreground text-sm">{filtered.filter(t => t.status !== "CONCLUIDO").length} pendente(s) · {filtered.length} no total</p>
         </div>
         <div className="flex rounded-lg border border-border overflow-hidden">
           <button onClick={() => setView("lista")} className={`px-2.5 h-9 ${view === "lista" ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}><LayoutList className="w-4 h-4" /></button>
           <button onClick={() => setView("status")} className={`px-2.5 h-9 ${view === "status" ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}><Rows3 className="w-4 h-4" /></button>
         </div>
-        <Button onClick={() => { setForm(emptyForm); setAttach([]); setModal(true); }} className="gradient-button gap-2 h-9"><Plus className="w-4 h-4" /> Nova Tarefa</Button>
+        <Button onClick={() => { setForm({ ...emptyForm, responsible_id: mineOnly ? (user?.id || "") : "" }); setAttach([]); setModal(true); }} className="gradient-button gap-2 h-9"><Plus className="w-4 h-4" /> Nova Tarefa</Button>
       </div>
 
       {/* Modal criar tarefa */}

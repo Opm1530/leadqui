@@ -70,17 +70,19 @@ const DashQui = () => {
           <h1 className="text-2xl font-bold text-foreground">DashQui</h1>
           <p className="text-muted-foreground text-sm capitalize">{hoje}</p>
         </div>
-        {canSeeAll && (
+        {(() => {
+          const list = canSeeAll ? allTasks : myTasks;
+          const pend = list.filter(t => t.status !== "CONCLUIDO").length;
+          return (
           <button onClick={() => navigate("/tarefas")}
             className="flex items-center gap-2 px-3 h-10 rounded-xl bg-secondary border border-border text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-secondary/70 transition-colors">
-            <ListTodo className="w-4 h-4" /> Todas as tarefas
-            {allTasks.filter(t => t.status !== "CONCLUIDO").length > 0 && (
-              <span className="w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">
-                {allTasks.filter(t => t.status !== "CONCLUIDO").length}
-              </span>
+            <ListTodo className="w-4 h-4" /> {canSeeAll ? "Todas as tarefas" : "Minhas tarefas"}
+            {pend > 0 && (
+              <span className="w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center">{pend}</span>
             )}
           </button>
-        )}
+          );
+        })()}
       </div>
 
 
