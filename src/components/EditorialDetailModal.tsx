@@ -6,6 +6,7 @@ import { Loader2, Upload, CheckCircle2, XCircle, Send, ExternalLink, FileText, T
 import { confirm, alertDialog } from "@/components/ConfirmDialog";
 import { CONTENT_STATUS, SCHEDULE_STATUS, typeLabel, platformLabel } from "@/lib/editorial";
 import FileViewerModal, { ViewFile } from "@/components/FileViewerModal";
+import { backgroundUpload } from "@/contexts/UploadContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
 import api from "@/lib/api";
@@ -48,7 +49,7 @@ export default function EditorialDetailModal({ content, isOpen, onClose, onChang
     try {
       const fd = new FormData();
       if (file) fd.append("file", file);
-      await api.post(`/api/editorial/${content.id}/submit`, fd);
+      await backgroundUpload(`/api/editorial/${content.id}/submit`, fd, file?.name || "conteúdo produzido");
       onChanged();
     } finally { setBusy(false); }
   };

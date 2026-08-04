@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import api from "@/lib/api";
+import { backgroundUpload } from "@/contexts/UploadContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +42,7 @@ const ClientesGrid = () => {
       });
       for (const f of attach) {
         const fd = new FormData(); fd.append("file", f); fd.append("client_id", form.client_id); fd.append("task_id", t.id);
-        await api.post("/api/files", fd).catch(() => {});
+        backgroundUpload("/api/files", fd, f.name).catch(() => {});
       }
       toast({ title: "Tarefa criada!" });
       setForm(emptyTask); setAttach([]); setTaskModal(false);

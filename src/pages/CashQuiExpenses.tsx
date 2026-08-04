@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
+import { backgroundUpload } from "@/contexts/UploadContext";
 import { useModule } from "@/contexts/ModuleContext";
 
 const CATEGORIES: Record<string, { label: string; color: string }> = {
@@ -67,7 +68,7 @@ const CashQuiExpenses = () => {
     if (!file || !id) return;
     try {
       const fd = new FormData(); fd.append("file", file);
-      await api.post(`/api/cashqui/expenses/${id}/receipt`, fd);
+      await backgroundUpload(`/api/cashqui/expenses/${id}/receipt`, fd, file.name);
       toast({ title: "Comprovante anexado!" }); load();
     } catch (err: any) { toast({ title: "Erro ao anexar", description: err.message, variant: "destructive" }); }
   };

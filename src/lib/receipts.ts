@@ -1,5 +1,6 @@
 import { confirm } from "@/components/ConfirmDialog";
 import api from "@/lib/api";
+import { backgroundUpload } from "@/contexts/UploadContext";
 
 function pickFile(): Promise<File | null> {
   return new Promise((resolve) => {
@@ -19,7 +20,7 @@ export async function askInvoiceReceipt(invoiceId?: string | null): Promise<stri
   if (!file) return null;
   const fd = new FormData();
   fd.append("file", file);
-  const d = await api.post(`/api/cashqui/invoices/${invoiceId}/receipt`, fd);
+  const d = await backgroundUpload(`/api/cashqui/invoices/${invoiceId}/receipt`, fd, file.name);
   return d.invoice?.receipt_name || file.name;
 }
 

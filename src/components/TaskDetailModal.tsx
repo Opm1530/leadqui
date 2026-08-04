@@ -22,6 +22,7 @@ import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import FileViewerModal, { ViewFile } from "@/components/FileViewerModal";
+import { backgroundUpload } from "@/contexts/UploadContext";
 
 interface TaskDetailModalProps {
   task: any;
@@ -88,8 +89,8 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, team }: TaskD
     setUploading(true);
     try {
       const fd = new FormData(); fd.append("file", f); fd.append("client_id", task.client_id); fd.append("task_id", task.id);
-      const d = await api.post("/api/files", fd);
-      setFiles(p => [d.file, ...p]);
+      const d = await backgroundUpload("/api/files", fd, f.name);
+      if (d?.file) setFiles(p => [d.file, ...p]);
     } catch { toast({ title: "Erro ao anexar", variant: "destructive" }); }
     finally { setUploading(false); e.target.value = ""; }
   };

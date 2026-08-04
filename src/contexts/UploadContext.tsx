@@ -21,6 +21,18 @@ export const useUploads = () => useContext(UploadCtx);
 let counter = 0;
 const genId = () => `up_${Date.now()}_${counter++}`;
 
+// Implementação registrada pelo provider — permite usar fora de componentes React (libs).
+let _impl: ((url: string, fd: FormData, label: string) => Promise<any>) | null = null;
+
+// Upload em background com indicador flutuante. Use em qualquer lugar (com ou sem React).
+export function backgroundUpload(url: string, formData: FormData, label: string): Promise<any> {
+  if (_impl) return _impl(url, formData, label);
+  // Fallback (sem provider montado): upload simples, sem barra de progresso.
+  const token = localStorage.getItem("pequi_token");
+  return fetch(url, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: formData })
+    .then(r => { if (!r.ok) throw new Error(`Erro ${r.status}`); return r.json().catch(() => ({})); });
+}
+
 export const UploadProvider = ({ children }: { children: ReactNode }) => {
   const [uploads, setUploads] = useState<UploadItem[]>([]);
 
@@ -61,6 +73,9 @@ export const UploadProvider = ({ children }: { children: ReactNode }) => {
       xhr.send(formData);
     });
   }, [update, dismiss]);
+
+  // Registra a implementação para uso fora do React (backgroundUpload).
+  _impl = startUpload;
 
   return <UploadCtx.Provider value={{ uploads, startUpload, dismiss }}>{children}</UploadCtx.Provider>;
 };

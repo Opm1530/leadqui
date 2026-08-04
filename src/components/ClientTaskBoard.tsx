@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TaskDetailModal } from "@/components/TaskDetailModal";
 import api from "@/lib/api";
+import { backgroundUpload } from "@/contexts/UploadContext";
 
 const STATUS = [
   { id: "PENDENTE",     label: "Pendente",     color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20" },
@@ -54,7 +55,7 @@ export default function ClientTaskBoard({ clientId, tasks, setTasks, team = [], 
       for (const f of attachments) {
         const fd = new FormData();
         fd.append("file", f); fd.append("client_id", clientId); fd.append("task_id", t.id);
-        await api.post("/api/files", fd).catch(() => {});
+        backgroundUpload("/api/files", fd, f.name).catch(() => {});
       }
       setTasks((p: any[]) => [...p, t]);
       setForm(emptyForm); setAttachments([]); setModalOpen(false);

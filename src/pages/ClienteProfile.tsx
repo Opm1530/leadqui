@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import api from "@/lib/api";
 import { useRole } from "@/hooks/useRole";
+import { backgroundUpload } from "@/contexts/UploadContext";
 import { askInvoiceReceipt, openInvoiceReceipt } from "@/lib/receipts";
 import ClientTaskBoard from "@/components/ClientTaskBoard";
 import ClientEditorial from "@/components/ClientEditorial";
@@ -502,7 +503,7 @@ const ContratoTab = ({ clientId, client, toast }: any) => {
     setUploading(true);
     try {
       const fd = new FormData(); fd.append("file", file); fd.append("client_id", clientId); fd.append("folder_id", folderId);
-      const d = await api.post("/api/files", fd); setDocs(p => [d.file, ...p]);
+      const d = await backgroundUpload("/api/files", fd, file.name); if (d?.file) setDocs(p => [d.file, ...p]);
     } catch { toast({ title: "Erro ao enviar", variant: "destructive" }); }
     finally { setUploading(false); e.target.value = ""; }
   };

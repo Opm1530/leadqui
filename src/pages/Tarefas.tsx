@@ -2,6 +2,7 @@ import { confirm } from "@/components/ConfirmDialog";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/lib/api";
+import { backgroundUpload } from "@/contexts/UploadContext";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,7 +61,7 @@ const Tarefas = () => {
       });
       for (const f of attach) {
         const fd = new FormData(); fd.append("file", f); fd.append("client_id", form.client_id); fd.append("task_id", t.id);
-        await api.post("/api/files", fd).catch(() => {});
+        backgroundUpload("/api/files", fd, f.name).catch(() => {});
       }
       toast({ title: "Tarefa criada!" });
       setForm(emptyForm); setAttach([]); setModal(false); load();
