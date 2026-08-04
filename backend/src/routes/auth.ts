@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import { Resend } from "resend";
 import prisma from "../lib/prisma";
+import { registerLoginFailure, registerLoginSuccess } from "../lib/authRateLimit";
 import { authenticateJWT, requireAdmin, AuthRequest } from "../middlewares/auth";
 
 const router = Router();
@@ -19,18 +20,22 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
   }
 
   try {
+    const ip = req.ip || "unknown";
     const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
 
     if (!user) {
+      registerLoginFailure(ip);
       res.status(401).json({ error: "Credenciais inválidas" });
       return;
     }
 
     const passwordValid = await bcrypt.compare(password, user.password_hash);
     if (!passwordValid) {
+      registerLoginFailure(ip);
       res.status(401).json({ error: "Credenciais inválidas" });
       return;
     }
+    registerLoginSuccess(ip); // login ok → zera o contador de falhas do IP
 
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },

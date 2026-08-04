@@ -4,6 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 
 import authRoutes from "./routes/auth";
+import { isLoginBlocked } from "./lib/authRateLimit";
 import leadsRoutes from "./routes/leads";
 import instancesRoutes from "./routes/instances";
 import campaignsRoutes from "./routes/campaigns";
@@ -53,21 +54,11 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false, // compatibilidade com uploads de imagem
 }));
 
-// Rate limiting simples para rotas de auth (proteção contra brute-force)
-const authAttempts = new Map<string, { count: number; resetAt: number }>();
+// Rate limiting de login — só bloqueia após muitas FALHAS (login com sucesso zera).
 app.use("/api/auth/login", (req, res, next) => {
-  const ip = req.ip || "unknown";
-  const now = Date.now();
-  const entry = authAttempts.get(ip);
-
-  if (entry && now < entry.resetAt) {
-    if (entry.count >= 10) {
-      res.status(429).json({ error: "Muitas tentativas. Aguarde 15 minutos." });
-      return;
-    }
-    entry.count++;
-  } else {
-    authAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+  if (isLoginBlocked(req.ip || "unknown")) {
+    res.status(429).json({ error: "Muitas tentativas. Aguarde 15 minutos." });
+    return;
   }
   next();
 });
