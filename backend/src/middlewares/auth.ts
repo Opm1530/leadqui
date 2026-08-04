@@ -62,3 +62,16 @@ export const requireStaff = (
   }
   next();
 };
+
+// Bloqueia cargos específicos (ex.: DESIGNER não acessa cofre/financeiro).
+export const denyRoles = (...roles: string[]) => (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  if (req.user && roles.includes(req.user.role)) {
+    res.status(403).json({ error: "Seu cargo não tem acesso a este recurso." });
+    return;
+  }
+  next();
+};

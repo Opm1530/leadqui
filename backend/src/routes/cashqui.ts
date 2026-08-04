@@ -1,6 +1,6 @@
 import { Router, Response } from "express";
 import prisma from "../lib/prisma";
-import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
+import { authenticateJWT, requireStaff, denyRoles, AuthRequest } from "../middlewares/auth";
 import axios from "axios";
 import https from "https";
 import { dayDate } from "../lib/dates";
@@ -12,6 +12,7 @@ const receiptUpload = multer({ storage: multer.memoryStorage(), limits: { fileSi
 const router = Router();
 router.use(authenticateJWT);
 router.use(requireStaff);
+router.use(denyRoles("DESIGNER")); // Designer não acessa o financeiro
 
 // ── Dashboard ─────────────────────────────────────────────────────────
 router.get("/dashboard", async (req: AuthRequest, res: Response): Promise<void> => {

@@ -13,7 +13,7 @@ function hojeSP() {
 }
 
 // ── GET /api/dashqui ──────────────────────────────────────────────────
-router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { start, end } = hojeSP();
 
@@ -61,18 +61,20 @@ router.get("/", async (_req: AuthRequest, res: Response): Promise<void> => {
     const totalAReceberHoje = invoicesDue.filter((i: any) => i.status !== "PAGO").reduce((a: number, i: any) => a + (i.amount || 0), 0);
     const totalDespesasHoje = expenses.reduce((a: number, e: any) => a + (e.amount || 0), 0);
 
+    // Financeiro só para quem gere (ADMIN/MANAGER); designer/operador não recebe
+    const canSeeFinance = ["ADMIN", "MANAGER"].includes(req.user?.role || "");
     res.json({
       tasks,
       posts,
       editorial,
-      finance: {
+      finance: canSeeFinance ? {
         recebido_hoje: totalRecebidoHoje,
         a_receber_hoje: totalAReceberHoje,
         despesas_hoje: totalDespesasHoje,
         invoices_due: invoicesDue,
         invoices_paid: invoicesPaid,
         expenses,
-      },
+      } : null,
     });
   } catch (e: any) {
     res.status(500).json({ error: e.message });

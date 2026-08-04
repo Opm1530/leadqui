@@ -1,11 +1,12 @@
 import { Router, Response } from "express";
 import prisma from "../lib/prisma";
-import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
+import { authenticateJWT, requireStaff, denyRoles, AuthRequest } from "../middlewares/auth";
 import { encrypt, decrypt } from "../lib/vault";
 
 const router = Router();
 router.use(authenticateJWT);
 router.use(requireStaff);
+router.use(denyRoles("DESIGNER")); // Designer não acessa o cofre de senhas
 
 // Roles que podem revelar senhas
 const CAN_REVEAL = ["ADMIN", "MANAGER"];
