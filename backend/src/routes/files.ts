@@ -5,7 +5,7 @@ import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth"
 import { uploadFile, getFile, deleteFile, isStorageConfigured } from "../lib/storage";
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } }); // 200MB
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1024 * 1024 * 1024 } }); // 1GB
 
 router.use(authenticateJWT);
 router.use(requireStaff);
