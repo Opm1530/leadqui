@@ -6,17 +6,18 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import api from "@/lib/api";
 import FileViewerModal, { ViewFile } from "@/components/FileViewerModal";
+import { useUploads } from "@/contexts/UploadContext";
 
 const fmtSize = (b: number) => b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
 
 export default function ClientFiles({ clientId }: { clientId: string }) {
   const { toast } = useToast();
+  const { startUpload } = useUploads();
   const [files, setFiles] = useState<any[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
   const [current, setCurrent] = useState<any | null>(null); // pasta atual (null = raiz)
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState<boolean | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [newFolder, setNewFolder] = useState("");
   const [showNewFolder, setShowNewFolder] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -53,18 +54,20 @@ export default function ClientFiles({ clientId }: { clientId: string }) {
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true);
+    if (inputRef.current) inputRef.current.value = "";
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("client_id", clientId);
+    if (current) fd.append("folder_id", current.id);
+    const folderAtStart = current?.id || null;
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("client_id", clientId);
-      if (current) fd.append("folder_id", current.id);
-      const d = await api.post("/api/files", fd);
-      setFiles(p => [d.file, ...p]);
-      toast({ title: "Arquivo enviado!" });
+      // Upload em background — a pessoa pode navegar enquanto carrega (indicador flutuante)
+      const d = await startUpload("/api/files", fd, file.name);
+      // Só insere na lista se ainda estiver na mesma pasta
+      if (d?.file && (current?.id || null) === folderAtStart) setFiles(p => [d.file, ...p]);
     } catch (err: any) {
       toast({ title: "Erro ao enviar", description: err.message, variant: "destructive" });
-    } finally { setUploading(false); if (inputRef.current) inputRef.current.value = ""; }
+    }
   };
 
   const baixar = (f: any) => {
@@ -102,8 +105,8 @@ export default function ClientFiles({ clientId }: { clientId: string }) {
             <Button onClick={() => setShowNewFolder(v => !v)} size="sm" variant="outline" className="border-border gap-1.5"><FolderPlus className="w-4 h-4" /> Pasta</Button>
           )}
           <input ref={inputRef} type="file" onChange={onFile} className="hidden" />
-          <Button onClick={onPick} disabled={uploading} size="sm" className="gradient-button gap-2">
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Enviar
+          <Button onClick={onPick} size="sm" className="gradient-button gap-2">
+            <Upload className="w-4 h-4" /> Enviar
           </Button>
         </div>
       </div>

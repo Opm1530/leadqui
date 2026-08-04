@@ -48,7 +48,7 @@ export default function FileViewerModal({ file, onClose }: { file: ViewFile | nu
 
   return (
     <Dialog open={!!file} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="bg-card border-border max-w-4xl w-[95vw] p-0 overflow-hidden">
+      <DialogContent className="bg-card border-border max-w-4xl w-[95vw] p-0 overflow-hidden [&>button]:hidden">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2 min-w-0">

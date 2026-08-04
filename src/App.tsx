@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ModuleProvider } from "./contexts/ModuleContext";
+import { UploadProvider } from "./contexts/UploadContext";
+import UploadIndicator from "./components/UploadIndicator";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Hub from "./pages/Hub";
 import Login from "./pages/Login";
@@ -62,6 +64,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <ModuleProvider>
+            <UploadProvider>
             <Routes>
               {/* Rotas Públicas */}
               <Route path="/" element={<Login />} />
@@ -122,6 +125,8 @@ const App = () => (
 
               <Route path="*" element={<NotFound />} />
             </Routes>
+            <UploadIndicator />
+            </UploadProvider>
           </ModuleProvider>
         </AuthProvider>
       </BrowserRouter>
