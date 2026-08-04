@@ -55,7 +55,7 @@ export const requireStaff = (
   res: Response,
   next: NextFunction
 ): void => {
-  const staffRoles = ["ADMIN", "MANAGER", "OPERATOR"];
+  const staffRoles = ["ADMIN", "MANAGER", "OPERATOR", "DESIGNER"];
   if (!req.user || !staffRoles.includes(req.user.role)) {
     res.status(403).json({ error: "Acesso restrito à equipe interna" });
     return;

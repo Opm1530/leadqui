@@ -6,7 +6,7 @@ import { authenticateJWT, AuthRequest } from "../middlewares/auth";
 const router = Router();
 
 // Todos os membros da agência (ADMIN, MANAGER, OPERATOR)
-const AGENCY_ROLES = ["ADMIN", "MANAGER", "OPERATOR"];
+const AGENCY_ROLES = ["ADMIN", "MANAGER", "OPERATOR", "DESIGNER"];
 
 // ── GET /api/teamqui ──────────────────────────────────────────────────
 // Listar todos os membros da equipe (disponível para ADMIN, MANAGER e OPERATOR)
@@ -20,7 +20,7 @@ router.get("/", authenticateJWT, async (req: AuthRequest, res: Response): Promis
   try {
     const team = await prisma.user.findMany({
       where: {
-        role: { in: ["ADMIN", "MANAGER", "OPERATOR"] as any }
+        role: { in: ["ADMIN", "MANAGER", "OPERATOR", "DESIGNER"] as any }
       },
       select: {
         id: true,

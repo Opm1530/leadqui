@@ -5,7 +5,7 @@ type AuthUser = {
   id: string;
   name: string;
   email: string;
-  role: "ADMIN" | "MANAGER" | "OPERATOR" | "CLIENT";
+  role: "ADMIN" | "MANAGER" | "OPERATOR" | "DESIGNER" | "CLIENT";
   position?: string;
   gender?: "F" | "M" | null;
 };

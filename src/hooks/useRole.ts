@@ -1,6 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 
-export type UserRole = "ADMIN" | "MANAGER" | "OPERATOR" | "CLIENT" | "guest";
+export type UserRole = "ADMIN" | "MANAGER" | "OPERATOR" | "DESIGNER" | "CLIENT" | "guest";
 
 // Com JWT, o role já vem no token — sem necessidade de consultar banco
 export const useRole = () => {
@@ -14,6 +14,7 @@ export const useRole = () => {
     isAdmin: role === "ADMIN",
     isManager: role === "MANAGER",
     isOperator: role === "OPERATOR",
+    isDesigner: role === "DESIGNER",
     isClient: role === "CLIENT",
   };
 };

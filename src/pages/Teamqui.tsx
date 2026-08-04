@@ -195,6 +195,7 @@ const Teamqui = () => {
                     <SelectItem value="ADMIN">Administrador (Total)</SelectItem>
                     <SelectItem value="MANAGER">Gestor (Operação)</SelectItem>
                     <SelectItem value="OPERATOR">Operador (Tarefas)</SelectItem>
+                    <SelectItem value="DESIGNER">Designer (Editorial + Onboarding/Arquivos)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -285,6 +286,7 @@ const Teamqui = () => {
                         <SelectItem value="ADMIN">Administrador</SelectItem>
                         <SelectItem value="MANAGER">Gestor</SelectItem>
                         <SelectItem value="OPERATOR">Operador</SelectItem>
+                        <SelectItem value="DESIGNER">Designer</SelectItem>
                       </SelectContent>
                     </Select>
                   ) : (
@@ -294,7 +296,8 @@ const Teamqui = () => {
                       'bg-slate-500/10 text-slate-400 border-slate-500/20'
                     }`}>
                       {member.role === 'ADMIN' ? 'Administrador' :
-                       member.role === 'MANAGER' ? 'Gestor' : 'Operador'}
+                       member.role === 'MANAGER' ? 'Gestor' :
+                       member.role === 'DESIGNER' ? 'Designer' : 'Operador'}
                     </span>
                   )}
                 </td>

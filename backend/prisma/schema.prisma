@@ -14,6 +14,7 @@ enum UserRole {
   ADMIN
   MANAGER
   OPERATOR
+  DESIGNER
   CLIENT
 }
 

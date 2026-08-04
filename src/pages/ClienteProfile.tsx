@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import api from "@/lib/api";
+import { useRole } from "@/hooks/useRole";
 import { askInvoiceReceipt, openInvoiceReceipt } from "@/lib/receipts";
 import ClientTaskBoard from "@/components/ClientTaskBoard";
 import ClientEditorial from "@/components/ClientEditorial";
@@ -49,9 +50,13 @@ const ClienteProfile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { role } = useRole();
+  // Designer tem acesso restrito: só a aba Dados (onboarding + arquivos)
+  const isDesigner = role === "DESIGNER";
+  const visibleTabs = isDesigner ? TABS.filter(t => t.id === "dados") : TABS;
   const [client, setClient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("geral");
+  const [tab, setTab] = useState(isDesigner ? "dados" : "geral");
   const [metaSub, setMetaSub] = useState("conexoes");
   const [dadosSub, setDadosSub] = useState("info");
 
@@ -122,12 +127,12 @@ const ClienteProfile = () => {
             {client.drive_url && (
               <a href={client.drive_url} target="_blank" rel="noreferrer" title="Drive" className="p-2 rounded-lg bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20"><FolderOpen className="w-4 h-4" /></a>
             )}
-            <button onClick={() => setTab("tarefas")} title="Quadro de tarefas" className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"><Kanban className="w-4 h-4" /></button>
+            {!isDesigner && <button onClick={() => setTab("tarefas")} title="Quadro de tarefas" className="p-2 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20"><Kanban className="w-4 h-4" /></button>}
             <button onClick={() => navigate(`/onboarding/${id}`)} title="Onboarding" className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"><ClipboardList className="w-4 h-4" /></button>
           </div>
         </div>
         <nav className="p-3 space-y-1 flex-1 overflow-y-auto">
-          {TABS.map(t => {
+          {visibleTabs.map(t => {
             const active = tab === t.id;
             return (
               <button key={t.id} onClick={() => setTab(t.id)}
@@ -173,8 +178,10 @@ const ClienteProfile = () => {
         <div className="space-y-4">
           <SubTabs value={dadosSub} onChange={setDadosSub} items={[
             { id: "info", label: "Dados", icon: ClipboardList },
-            { id: "senhas", label: "Senhas", icon: Lock },
-            { id: "contrato", label: "Contrato", icon: Receipt },
+            ...(isDesigner ? [] : [
+              { id: "senhas", label: "Senhas", icon: Lock },
+              { id: "contrato", label: "Contrato", icon: Receipt },
+            ]),
             { id: "arquivos", label: "Arquivos", icon: FolderOpen },
           ]} />
 
