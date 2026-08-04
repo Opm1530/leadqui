@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Upload, CheckCircle2, Clock, AlertCircle, Eye, Loader2, Clapperboard } from "lucide-react";
 import { backgroundUpload } from "@/contexts/UploadContext";
-import { CONTENT_STATUS, typeLabel } from "@/lib/editorial";
+import { typeLabel } from "@/lib/editorial";
 
 interface Props {
   items: any[];
@@ -16,13 +16,13 @@ export default function MinhaProducao({ items, userId, onChanged, onOpen }: Prop
   const mine = items.filter(i => i.responsible_id === userId);
   const precisa = mine.filter(i => ["EM_PRODUCAO", "AJUSTES"].includes(i.status));
   const aprovacao = mine.filter(i => i.status === "EM_APROVACAO");
-  const prontos = mine.filter(i => ["AGUARDANDO_POSTAR", "POSTADO"].includes(i.status));
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pending, setPending] = useState<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  if (mine.length === 0) return null;
+  // Só mostra o painel quando há algo pendente do designer (aprovado/postado não é com ele)
+  if (precisa.length === 0 && aprovacao.length === 0) return null;
 
   const pick = (it: any) => { setPending(it); fileRef.current?.click(); };
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,24 +98,6 @@ export default function MinhaProducao({ items, userId, onChanged, onOpen }: Prop
         </div>
       )}
 
-      {/* Prontos / postados */}
-      {prontos.length > 0 && (
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-widest text-green-300 mb-2 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Aprovados ({prontos.length})</p>
-          <div className="space-y-1.5">
-            {prontos.map(it => {
-              const st = CONTENT_STATUS[it.status];
-              return (
-                <button key={it.id} onClick={() => onOpen(it)} className="w-full text-left flex items-center gap-3 bg-secondary/40 rounded-lg px-3 py-2 hover:bg-secondary/60 transition">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${st.dot}`} />
-                  <div className="flex-1 min-w-0"><p className="text-sm text-foreground truncate">{it.title}</p><Meta it={it} /></div>
-                  <span className={`hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${st.color}`}>{st.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
