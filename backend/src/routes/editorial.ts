@@ -9,7 +9,7 @@ import { signMedia, publicApiBase, resolveContentMedia, mediaTypeFor } from "../
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
-const isStaff = (r?: string) => ["ADMIN", "MANAGER", "OPERATOR"].includes(r || "");
+const isStaff = (r?: string) => ["ADMIN", "MANAGER", "OPERATOR", "DESIGNER"].includes(r || "");
 const canManage = (r?: string) => ["ADMIN", "MANAGER"].includes(r || "");
 
 // Mapeia o status do conteúdo para o status da tarefa vinculada
