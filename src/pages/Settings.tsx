@@ -150,16 +150,18 @@ const Settings = () => {
     } finally { setTestando(false); }
   };
 
-  const carregarNotifGroups = async () => {
+  const carregarNotifGroups = async (refresh = false) => {
     const inst = instancesList.find(i => i.evolution_instance_id === notificationInstance || i.nome === notificationInstance);
     if (!inst) { toast({ title: "Selecione uma instância conectada primeiro.", variant: "destructive" }); return; }
     setLoadingNotifGroups(true);
+    if (refresh) toast({ title: "Buscando grupos...", description: "Pode levar até 1 minuto na primeira vez." });
     try {
-      const d = await api.get(`/api/instances/${inst.id}/groups`);
+      const d = await api.get(`/api/instances/${inst.id}/groups${refresh ? "?refresh=1" : ""}`);
       setNotifGroups(d.groups || []);
       if (!d.groups?.length) toast({ title: "Nenhum grupo encontrado nessa instância." });
-    } catch {
-      toast({ title: "Erro ao carregar grupos", description: "A instância precisa estar conectada.", variant: "destructive" });
+      else if (!d.cached) toast({ title: `${d.groups.length} grupo(s) carregado(s).` });
+    } catch (e: any) {
+      toast({ title: "Erro ao carregar grupos", description: e?.message || "A instância precisa estar conectada.", variant: "destructive" });
     } finally { setLoadingNotifGroups(false); }
   };
 
@@ -260,10 +262,15 @@ const Settings = () => {
               <div className="space-y-2 pt-2 border-t border-border/50">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs text-muted-foreground uppercase tracking-wider">Grupo da equipe (boletim 6h / 12h / 18h)</Label>
-                  <button type="button" onClick={carregarNotifGroups} disabled={loadingNotifGroups || !notificationInstance}
-                    className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50">
-                    {loadingNotifGroups ? <Loader2 className="w-3 h-3 animate-spin" /> : <Smartphone className="w-3 h-3" />} Carregar grupos
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {notifGroups.length > 0 && !loadingNotifGroups && (
+                      <button type="button" onClick={() => carregarNotifGroups(true)} className="text-[11px] text-muted-foreground hover:text-foreground">recarregar</button>
+                    )}
+                    <button type="button" onClick={() => carregarNotifGroups(false)} disabled={loadingNotifGroups || !notificationInstance}
+                      className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50">
+                      {loadingNotifGroups ? <><Loader2 className="w-3 h-3 animate-spin" /> Carregando... (pode demorar)</> : <><Smartphone className="w-3 h-3" /> Carregar grupos</>}
+                    </button>
+                  </div>
                 </div>
                 <Select value={notificationGroupId} onValueChange={v => { setNotificationGroupId(v); setNotificationGroupName(notifGroups.find(g => g.id === v)?.name || ""); }}>
                   <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder={notificationGroupName || "Selecione o grupo da equipe"} /></SelectTrigger>

@@ -196,25 +196,41 @@ router.get("/:id/status", async (req: AuthRequest, res: Response): Promise<void>
 });
 
 // ── GET /api/instances/:id/groups ─────────────────────────────────────
-// Lista os grupos de WhatsApp da instância (via Evolution)
+// Lista os grupos de WhatsApp da instância (via Evolution). Com cache (5min).
+const groupsCache = new Map<string, { groups: any[]; at: number }>();
+const GROUPS_TTL = 5 * 60 * 1000;
+
 router.get("/:id/groups", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
+  const forceRefresh = req.query.refresh === "1";
   try {
     const instance = await prisma.instance.findFirst({ where: { id } });
     if (!instance) { res.status(404).json({ error: "Instância não encontrada" }); return; }
 
+    const cacheKey = instance.evolution_instance_id;
+    const cached = groupsCache.get(cacheKey);
+    if (!forceRefresh && cached && Date.now() - cached.at < GROUPS_TTL) {
+      res.json({ groups: cached.groups, cached: true });
+      return;
+    }
+
     const { baseUrl, apiKey } = await getEvolutionConfig(req.user!.id);
     const evoRes = await axios.get(
       `${baseUrl}/group/fetchAllGroups/${instance.evolution_instance_id}`,
-      { headers: { apikey: apiKey }, params: { getParticipants: "false" } }
+      { headers: { apikey: apiKey }, params: { getParticipants: "false" }, timeout: 90000 }
     );
     const raw: any[] = Array.isArray(evoRes.data) ? evoRes.data : (evoRes.data?.groups || []);
-    const groups = raw.map((g: any) => ({
-      id:   g.id || g.jid,
-      name: g.subject || g.name || g.id,
-    })).filter((g: any) => g.id);
+    const groups = raw
+      .map((g: any) => ({ id: g.id || g.jid, name: g.subject || g.name || g.id }))
+      .filter((g: any) => g.id)
+      .sort((a: any, b: any) => String(a.name).localeCompare(String(b.name)));
+    groupsCache.set(cacheKey, { groups, at: Date.now() });
     res.json({ groups });
   } catch (error: any) {
+    if (error.code === "ECONNABORTED") {
+      res.status(504).json({ error: "A Evolution demorou demais para responder. Tente novamente em instantes." });
+      return;
+    }
     res.status(500).json({ error: error.response?.data?.message || error.message });
   }
 });
