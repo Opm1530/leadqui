@@ -37,6 +37,7 @@ const Settings = () => {
   const [instancesList, setInstancesList] = useState<any[]>([]);
   const [notifGroups, setNotifGroups] = useState<any[]>([]);
   const [loadingNotifGroups, setLoadingNotifGroups] = useState(false);
+  const [groupSearch, setGroupSearch] = useState("");
 
   // ── Meta / Instagram / Trello (TechQuiSettings) ────────────────────
   const [meta, setMeta] = useState<any>({
@@ -267,7 +268,21 @@ const Settings = () => {
                 <Select value={notificationGroupId} onValueChange={v => { setNotificationGroupId(v); setNotificationGroupName(notifGroups.find(g => g.id === v)?.name || ""); }}>
                   <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder={notificationGroupName || "Selecione o grupo da equipe"} /></SelectTrigger>
                   <SelectContent>
-                    {notifGroups.map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                    <div className="p-1.5 sticky top-0 bg-popover z-10">
+                      <Input
+                        value={groupSearch}
+                        onChange={e => setGroupSearch(e.target.value)}
+                        onKeyDown={e => e.stopPropagation()}
+                        placeholder="Buscar grupo..."
+                        className="h-8 bg-secondary border-border text-sm"
+                      />
+                    </div>
+                    {notifGroups
+                      .filter(g => !groupSearch || (g.name || "").toLowerCase().includes(groupSearch.toLowerCase()))
+                      .map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
+                    {notifGroups.length > 0 && notifGroups.filter(g => !groupSearch || (g.name || "").toLowerCase().includes(groupSearch.toLowerCase())).length === 0 && (
+                      <p className="text-xs text-muted-foreground px-3 py-2">Nenhum grupo encontrado.</p>
+                    )}
                   </SelectContent>
                 </Select>
                 {notificationGroupName && <p className="text-[11px] text-green-400">✓ Boletins de lembretes e tarefas do dia irão para: {notificationGroupName}</p>}
