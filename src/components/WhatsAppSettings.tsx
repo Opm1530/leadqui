@@ -99,7 +99,9 @@ const WhatsAppSettings = () => {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">{inst.nome}</p>
-                  <p className={`text-[11px] ${inst.status === "CONECTADO" ? "text-green-400" : "text-muted-foreground"}`}>{inst.status}</p>
+                  <p className={`text-[11px] ${inst.status === "CONECTADO" ? "text-green-400" : "text-muted-foreground"}`}>
+                    {inst.status}{inst.phone ? ` · ${inst.phone}` : ""}{inst.gone ? " · (não existe mais na Evolution)" : ""}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">

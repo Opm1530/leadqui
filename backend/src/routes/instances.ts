@@ -21,11 +21,55 @@ const getEvolutionConfig = async (_userId?: string) => {
 };
 
 // ── GET /api/instances ────────────────────────────────────────────────
+// Reconcilia com a Evolution (fonte da verdade): importa instâncias que
+// existem lá mas não no banco, atualiza o status real e marca as que sumiram.
 router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const instances = await prisma.instance.findMany({
-      orderBy: { created_at: "desc" },
-    });
+    const dbInstances = await prisma.instance.findMany({ orderBy: { created_at: "desc" } });
+
+    let evoList: any[] = [];
+    try {
+      const { baseUrl, apiKey } = await getEvolutionConfig();
+      const r = await axios.get(`${baseUrl}/instance/fetchInstances`, { headers: { apikey: apiKey }, timeout: 15000 });
+      evoList = Array.isArray(r.data) ? r.data : (r.data?.instances || []);
+    } catch { /* Evolution indisponível → mostra o que tem no banco */ }
+
+    const evo = evoList.map((raw: any) => {
+      const i = raw.instance || raw;
+      const name = i.instanceName || i.name;
+      const stateRaw = i.connectionStatus || i.state || i.status || "";
+      const connected = ["open", "connected", "CONNECTED"].includes(stateRaw);
+      const jid = i.owner || i.number || i.ownerJid || null;
+      return { name, connected, phone: jid ? String(jid).replace(/@.*/, "") : null, profileName: i.profileName || null };
+    }).filter((e: any) => e.name);
+
+    if (evo.length) {
+      const dbByEvo = new Map(dbInstances.map(d => [d.evolution_instance_id, d]));
+      const evoNames = new Set(evo.map((e: any) => e.name));
+      for (const e of evo) {
+        const status = e.connected ? "CONECTADO" : "DESCONECTADO";
+        const existing = dbByEvo.get(e.name);
+        if (existing) {
+          if (existing.status !== status) await prisma.instance.update({ where: { id: existing.id }, data: { status } });
+        } else {
+          await prisma.instance.create({ data: { user_id: req.user!.id, nome: e.profileName || e.name, evolution_instance_id: e.name, status } });
+        }
+      }
+      // Instâncias no banco que não existem mais na Evolution → desconectadas
+      for (const d of dbInstances) {
+        if (!evoNames.has(d.evolution_instance_id) && d.status !== "DESCONECTADO") {
+          await prisma.instance.update({ where: { id: d.id }, data: { status: "DESCONECTADO" } });
+        }
+      }
+    }
+
+    const merged = await prisma.instance.findMany({ orderBy: { created_at: "desc" } });
+    const evoByName = new Map(evo.map((e: any) => [e.name, e]));
+    const instances = merged.map(d => ({
+      ...d,
+      phone: evoByName.get(d.evolution_instance_id)?.phone || null,
+      gone: evo.length > 0 && !evoByName.has(d.evolution_instance_id), // existe no banco mas não na Evolution
+    }));
     res.json({ instances });
   } catch (error) {
     res.status(500).json({ error: "Erro ao buscar instâncias" });
