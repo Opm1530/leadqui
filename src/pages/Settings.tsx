@@ -272,18 +272,17 @@ const Settings = () => {
                     </button>
                   </div>
                 </div>
+                {notifGroups.length > 0 && (
+                  <Input
+                    value={groupSearch}
+                    onChange={e => setGroupSearch(e.target.value)}
+                    placeholder={`Buscar entre ${notifGroups.length} grupos...`}
+                    className="h-9 bg-secondary border-border text-sm"
+                  />
+                )}
                 <Select value={notificationGroupId} onValueChange={v => { setNotificationGroupId(v); setNotificationGroupName(notifGroups.find(g => g.id === v)?.name || ""); }}>
                   <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder={notificationGroupName || "Selecione o grupo da equipe"} /></SelectTrigger>
                   <SelectContent>
-                    <div className="p-1.5 sticky top-0 bg-popover z-10">
-                      <Input
-                        value={groupSearch}
-                        onChange={e => setGroupSearch(e.target.value)}
-                        onKeyDown={e => e.stopPropagation()}
-                        placeholder="Buscar grupo..."
-                        className="h-8 bg-secondary border-border text-sm"
-                      />
-                    </div>
                     {notifGroups
                       .filter(g => !groupSearch || (g.name || "").toLowerCase().includes(groupSearch.toLowerCase()))
                       .map(g => <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>)}
