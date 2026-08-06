@@ -16,6 +16,7 @@ const WhatsAppSettings = () => {
   const [loading, setLoading] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
   const [qrName, setQrName] = useState("");
+  const [qrInstId, setQrInstId] = useState<string | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -33,7 +34,7 @@ const WhatsAppSettings = () => {
     setLoading(true);
     try {
       const d = await api.post("/api/instances", { nome: nome.trim() });
-      if (d.qrcode) { setQr(d.qrcode); setQrName(nome.trim()); }
+      if (d.qrcode) { setQr(d.qrcode); setQrName(nome.trim()); setQrInstId(d.instance?.id || null); }
       toast({ title: "Instância criada!", description: "Escaneie o QR Code." });
       setShowNew(false); setNome(""); load();
     } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
@@ -43,10 +44,34 @@ const WhatsAppSettings = () => {
   const verQr = async (inst: any) => {
     try {
       const d = await api.get(`/api/instances/${inst.id}/qrcode`);
-      if (d.qrcode) { setQr(d.qrcode); setQrName(inst.nome); }
+      if (d.qrcode) { setQr(d.qrcode); setQrName(inst.nome); setQrInstId(inst.id); }
       else toast({ title: "Sem QR", description: "A instância já pode estar conectada." });
     } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };
+
+  const fecharQr = () => { setQr(null); setQrInstId(null); };
+
+  // Enquanto o QR está aberto: renova o QR (expira ~30-60s) e detecta a conexão sozinho
+  useEffect(() => {
+    if (!qrInstId) return;
+    let stop = false;
+    const refreshQr = async () => {
+      try { const d = await api.get(`/api/instances/${qrInstId}/qrcode`); if (!stop && d.qrcode) setQr(d.qrcode); } catch { /* */ }
+    };
+    const checkStatus = async () => {
+      try {
+        const d = await api.get(`/api/instances/${qrInstId}/status`);
+        if (!stop && d.status === "CONECTADO") {
+          setInstances(p => p.map(i => i.id === qrInstId ? { ...i, status: "CONECTADO" } : i));
+          stop = true; setQr(null); setQrInstId(null);
+          toast({ title: "Conectado! ✅", description: "WhatsApp vinculado com sucesso." });
+        }
+      } catch { /* */ }
+    };
+    const qrTimer = setInterval(refreshQr, 25000);  // renova o QR antes de expirar
+    const stTimer = setInterval(checkStatus, 4000);  // detecta a conexão
+    return () => { stop = true; clearInterval(qrTimer); clearInterval(stTimer); };
+  }, [qrInstId]); // eslint-disable-line
 
   const checarStatus = async (inst: any) => {
     setChecking(inst.id);
@@ -54,7 +79,7 @@ const WhatsAppSettings = () => {
       const d = await api.get(`/api/instances/${inst.id}/status`);
       setInstances(p => p.map(i => i.id === inst.id ? { ...i, status: d.status } : i));
       toast({ title: `Status: ${d.status}` });
-      if (d.status === "CONECTADO") setQr(null);
+      if (d.status === "CONECTADO") fecharQr();
     } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
     setChecking(null);
   };
@@ -138,12 +163,13 @@ const WhatsAppSettings = () => {
       </Dialog>
 
       {/* Modal QR */}
-      <Dialog open={!!qr} onOpenChange={v => !v && setQr(null)}>
+      <Dialog open={!!qr} onOpenChange={v => !v && fecharQr()}>
         <DialogContent className="bg-card border-border max-w-sm">
           <DialogHeader><DialogTitle>Conectar {qrName}</DialogTitle></DialogHeader>
           <div className="flex flex-col items-center gap-3 py-2">
             {qr && <img src={qr} alt="QR Code" className="w-64 h-64 rounded-xl bg-white p-2" />}
             <p className="text-xs text-muted-foreground text-center">No WhatsApp: Aparelhos conectados → Conectar aparelho → escaneie este código.</p>
+            <p className="text-[11px] text-muted-foreground flex items-center gap-1.5"><Loader2 className="w-3 h-3 animate-spin" /> Renovando o código e aguardando a conexão...</p>
           </div>
         </DialogContent>
       </Dialog>
