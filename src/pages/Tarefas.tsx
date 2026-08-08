@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Search, Check, Trash2, ListTodo, Rows3, LayoutList, Plus } from "lucide-react";
+import { ArrowLeft, Loader2, Search, Check, Trash2, ListTodo, Rows3, LayoutList, Plus, Archive } from "lucide-react";
 import { TaskDetailModal } from "@/components/TaskDetailModal";
 
 const STATUS: Record<string, { label: string; color: string }> = {
@@ -46,6 +46,7 @@ const Tarefas = () => {
   const [form, setForm] = useState(emptyForm);
   const [attach, setAttach] = useState<File[]>([]);
   const [selected, setSelected] = useState<any>(null);
+  const [arquivoOpen, setArquivoOpen] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -87,6 +88,24 @@ const Tarefas = () => {
     const mSt = fStatus === "all" || t.status === fStatus;
     return mS && mC && mR && mSt;
   });
+
+  // Concluídas vão para a "caixinha" (arquivo); a lista principal só mostra as ativas.
+  const ativas = filtered.filter(t => t.status !== "CONCLUIDO");
+  const concluidas = useMemo(() => {
+    const list = tasks.filter(t => t.status === "CONCLUIDO" && (!mineOnly || t.responsible_id === user?.id));
+    // agrupa por dia de conclusão
+    const groups: { key: string; label: string; items: any[] }[] = [];
+    const sorted = [...list].sort((a, b) => +new Date(b.completed_at || b.updated_at || 0) - +new Date(a.completed_at || a.updated_at || 0));
+    for (const t of sorted) {
+      const d = new Date(t.completed_at || t.updated_at || Date.now());
+      const key = d.toDateString();
+      let g = groups.find(x => x.key === key);
+      if (!g) { g = { key, label: d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" }), items: [] }; groups.push(g); }
+      g.items.push(t);
+    }
+    return groups;
+  }, [tasks, mineOnly, user?.id]);
+  const concluidasCount = concluidas.reduce((n, g) => n + g.items.length, 0);
 
   const toggle = async (t: any) => {
     const status = t.status === "CONCLUIDO" ? "PENDENTE" : "CONCLUIDO";
@@ -133,7 +152,7 @@ const Tarefas = () => {
         </div>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-foreground">{mineOnly ? "Minhas tarefas" : "Todas as tarefas"}</h1>
-          <p className="text-muted-foreground text-sm">{filtered.filter(t => t.status !== "CONCLUIDO").length} pendente(s) · {filtered.length} no total</p>
+          <p className="text-muted-foreground text-sm">{ativas.filter(t => t.status !== "CONCLUIDO").length} ativa(s){concluidasCount > 0 ? ` · ${concluidasCount} concluída(s) no arquivo` : ""}</p>
         </div>
         <div className="flex rounded-lg border border-border overflow-hidden">
           <button onClick={() => setView("lista")} className={`px-2.5 h-9 ${view === "lista" ? "bg-primary text-white" : "bg-secondary text-muted-foreground"}`}><LayoutList className="w-4 h-4" /></button>
@@ -198,18 +217,26 @@ const Tarefas = () => {
         </Select>
         <Select value={fStatus} onValueChange={setFStatus}>
           <SelectTrigger className="w-36 bg-secondary border-border h-9 text-sm"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectItem value="all">Todos status</SelectItem>{Object.entries(STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}</SelectContent>
+          <SelectContent><SelectItem value="all">Todos status</SelectItem>{Object.entries(STATUS).filter(([k]) => k !== "CONCLUIDO").map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}</SelectContent>
         </Select>
+        {/* Caixinha de concluídas (arquivo) */}
+        <button type="button" onClick={() => setArquivoOpen(true)} title="Tarefas concluídas"
+          className="relative h-9 w-9 flex items-center justify-center rounded-lg bg-secondary border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/70">
+          <Archive className="w-4 h-4" />
+          {concluidasCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-green-600 text-white text-[9px] font-bold flex items-center justify-center">{concluidasCount}</span>
+          )}
+        </button>
       </div>
 
       {loading ? <div className="py-12 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
-      : filtered.length === 0 ? <p className="text-sm text-muted-foreground text-center py-12">Nenhuma tarefa com esses filtros.</p>
+      : ativas.length === 0 ? <p className="text-sm text-muted-foreground text-center py-12">Nenhuma tarefa ativa com esses filtros.</p>
       : view === "lista" ? (
-        <div className="space-y-1.5">{filtered.map(Row)}</div>
+        <div className="space-y-1.5">{ativas.map(Row)}</div>
       ) : (
         <div className="space-y-5">
-          {Object.keys(STATUS).map(st => {
-            const list = filtered.filter(t => t.status === st);
+          {Object.keys(STATUS).filter(st => st !== "CONCLUIDO").map(st => {
+            const list = ativas.filter(t => t.status === st);
             if (list.length === 0) return null;
             return (
               <div key={st}>
@@ -220,6 +247,39 @@ const Tarefas = () => {
           })}
         </div>
       )}
+
+      {/* Caixinha de concluídas */}
+      <Dialog open={arquivoOpen} onOpenChange={setArquivoOpen}>
+        <DialogContent className="bg-card border-border max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Archive className="w-4 h-4 text-green-400" /> Tarefas concluídas ({concluidasCount})</DialogTitle>
+          </DialogHeader>
+          {concluidasCount === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">Nenhuma tarefa concluída ainda.</p>
+          ) : (
+            <div className="space-y-4 pt-1">
+              {concluidas.map(g => (
+                <div key={g.key}>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5 capitalize">{g.label} <span className="text-muted-foreground/60">· {g.items.length}</span></p>
+                  <div className="space-y-1.5">
+                    {g.items.map((t: any) => (
+                      <div key={t.id} className="flex items-center gap-3 bg-secondary/40 rounded-lg px-3 py-2">
+                        <button onClick={() => toggle(t)} title="Reabrir" className="w-5 h-5 rounded-md bg-green-600 border border-green-600 flex items-center justify-center flex-shrink-0">
+                          <Check className="w-3.5 h-3.5 text-white" />
+                        </button>
+                        <button onClick={() => { setArquivoOpen(false); setSelected(t); }} className="flex-1 min-w-0 text-left">
+                          <p className="text-sm text-muted-foreground line-through truncate">{t.title}</p>
+                          <p className="text-[11px] text-muted-foreground/70">{t.client?.name || "—"}{t.responsible?.name ? ` · ${t.responsible.name}` : ""}</p>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <TaskDetailModal task={selected} isOpen={!!selected} onClose={() => setSelected(null)} onUpdate={load} team={teamAll} />
     </div>
