@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Smartphone, Plus, Wifi, WifiOff, Trash2, QrCode, RefreshCw, Loader2, Link2 } from "lucide-react";
+import { Smartphone, Plus, Wifi, WifiOff, Trash2, QrCode, RefreshCw, Loader2, Link2, MessageCircle } from "lucide-react";
 import api from "@/lib/api";
 
 const WhatsAppSettings = () => {
@@ -90,6 +90,18 @@ const WhatsAppSettings = () => {
     catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
   };
 
+  const toggleInbox = async (inst: any) => {
+    const novo = !inst.inbox_enabled;
+    setInstances(p => p.map(i => i.id === inst.id ? { ...i, inbox_enabled: novo } : i));
+    try {
+      await api.patch(`/api/instances/${inst.id}`, { inbox_enabled: novo });
+      toast({ title: novo ? "Inbox ativado para esta instância" : "Inbox desativado", description: novo ? "As conversas deste número passam a aparecer no Hub de Conversas." : undefined });
+    } catch (e: any) {
+      setInstances(p => p.map(i => i.id === inst.id ? { ...i, inbox_enabled: inst.inbox_enabled } : i));
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
+  };
+
   const [webhooking, setWebhooking] = useState<string | null>(null);
   const configurarWebhook = async (inst: any) => {
     setWebhooking(inst.id);
@@ -130,6 +142,10 @@ const WhatsAppSettings = () => {
                 </div>
               </div>
               <div className="flex items-center gap-1">
+                <button type="button" onClick={() => toggleInbox(inst)} title="Alimentar o Hub de Conversas com esta instância"
+                  className={`h-8 px-2 rounded-md text-[11px] font-bold flex items-center gap-1 ${inst.inbox_enabled ? "bg-emerald-600/20 text-emerald-300 border border-emerald-600/30" : "bg-secondary text-muted-foreground border border-border"}`}>
+                  <MessageCircle className="w-3.5 h-3.5" /> {inst.inbox_enabled ? "Inbox ON" : "Inbox"}
+                </button>
                 <Button variant="ghost" size="sm" onClick={() => checarStatus(inst)} disabled={checking === inst.id} className="h-8 text-xs">
                   {checking === inst.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                 </Button>

@@ -198,6 +198,7 @@ model Instance {
   nome                 String
   evolution_instance_id String
   status               InstanceStatus   @default(DESCONECTADO)
+  inbox_enabled        Boolean          @default(false) // alimenta o Hub de Conversas
   created_at           DateTime         @default(now())
   updated_at           DateTime         @updatedAt
 
@@ -543,6 +544,7 @@ model WhatsappConversation {
   last_message_text String?
   last_message_at   DateTime @default(now())
   unread            Int      @default(0)
+  archived          Boolean  @default(false)
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
 

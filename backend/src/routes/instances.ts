@@ -3,6 +3,7 @@ import axios from "axios";
 import prisma from "../lib/prisma";
 import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 import { getCompanySettings } from "../lib/companySettings";
+import { clearInboxInstanceCache } from "../lib/whatsapp";
 
 const router = Router();
 router.use(authenticateJWT);
@@ -233,6 +234,19 @@ router.get("/:id/groups", async (req: AuthRequest, res: Response): Promise<void>
     }
     res.status(500).json({ error: error.response?.data?.message || error.message });
   }
+});
+
+// ── PATCH /api/instances/:id ── (liga/desliga o inbox) ────────────────
+router.patch("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = String(req.params.id);
+  try {
+    const data: any = {};
+    if (req.body.inbox_enabled !== undefined) data.inbox_enabled = !!req.body.inbox_enabled;
+    if (req.body.nome !== undefined && req.body.nome) data.nome = String(req.body.nome);
+    const instance = await prisma.instance.update({ where: { id }, data });
+    clearInboxInstanceCache();
+    res.json({ instance });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 // ── DELETE /api/instances/:id ─────────────────────────────────────────

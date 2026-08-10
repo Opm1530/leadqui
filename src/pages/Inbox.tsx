@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Send, Loader2, Users, User, MessageCircle, Search } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Users, User, MessageCircle, Search, Archive, ArchiveRestore } from "lucide-react";
 import api from "@/lib/api";
 import { Input } from "@/components/ui/input";
 
@@ -17,9 +17,10 @@ const Inbox = () => {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
 
-  const loadConvs = useCallback(() => api.get("/api/inbox/conversations").then(d => setConvs(d.conversations || [])).catch(() => {}), []);
+  const loadConvs = useCallback(() => api.get(`/api/inbox/conversations${showArchived ? "?archived=1" : ""}`).then(d => setConvs(d.conversations || [])).catch(() => {}), [showArchived]);
   const loadMessages = useCallback((id: string) => api.get(`/api/inbox/conversations/${id}/messages`).then(d => setMessages(d.messages || [])).catch(() => {}), []);
 
   useEffect(() => { setLoading(true); loadConvs().finally(() => setLoading(false)); }, [loadConvs]);
@@ -57,6 +58,12 @@ const Inbox = () => {
     } finally { setSending(false); }
   };
 
+  const arquivar = async (c: any, archived: boolean) => {
+    setConvs(p => p.filter(x => x.id !== c.id));
+    if (selected?.id === c.id) setSelected(null);
+    await api.post(`/api/inbox/conversations/${c.id}/archive`, { archived }).catch(() => loadConvs());
+  };
+
   const filtered = convs.filter(c => !search || convName(c).toLowerCase().includes(search.toLowerCase()) || (c.client_name || "").toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -77,11 +84,14 @@ const Inbox = () => {
       <div className="flex gap-4 h-[calc(100vh-200px)] min-h-[500px]">
         {/* Lista de conversas */}
         <div className="w-80 shrink-0 flex flex-col rounded-2xl border border-border bg-card/40 overflow-hidden">
-          <div className="p-3 border-b border-border">
+          <div className="p-3 border-b border-border space-y-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
               <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar conversa..." className="pl-8 h-9 bg-secondary border-border text-sm" />
             </div>
+            <button onClick={() => { setShowArchived(v => !v); setSelected(null); }} className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1">
+              <Archive className="w-3 h-3" /> {showArchived ? "← Ver ativas" : "Ver arquivadas"}
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto">
             {loading ? <div className="py-10 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
@@ -115,10 +125,14 @@ const Inbox = () => {
             <>
               <div className="px-4 py-3 border-b border-border flex items-center gap-2">
                 {selected.is_group ? <Users className="w-4 h-4 text-blue-300" /> : <User className="w-4 h-4 text-emerald-300" />}
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-foreground truncate">{convName(selected)}</p>
                   <p className="text-[10px] text-muted-foreground">{selected.client_name ? `${selected.client_name} · ` : ""}via {selected.instance}</p>
                 </div>
+                <button onClick={() => arquivar(selected, !showArchived)} title={showArchived ? "Desarquivar" : "Arquivar conversa"}
+                  className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5 shrink-0">
+                  {showArchived ? <ArchiveRestore className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
+                </button>
               </div>
               <div ref={threadRef} className="flex-1 overflow-y-auto p-4 space-y-2">
                 {messages.map(m => (

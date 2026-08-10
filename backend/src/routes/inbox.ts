@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import prisma from "../lib/prisma";
 import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
-import { sendWhatsappText, recordMessage } from "../lib/whatsapp";
+import { sendWhatsappText, recordMessage, syncGroupNames } from "../lib/whatsapp";
 
 const router = Router();
 router.use(authenticateJWT);
@@ -11,7 +11,13 @@ router.use(requireStaff);
 // Lista as conversas (mais recentes primeiro), com nome do cliente vinculado.
 router.get("/conversations", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const showArchived = req.query.archived === "1";
+    // Preenche nomes de grupos que ainda não têm (lazy sync, com cache interno)
+    const unnamed = await (prisma as any).whatsappConversation.findMany({ where: { is_group: true, name: null }, select: { instance: true }, distinct: ["instance"] });
+    if (unnamed.length) await syncGroupNames(unnamed.map((u: any) => u.instance));
+
     const convs = await (prisma as any).whatsappConversation.findMany({
+      where: { archived: showArchived },
       orderBy: { last_message_at: "desc" },
       take: 200,
     });
@@ -42,6 +48,15 @@ router.post("/conversations/:id/read", async (req: AuthRequest, res: Response): 
   try {
     await (prisma as any).whatsappConversation.update({ where: { id: String(req.params.id) }, data: { unread: 0 } });
     res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/inbox/conversations/:id/archive ─────────────────────────
+router.post("/conversations/:id/archive", async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const archived = req.body?.archived !== false; // default true
+    await (prisma as any).whatsappConversation.update({ where: { id: String(req.params.id) }, data: { archived } });
+    res.json({ ok: true, archived });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 

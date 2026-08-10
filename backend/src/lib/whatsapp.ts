@@ -20,6 +20,42 @@ export async function sendWhatsappText(instance: string, jid: string, text: stri
   return r.data;
 }
 
+// ── Filtro: só instâncias marcadas alimentam o inbox (cache 30s) ──────
+let enabledCache: { at: number; set: Set<string> } | null = null;
+export async function isInboxInstance(instance: string): Promise<boolean> {
+  if (!enabledCache || Date.now() - enabledCache.at > 30000) {
+    const rows = await (prisma as any).instance.findMany({ where: { inbox_enabled: true }, select: { evolution_instance_id: true } });
+    enabledCache = { at: Date.now(), set: new Set(rows.map((r: any) => r.evolution_instance_id)) };
+  }
+  return enabledCache.set.has(instance);
+}
+export function clearInboxInstanceCache() { enabledCache = null; }
+
+// ── Sincroniza nomes de grupos (o payload da msg não traz o subject) ──
+const groupNameCache = new Map<string, { at: number; map: Map<string, string> }>();
+async function fetchGroupNameMap(instance: string): Promise<Map<string, string>> {
+  const cached = groupNameCache.get(instance);
+  if (cached && Date.now() - cached.at < 5 * 60 * 1000) return cached.map;
+  const cfg = await evolutionConfig();
+  if (!cfg) return new Map();
+  try {
+    const r = await axios.get(`${cfg.baseUrl}/group/fetchAllGroups/${instance}`, { headers: { apikey: cfg.apiKey }, params: { getParticipants: "false" }, timeout: 60000 });
+    const arr: any[] = Array.isArray(r.data) ? r.data : (r.data?.groups || []);
+    const map = new Map<string, string>();
+    for (const g of arr) { const id = g.id || g.jid; const name = g.subject || g.name; if (id && name) map.set(id, name); }
+    groupNameCache.set(instance, { at: Date.now(), map });
+    return map;
+  } catch { return new Map(); }
+}
+export async function syncGroupNames(instances: string[]): Promise<void> {
+  for (const inst of [...new Set(instances)]) {
+    const map = await fetchGroupNameMap(inst);
+    if (map.size === 0) continue;
+    const unnamed = await (prisma as any).whatsappConversation.findMany({ where: { instance: inst, is_group: true, name: null }, select: { id: true, chat_jid: true } });
+    for (const c of unnamed) { const nm = map.get(c.chat_jid); if (nm) await (prisma as any).whatsappConversation.update({ where: { id: c.id }, data: { name: nm } }).catch(() => {}); }
+  }
+}
+
 // Upsert da conversa + cria a mensagem. Usado pelo webhook (entrada) e pelo envio (saída).
 export async function recordMessage(opts: {
   instance: string;

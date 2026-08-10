@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import prisma from "../lib/prisma";
 import { sendTextToClientGroup, onClientApproved, onClientRejected } from "../lib/approval";
 import { classifyDemand } from "../lib/demandClassifier";
-import { recordMessage } from "../lib/whatsapp";
+import { recordMessage, isInboxInstance } from "../lib/whatsapp";
 
 const router = Router();
 
@@ -42,8 +42,8 @@ router.post("/webhook", async (req: Request, res: Response) => {
     const fromMe = !!data?.key?.fromMe;
     const text = extractText(data).trim();
 
-    // ── Inbox: persiste TODAS as mensagens de texto (grupos e contatos, enviadas e recebidas) ──
-    if (text && instance && chatJid && chatJid !== "status@broadcast") {
+    // ── Inbox: persiste mensagens SÓ das instâncias marcadas para o Hub de Conversas ──
+    if (text && instance && chatJid && chatJid !== "status@broadcast" && await isInboxInstance(instance)) {
       const isGroup = chatJid.endsWith("@g.us");
       await recordMessage({
         instance,
