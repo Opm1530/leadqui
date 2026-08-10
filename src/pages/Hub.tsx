@@ -94,11 +94,11 @@ const Hub = () => {
     {
       id: "inbox",
       name: "Conversas",
-      description: "Central de atendimento no WhatsApp: toda a equipe responde os grupos e contatos por aqui.",
+      description: "Central de atendimento no WhatsApp: responda os grupos e contatos por aqui.",
       icon: MessageCircle,
       color: "from-emerald-500 to-green-600",
       route: "/inbox",
-      adminOnly: false,
+      adminOnly: true,
     },
     {
       id: "editorial",

@@ -88,7 +88,7 @@ const App = () => (
                 <Route path="/tarefas" element={<Tarefas />} />
                 <Route path="/clientes" element={<ClientesGrid />} />
                 <Route path="/editorial" element={<Editorial />} />
-                <Route path="/inbox" element={<Inbox />} />
+                <Route path="/inbox" element={<ProtectedRoute adminOnly><Inbox /></ProtectedRoute>} />
               </Route>
 
               {/* App Principal (protegido, com sidebar — somente equipe interna) */}

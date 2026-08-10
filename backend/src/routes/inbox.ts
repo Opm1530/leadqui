@@ -1,14 +1,14 @@
 import { Router, Response } from "express";
 import multer from "multer";
 import prisma from "../lib/prisma";
-import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
+import { authenticateJWT, requireAdmin, AuthRequest } from "../middlewares/auth";
 import { sendWhatsappText, sendWhatsappMedia, sendWhatsappAudio, recordMessage, syncGroupNames } from "../lib/whatsapp";
 import { uploadFile, getFile } from "../lib/storage";
 
 const router = Router();
 const mediaUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024 } }); // 60MB
 router.use(authenticateJWT);
-router.use(requireStaff);
+router.use(requireAdmin);
 
 const mediatypeFromMime = (mime?: string): string => {
   if (mime?.startsWith("image/")) return "image";
