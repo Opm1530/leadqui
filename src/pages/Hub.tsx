@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox, Star, Building2, Clapperboard } from "lucide-react";
+import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox, Star, Building2, Clapperboard, MessageCircle } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -89,6 +89,15 @@ const Hub = () => {
       icon: Building2,
       color: "from-orange-500 to-amber-600",
       route: "/clientes",
+      adminOnly: false,
+    },
+    {
+      id: "inbox",
+      name: "Conversas",
+      description: "Central de atendimento no WhatsApp: toda a equipe responde os grupos e contatos por aqui.",
+      icon: MessageCircle,
+      color: "from-emerald-500 to-green-600",
+      route: "/inbox",
       adminOnly: false,
     },
     {

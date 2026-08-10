@@ -52,6 +52,7 @@ import DashQui from "./pages/DashQui";
 import Tarefas from "./pages/Tarefas";
 import ClientesGrid from "./pages/ClientesGrid";
 import Editorial from "./pages/Editorial";
+import Inbox from "./pages/Inbox";
 
 const queryClient = new QueryClient();
 
@@ -87,6 +88,7 @@ const App = () => (
                 <Route path="/tarefas" element={<Tarefas />} />
                 <Route path="/clientes" element={<ClientesGrid />} />
                 <Route path="/editorial" element={<Editorial />} />
+                <Route path="/inbox" element={<Inbox />} />
               </Route>
 
               {/* App Principal (protegido, com sidebar — somente equipe interna) */}

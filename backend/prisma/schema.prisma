@@ -532,6 +532,45 @@ model TaskComment {
   @@map("task_comments")
 }
 
+// ── Inbox / Hub de conversas do WhatsApp ─────────────────────────────
+model WhatsappConversation {
+  id                String   @id @default(uuid())
+  instance          String              // instância Evolution que recebe/envia
+  chat_jid          String              // JID do chat (@g.us ou @s.whatsapp.net)
+  name              String?             // nome do grupo ou contato
+  is_group          Boolean  @default(false)
+  client_id         String?             // vínculo opcional a um cliente
+  last_message_text String?
+  last_message_at   DateTime @default(now())
+  unread            Int      @default(0)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  messages WhatsappMessage[]
+
+  @@unique([instance, chat_jid])
+  @@index([last_message_at])
+  @@map("whatsapp_conversations")
+}
+
+model WhatsappMessage {
+  id              String   @id @default(uuid())
+  conversation_id String
+  wa_message_id   String?             // key.id (dedup)
+  direction       String              // "IN" | "OUT"
+  from_me         Boolean  @default(false)
+  author_name     String?             // pushName (entrada) ou nome do membro (saída)
+  author_user_id  String?             // membro da equipe que respondeu (saída)
+  text            String?
+  timestamp       DateTime @default(now())
+  created_at      DateTime @default(now())
+
+  conversation WhatsappConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id, timestamp])
+  @@map("whatsapp_messages")
+}
+
 // Registro cru de webhooks recebidos (debug/diagnóstico)
 model WebhookEvent {
   id          String   @id @default(uuid())

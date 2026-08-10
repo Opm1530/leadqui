@@ -32,6 +32,7 @@ import dashquiRoutes from "./routes/dashqui";
 import filesRoutes from "./routes/files";
 import editorialRoutes from "./routes/editorial";
 import publicRoutes from "./routes/public";
+import inboxRoutes from "./routes/inbox";
 import { startInstagramScheduler } from "./lib/instagramScheduler";
 import { startAdsAnalyzerJob } from "./lib/adsAnalyzerJob";
 
@@ -105,6 +106,7 @@ app.use("/api/onboarding", onboardingRoutes);
 app.use("/api/dashqui", dashquiRoutes);
 app.use("/api/files", filesRoutes);
 app.use("/api/editorial", editorialRoutes);
+app.use("/api/inbox", inboxRoutes);
 app.use("/api", resourcesRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import prisma from "../lib/prisma";
 import { sendTextToClientGroup, onClientApproved, onClientRejected } from "../lib/approval";
 import { classifyDemand } from "../lib/demandClassifier";
+import { recordMessage } from "../lib/whatsapp";
 
 const router = Router();
 
@@ -36,13 +37,30 @@ router.post("/webhook", async (req: Request, res: Response) => {
   try {
     const body = req.body || {};
     const data = body.data || body;
-    // Ignora mensagens enviadas por nós mesmos
-    if (data?.key?.fromMe) return;
-
-    const groupJid: string = data?.key?.remoteJid || "";
-    if (!groupJid.endsWith("@g.us")) return; // só grupos
-
+    const instance: string = body.instance || body.instanceName || "";
+    const chatJid: string = data?.key?.remoteJid || "";
+    const fromMe = !!data?.key?.fromMe;
     const text = extractText(data).trim();
+
+    // ── Inbox: persiste TODAS as mensagens de texto (grupos e contatos, enviadas e recebidas) ──
+    if (text && instance && chatJid && chatJid !== "status@broadcast") {
+      const isGroup = chatJid.endsWith("@g.us");
+      await recordMessage({
+        instance,
+        chatJid,
+        text,
+        fromMe,
+        waMessageId: data?.key?.id || null,
+        authorName: fromMe ? null : (data?.pushName || null),
+        // nome do contato (DM); nome do grupo é preenchido pela sincronização de grupos
+        name: !isGroup ? (data?.pushName || null) : null,
+      }).catch(() => {});
+    }
+
+    // ── Aprovação de posts (comportamento existente) — só grupos de cliente, msg recebida ──
+    if (fromMe) return;
+    const groupJid = chatJid;
+    if (!groupJid.endsWith("@g.us")) return; // só grupos
     if (!text) return;
 
     // Acha o cliente vinculado a esse grupo
