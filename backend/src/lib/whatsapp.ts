@@ -30,6 +30,18 @@ export async function fetchMediaBase64(instance: string, data: any): Promise<{ b
   } catch { return null; }
 }
 
+// Envia áudio como mensagem de voz (ptt) via Evolution.
+export async function sendWhatsappAudio(instance: string, jid: string, base64: string): Promise<any> {
+  const cfg = await evolutionConfig();
+  if (!cfg) throw new Error("Evolution API não configurada.");
+  const r = await axios.post(
+    `${cfg.baseUrl}/message/sendWhatsAppAudio/${instance}`,
+    { number: jid, audio: base64 },
+    { headers: { apikey: cfg.apiKey }, timeout: 60000 }
+  );
+  return r.data;
+}
+
 // Envia mídia por URL pública via Evolution.
 export async function sendWhatsappMedia(instance: string, jid: string, mediatype: string, url: string, opts: { caption?: string; fileName?: string } = {}): Promise<any> {
   const cfg = await evolutionConfig();

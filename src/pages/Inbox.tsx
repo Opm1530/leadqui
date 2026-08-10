@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Send, Loader2, Users, User, MessageCircle, Search, Archive, ArchiveRestore, Paperclip, Tag as TagIcon, Plus, X } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Users, User, MessageCircle, Search, Archive, ArchiveRestore, Paperclip, Tag as TagIcon, Plus, Mic, Image as ImageIcon, FileText, Trash2 } from "lucide-react";
 import api from "@/lib/api";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import InboxMedia from "@/components/InboxMedia";
+
+const TAG_COLORS = ["#10b981", "#3b82f6", "#f97316", "#ef4444", "#a855f7", "#eab308", "#ec4899", "#14b8a6", "#64748b"];
 
 const convName = (c: any) => c?.name || (c?.is_group ? "Grupo" : (c?.chat_jid || "").replace(/@.*/, "")) || "Conversa";
 const fmtTime = (d: string) => new Date(d).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -24,6 +28,15 @@ const Inbox = () => {
   const [tagMenu, setTagMenu] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [attachMenu, setAttachMenu] = useState(false);
+  const [attachMode, setAttachMode] = useState<"media" | "document">("media");
+  const [recording, setRecording] = useState(false);
+  const recRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const discardRef = useRef(false);
+  const [tagModal, setTagModal] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
 
   const loadConvs = useCallback(() => {
     const qs = new URLSearchParams();
@@ -75,26 +88,51 @@ const Inbox = () => {
     await api.post(`/api/inbox/conversations/${c.id}/archive`, { archived }).catch(() => loadConvs());
   };
 
+  const pickAttach = (mode: "media" | "document") => { setAttachMode(mode); setAttachMenu(false); setTimeout(() => fileRef.current?.click(), 0); };
   const enviarMidia = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; e.target.value = "";
     if (!f || !selected) return;
     setSending(true);
     try {
       const fd = new FormData(); fd.append("file", f); if (text.trim()) fd.append("caption", text.trim());
+      if (attachMode === "document") fd.append("mediatype", "document");
       await api.post(`/api/inbox/conversations/${selected.id}/send-media`, fd);
       setText("");
       await loadMessages(selected.id); loadConvs();
     } catch { /* */ } finally { setSending(false); }
   };
 
+  // Gravação de áudio (mensagem de voz)
+  const startRec = async () => {
+    if (!selected) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = []; discardRef.current = false;
+      mr.ondataavailable = ev => { if (ev.data.size) chunksRef.current.push(ev.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        if (discardRef.current) return;
+        const blob = new Blob(chunksRef.current, { type: chunksRef.current[0]?.type || "audio/ogg" });
+        if (blob.size === 0) return;
+        setSending(true);
+        try { const fd = new FormData(); fd.append("file", blob, "audio.ogg"); await api.post(`/api/inbox/conversations/${selected.id}/send-audio`, fd); await loadMessages(selected.id); loadConvs(); }
+        catch { /* */ } finally { setSending(false); }
+      };
+      mr.start(); recRef.current = mr; setRecording(true);
+    } catch { /* microfone negado */ }
+  };
+  const stopRec = (discard: boolean) => { discardRef.current = discard; recRef.current?.stop(); setRecording(false); };
+
+  const salvarTag = async () => {
+    if (!newTagName.trim()) return;
+    const d = await api.post("/api/inbox/tags", { name: newTagName.trim(), color: newTagColor }).catch(() => null);
+    if (d?.tag) setTags(p => [...p, d.tag]);
+    setNewTagName(""); setNewTagColor(TAG_COLORS[0]); setTagModal(false);
+  };
+
   // Tags
   useEffect(() => { api.get("/api/inbox/tags").then(d => setTags(d.tags || [])).catch(() => {}); }, []);
-  const criarTag = async () => {
-    const name = window.prompt("Nome da tag:")?.trim();
-    if (!name) return;
-    const d = await api.post("/api/inbox/tags", { name }).catch(() => null);
-    if (d?.tag) setTags(p => [...p, d.tag]);
-  };
   const toggleTag = async (tagId: string) => {
     if (!selected) return;
     const cur: string[] = selected.tag_ids || [];
@@ -198,7 +236,7 @@ const Inbox = () => {
                           </button>
                         );
                       })}
-                      <button onClick={criarTag} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 text-left text-xs text-primary"><Plus className="w-3.5 h-3.5" /> Nova tag</button>
+                      <button onClick={() => { setTagMenu(false); setTagModal(true); }} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 text-left text-xs text-primary"><Plus className="w-3.5 h-3.5" /> Nova tag</button>
                     </div>
                   )}
                 </div>
@@ -222,24 +260,77 @@ const Inbox = () => {
               </div>
               <div className="p-3 border-t border-border flex items-center gap-2">
                 <input ref={fileRef} type="file" className="hidden" onChange={enviarMidia} />
-                <button onClick={() => fileRef.current?.click()} disabled={sending} title="Enviar arquivo" className="h-10 w-10 rounded-lg bg-secondary border border-border flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-50">
-                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                </button>
-                <Input
-                  value={text}
-                  onChange={e => setText(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }}
-                  placeholder="Escreva uma mensagem..."
-                  className="flex-1 bg-secondary border-border"
-                />
-                <button onClick={enviar} disabled={sending || !text.trim()} className="h-10 w-10 rounded-lg gradient-button flex items-center justify-center disabled:opacity-50">
-                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                </button>
+                {recording ? (
+                  <div className="flex-1 flex items-center gap-3 px-2">
+                    <span className="flex items-center gap-2 text-sm text-red-400"><span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" /> Gravando áudio...</span>
+                    <div className="flex-1" />
+                    <button onClick={() => stopRec(true)} title="Cancelar" className="h-9 w-9 rounded-lg bg-secondary border border-border flex items-center justify-center text-muted-foreground hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={() => stopRec(false)} title="Enviar áudio" className="h-9 w-9 rounded-lg gradient-button flex items-center justify-center"><Send className="w-4 h-4" /></button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <button onClick={() => setAttachMenu(v => !v)} disabled={sending} title="Anexar" className="h-10 w-10 rounded-lg bg-secondary border border-border flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-50">
+                        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
+                      </button>
+                      {attachMenu && (
+                        <div className="absolute left-0 bottom-full mb-1 w-48 rounded-xl border border-border bg-card shadow-2xl z-20 p-1">
+                          <button onClick={() => pickAttach("media")} className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5 text-left text-xs text-foreground"><ImageIcon className="w-4 h-4 text-emerald-400" /> Foto / Vídeo (mídia)</button>
+                          <button onClick={() => pickAttach("document")} className="w-full flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-white/5 text-left text-xs text-foreground"><FileText className="w-4 h-4 text-blue-400" /> Enviar como documento</button>
+                        </div>
+                      )}
+                    </div>
+                    <Input
+                      value={text}
+                      onChange={e => setText(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); } }}
+                      placeholder="Escreva uma mensagem..."
+                      className="flex-1 bg-secondary border-border"
+                    />
+                    {text.trim() ? (
+                      <button onClick={enviar} disabled={sending} className="h-10 w-10 rounded-lg gradient-button flex items-center justify-center disabled:opacity-50">
+                        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      </button>
+                    ) : (
+                      <button onClick={startRec} disabled={sending} title="Gravar áudio" className="h-10 w-10 rounded-lg bg-secondary border border-border flex items-center justify-center text-muted-foreground hover:text-emerald-400 disabled:opacity-50">
+                        <Mic className="w-4 h-4" />
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
             </>
           )}
         </div>
       </div>
+
+      {/* Modal de criação de tag */}
+      <Dialog open={tagModal} onOpenChange={setTagModal}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Nova tag</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Nome</label>
+              <Input value={newTagName} onChange={e => setNewTagName(e.target.value)} placeholder="Ex.: Urgente" onKeyDown={e => { if (e.key === "Enter") salvarTag(); }} autoFocus />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-2 block">Cor</label>
+              <div className="flex flex-wrap gap-2">
+                {TAG_COLORS.map(c => (
+                  <button key={c} type="button" onClick={() => setNewTagColor(c)} style={{ backgroundColor: c }}
+                    className={`w-7 h-7 rounded-full transition-transform ${newTagColor === c ? "ring-2 ring-offset-2 ring-offset-card ring-white scale-110" : "hover:scale-105"}`} />
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setTagModal(false)}>Cancelar</Button>
+            <Button onClick={salvarTag} disabled={!newTagName.trim()}>Criar tag</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

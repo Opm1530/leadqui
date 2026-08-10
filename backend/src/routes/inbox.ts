@@ -2,7 +2,7 @@ import { Router, Response } from "express";
 import multer from "multer";
 import prisma from "../lib/prisma";
 import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
-import { sendWhatsappText, sendWhatsappMedia, recordMessage, syncGroupNames } from "../lib/whatsapp";
+import { sendWhatsappText, sendWhatsappMedia, sendWhatsappAudio, recordMessage, syncGroupNames } from "../lib/whatsapp";
 import { uploadFile, getFile } from "../lib/storage";
 
 const router = Router();
@@ -126,7 +126,8 @@ router.post("/conversations/:id/send-media", mediaUpload.single("file"), async (
     const conv = await (prisma as any).whatsappConversation.findUnique({ where: { id: String(req.params.id) } });
     if (!conv) { res.status(404).json({ error: "Conversa não encontrada" }); return; }
 
-    const mediatype = mediatypeFromMime(file.mimetype);
+    // Permite forçar o tipo (ex.: enviar vídeo/imagem como "document")
+    const mediatype = (req.body?.mediatype && ["image", "video", "audio", "document"].includes(req.body.mediatype)) ? req.body.mediatype : mediatypeFromMime(file.mimetype);
     const key = `whatsapp/${conv.instance}/${Date.now()}-out-${file.originalname.replace(/[^\w.\-]+/g, "_")}`;
     await uploadFile(key, file.buffer, file.mimetype);
 
@@ -139,6 +140,28 @@ router.post("/conversations/:id/send-media", mediaUpload.single("file"), async (
       instance: conv.instance, chatJid: conv.chat_jid, text: caption, fromMe: true,
       waMessageId: waId, authorName: me?.name || null, authorUserId: req.user!.id,
       mediaType: mediatype, mediaKey: key, mediaMime: file.mimetype, mediaName: file.originalname,
+    });
+    res.json({ ok: true });
+  } catch (e: any) { res.status(500).json({ error: e.response?.data?.message || e.message }); }
+});
+
+// ── POST /api/inbox/conversations/:id/send-audio ── (mensagem de voz) ─
+router.post("/conversations/:id/send-audio", mediaUpload.single("file"), async (req: AuthRequest, res: Response): Promise<void> => {
+  const file = (req as any).file;
+  if (!file) { res.status(400).json({ error: "Áudio obrigatório" }); return; }
+  try {
+    const conv = await (prisma as any).whatsappConversation.findUnique({ where: { id: String(req.params.id) } });
+    if (!conv) { res.status(404).json({ error: "Conversa não encontrada" }); return; }
+
+    const key = `whatsapp/${conv.instance}/${Date.now()}-out-audio.ogg`;
+    await uploadFile(key, file.buffer, file.mimetype || "audio/ogg");
+    await sendWhatsappAudio(conv.instance, conv.chat_jid, file.buffer.toString("base64"));
+
+    const me = await (prisma as any).user.findUnique({ where: { id: req.user!.id }, select: { name: true } });
+    await recordMessage({
+      instance: conv.instance, chatJid: conv.chat_jid, text: "", fromMe: true,
+      authorName: me?.name || null, authorUserId: req.user!.id,
+      mediaType: "audio", mediaKey: key, mediaMime: file.mimetype || "audio/ogg", mediaName: "audio.ogg",
     });
     res.json({ ok: true });
   } catch (e: any) { res.status(500).json({ error: e.response?.data?.message || e.message }); }
