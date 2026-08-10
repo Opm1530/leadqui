@@ -2,6 +2,46 @@ import axios from "axios";
 import prisma from "./prisma";
 import { getCompanySettings } from "./companySettings";
 
+// ── Mídia ─────────────────────────────────────────────────────────────
+// Detecta o tipo de mídia numa mensagem do Evolution.
+export function detectMedia(data: any): { type: string; mime?: string; name?: string } | null {
+  const m = data?.message || {};
+  if (m.imageMessage) return { type: "image", mime: m.imageMessage.mimetype, name: "imagem.jpg" };
+  if (m.videoMessage) return { type: "video", mime: m.videoMessage.mimetype, name: "video.mp4" };
+  if (m.audioMessage) return { type: "audio", mime: m.audioMessage.mimetype, name: "audio.ogg" };
+  if (m.stickerMessage) return { type: "sticker", mime: m.stickerMessage.mimetype, name: "sticker.webp" };
+  if (m.documentMessage) return { type: "document", mime: m.documentMessage.mimetype, name: m.documentMessage.fileName || "arquivo" };
+  return null;
+}
+
+// Baixa a mídia da mensagem (base64) via Evolution.
+export async function fetchMediaBase64(instance: string, data: any): Promise<{ buffer: Buffer; mime?: string } | null> {
+  const cfg = await evolutionConfig();
+  if (!cfg) return null;
+  try {
+    const r = await axios.post(
+      `${cfg.baseUrl}/chat/getBase64FromMediaMessage/${instance}`,
+      { message: { key: data.key }, convertToMp4: false },
+      { headers: { apikey: cfg.apiKey }, timeout: 90000 }
+    );
+    const b64 = r.data?.base64 || r.data?.media || (typeof r.data === "string" ? r.data : null);
+    if (!b64 || typeof b64 !== "string") return null;
+    return { buffer: Buffer.from(b64, "base64"), mime: r.data?.mimetype };
+  } catch { return null; }
+}
+
+// Envia mídia por URL pública via Evolution.
+export async function sendWhatsappMedia(instance: string, jid: string, mediatype: string, url: string, opts: { caption?: string; fileName?: string } = {}): Promise<any> {
+  const cfg = await evolutionConfig();
+  if (!cfg) throw new Error("Evolution API não configurada.");
+  const r = await axios.post(
+    `${cfg.baseUrl}/message/sendMedia/${instance}`,
+    { number: jid, mediatype, media: url, caption: opts.caption || undefined, fileName: opts.fileName || undefined },
+    { headers: { apikey: cfg.apiKey }, timeout: 60000 }
+  );
+  return r.data;
+}
+
 export async function evolutionConfig(): Promise<{ baseUrl: string; apiKey: string } | null> {
   const s = (await getCompanySettings()) as any;
   if (!s?.evolution_api_url || !s?.evolution_api_key) return null;
@@ -57,6 +97,8 @@ export async function syncGroupNames(instances: string[]): Promise<void> {
 }
 
 // Upsert da conversa + cria a mensagem. Usado pelo webhook (entrada) e pelo envio (saída).
+const MEDIA_LABEL: Record<string, string> = { image: "📷 Imagem", video: "🎬 Vídeo", audio: "🎵 Áudio", document: "📄 Documento", sticker: "Figurinha" };
+
 export async function recordMessage(opts: {
   instance: string;
   chatJid: string;
@@ -67,9 +109,14 @@ export async function recordMessage(opts: {
   authorUserId?: string | null;
   name?: string | null;
   timestamp?: Date;
+  mediaType?: string | null;
+  mediaKey?: string | null;
+  mediaMime?: string | null;
+  mediaName?: string | null;
 }) {
   const isGroup = opts.chatJid.endsWith("@g.us");
   const ts = opts.timestamp || new Date();
+  const preview = (opts.text || (opts.mediaType ? MEDIA_LABEL[opts.mediaType] || "Mídia" : "")).slice(0, 200);
 
   // Vincula a um cliente se o grupo/contato bater
   let client_id: string | null = null;
@@ -86,14 +133,14 @@ export async function recordMessage(opts: {
       is_group: isGroup,
       name: opts.name || null,
       client_id,
-      last_message_text: opts.text.slice(0, 200),
+      last_message_text: preview,
       last_message_at: ts,
       unread: opts.fromMe ? 0 : 1,
     },
     update: {
       ...(opts.name ? { name: opts.name } : {}),
       ...(client_id ? { client_id } : {}),
-      last_message_text: opts.text.slice(0, 200),
+      last_message_text: preview,
       last_message_at: ts,
       ...(opts.fromMe ? {} : { unread: { increment: 1 } }),
     },
@@ -116,7 +163,11 @@ export async function recordMessage(opts: {
       from_me: opts.fromMe,
       author_name: opts.authorName || null,
       author_user_id: opts.authorUserId || null,
-      text: opts.text,
+      text: opts.text || null,
+      media_type: opts.mediaType || null,
+      media_key: opts.mediaKey || null,
+      media_mime: opts.mediaMime || null,
+      media_name: opts.mediaName || null,
       timestamp: ts,
     },
   });

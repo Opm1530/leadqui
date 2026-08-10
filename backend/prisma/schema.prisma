@@ -545,6 +545,7 @@ model WhatsappConversation {
   last_message_at   DateTime @default(now())
   unread            Int      @default(0)
   archived          Boolean  @default(false)
+  tag_ids           String[] @default([])
   created_at        DateTime @default(now())
   updated_at        DateTime @updatedAt
 
@@ -564,6 +565,10 @@ model WhatsappMessage {
   author_name     String?             // pushName (entrada) ou nome do membro (saída)
   author_user_id  String?             // membro da equipe que respondeu (saída)
   text            String?
+  media_type      String?             // image | video | audio | document | sticker
+  media_key       String?             // chave no R2
+  media_mime      String?
+  media_name      String?
   timestamp       DateTime @default(now())
   created_at      DateTime @default(now())
 
@@ -571,6 +576,15 @@ model WhatsappMessage {
 
   @@index([conversation_id, timestamp])
   @@map("whatsapp_messages")
+}
+
+model WhatsappTag {
+  id         String   @id @default(uuid())
+  name       String
+  color      String   @default("#10b981")
+  created_at DateTime @default(now())
+
+  @@map("whatsapp_tags")
 }
 
 // Registro cru de webhooks recebidos (debug/diagnóstico)

@@ -2,7 +2,8 @@ import { Router, Request, Response } from "express";
 import prisma from "../lib/prisma";
 import { sendTextToClientGroup, onClientApproved, onClientRejected } from "../lib/approval";
 import { classifyDemand } from "../lib/demandClassifier";
-import { recordMessage, isInboxInstance } from "../lib/whatsapp";
+import { recordMessage, isInboxInstance, detectMedia, fetchMediaBase64 } from "../lib/whatsapp";
+import { uploadFile } from "../lib/storage";
 
 const router = Router();
 
@@ -43,8 +44,22 @@ router.post("/webhook", async (req: Request, res: Response) => {
     const text = extractText(data).trim();
 
     // ── Inbox: persiste mensagens SÓ das instâncias marcadas para o Hub de Conversas ──
-    if (text && instance && chatJid && chatJid !== "status@broadcast" && await isInboxInstance(instance)) {
+    const media = detectMedia(data);
+    if (instance && chatJid && chatJid !== "status@broadcast" && (text || media) && await isInboxInstance(instance)) {
       const isGroup = chatJid.endsWith("@g.us");
+      let mediaKey: string | null = null;
+      let mediaMime: string | undefined = media?.mime;
+      if (media) {
+        try {
+          const fetched = await fetchMediaBase64(instance, data);
+          if (fetched) {
+            const key = `whatsapp/${instance}/${Date.now()}-${media.type}`;
+            await uploadFile(key, fetched.buffer, fetched.mime || media.mime);
+            mediaKey = key;
+            mediaMime = fetched.mime || media.mime;
+          }
+        } catch { /* segue sem o arquivo */ }
+      }
       await recordMessage({
         instance,
         chatJid,
@@ -52,8 +67,11 @@ router.post("/webhook", async (req: Request, res: Response) => {
         fromMe,
         waMessageId: data?.key?.id || null,
         authorName: fromMe ? null : (data?.pushName || null),
-        // nome do contato (DM); nome do grupo é preenchido pela sincronização de grupos
         name: !isGroup ? (data?.pushName || null) : null,
+        mediaType: media?.type || null,
+        mediaKey,
+        mediaMime,
+        mediaName: media?.name || null,
       }).catch(() => {});
     }
 
