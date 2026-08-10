@@ -31,9 +31,11 @@ const Inbox = () => {
   const [attachMenu, setAttachMenu] = useState(false);
   const [attachMode, setAttachMode] = useState<"media" | "document">("media");
   const [recording, setRecording] = useState(false);
+  const [recSecs, setRecSecs] = useState(0);
   const recRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const discardRef = useRef(false);
+  const recTimerRef = useRef<number | null>(null);
   const [tagModal, setTagModal] = useState(false);
   const [newTagName, setNewTagName] = useState("");
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
@@ -120,9 +122,16 @@ const Inbox = () => {
         catch { /* */ } finally { setSending(false); }
       };
       mr.start(); recRef.current = mr; setRecording(true);
+      setRecSecs(0);
+      recTimerRef.current = window.setInterval(() => setRecSecs(s => s + 1), 1000);
     } catch { /* microfone negado */ }
   };
-  const stopRec = (discard: boolean) => { discardRef.current = discard; recRef.current?.stop(); setRecording(false); };
+  const stopRec = (discard: boolean) => {
+    discardRef.current = discard;
+    if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+    recRef.current?.stop(); setRecording(false);
+  };
+  const fmtRec = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   const salvarTag = async () => {
     if (!newTagName.trim()) return;
@@ -261,12 +270,19 @@ const Inbox = () => {
               <div className="p-3 border-t border-border flex items-center gap-2">
                 <input ref={fileRef} type="file" className="hidden" onChange={enviarMidia} />
                 {recording ? (
-                  <div className="flex-1 flex items-center gap-3 px-2">
-                    <span className="flex items-center gap-2 text-sm text-red-400"><span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" /> Gravando áudio...</span>
-                    <div className="flex-1" />
-                    <button onClick={() => stopRec(true)} title="Cancelar" className="h-9 w-9 rounded-lg bg-secondary border border-border flex items-center justify-center text-muted-foreground hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
-                    <button onClick={() => stopRec(false)} title="Enviar áudio" className="h-9 w-9 rounded-lg gradient-button flex items-center justify-center"><Send className="w-4 h-4" /></button>
-                  </div>
+                  <>
+                    <button onClick={() => stopRec(true)} title="Cancelar" className="h-10 w-10 rounded-lg flex items-center justify-center text-red-400 hover:bg-red-500/10 shrink-0"><Trash2 className="w-5 h-5" /></button>
+                    <div className="flex-1 h-10 rounded-full bg-secondary border border-border flex items-center gap-3 px-4">
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                      <span className="text-sm text-foreground tabular-nums font-medium">{fmtRec(recSecs)}</span>
+                      <div className="flex-1 flex items-center gap-[3px] h-5 overflow-hidden">
+                        {Array.from({ length: 28 }).map((_, i) => (
+                          <span key={i} className="w-[3px] rounded-full bg-emerald-400/70 rec-wave" style={{ animationDelay: `${(i % 7) * 0.12}s` }} />
+                        ))}
+                      </div>
+                    </div>
+                    <button onClick={() => stopRec(false)} title="Enviar áudio" className="h-10 w-10 rounded-full gradient-button flex items-center justify-center shrink-0"><Send className="w-4 h-4" /></button>
+                  </>
                 ) : (
                   <>
                     <div className="relative">

@@ -67,7 +67,7 @@ router.post("/webhook", async (req: Request, res: Response) => {
         fromMe,
         waMessageId: data?.key?.id || null,
         authorName: fromMe ? null : (data?.pushName || null),
-        name: !isGroup ? (data?.pushName || null) : null,
+        name: (!isGroup && !fromMe) ? (data?.pushName || null) : null,
         mediaType: media?.type || null,
         mediaKey,
         mediaMime,
