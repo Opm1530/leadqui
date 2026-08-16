@@ -33,6 +33,8 @@ import filesRoutes from "./routes/files";
 import editorialRoutes from "./routes/editorial";
 import publicRoutes from "./routes/public";
 import inboxRoutes from "./routes/inbox";
+import formsRoutes from "./routes/forms";
+import formEndpointsRoutes from "./routes/formEndpoints";
 import { startInstagramScheduler } from "./lib/instagramScheduler";
 import { startAdsAnalyzerJob } from "./lib/adsAnalyzerJob";
 
@@ -54,6 +56,10 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false, // compatibilidade com uploads de imagem
 }));
+
+// Webhook público de formulários/landing pages — ANTES do CORS global,
+// pois precisa aceitar POST de qualquer domínio (tem CORS e parsers próprios).
+app.use("/api/forms", formsRoutes);
 
 // Rate limiting de login — só bloqueia após muitas FALHAS (login com sucesso zera).
 app.use("/api/auth/login", (req, res, next) => {
@@ -107,6 +113,7 @@ app.use("/api/dashqui", dashquiRoutes);
 app.use("/api/files", filesRoutes);
 app.use("/api/editorial", editorialRoutes);
 app.use("/api/inbox", inboxRoutes);
+app.use("/api/form-endpoints", formEndpointsRoutes);
 app.use("/api", resourcesRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────

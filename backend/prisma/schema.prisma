@@ -52,6 +52,7 @@ model User {
   editorial_created     EditorialContent[] @relation("EditorialCreator")
   editorial_responsible EditorialContent[] @relation("EditorialResponsible")
   task_comments         TaskComment[]
+  form_endpoints        FormEndpoint[]
 
   @@map("users")
 }
@@ -158,6 +159,44 @@ enum LeadOrigem {
   GOOGLE_MAPS
   INSTAGRAM
   MANUAL
+  FORMULARIO
+}
+
+// Endpoint de webhook para captação de leads via formulários / landing pages.
+model FormEndpoint {
+  id                   String   @id @default(uuid())
+  user_id              String
+  name                 String   // ex.: "LP Black Friday"
+  token                String   @unique // slug secreto que vai na URL pública
+  active               Boolean  @default(true)
+  default_tag_ids      String[] @default([])
+  default_responsavel  String?
+  redirect_url         String?  // pra onde redirecionar após enviar (opcional)
+  submissions_count    Int      @default(0)
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  user        User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  submissions FormSubmission[]
+
+  @@index([token])
+  @@map("form_endpoints")
+}
+
+// Log de cada submissão recebida (payload cru), mesmo que a criação do lead falhe.
+model FormSubmission {
+  id          String   @id @default(uuid())
+  endpoint_id String
+  lead_id     String?
+  payload     Json
+  ip          String?
+  spam        Boolean  @default(false)
+  created_at  DateTime @default(now())
+
+  endpoint FormEndpoint @relation(fields: [endpoint_id], references: [id], onDelete: Cascade)
+
+  @@index([endpoint_id])
+  @@map("form_submissions")
 }
 
 enum LeadStatus {

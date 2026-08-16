@@ -53,6 +53,7 @@ import Tarefas from "./pages/Tarefas";
 import ClientesGrid from "./pages/ClientesGrid";
 import Editorial from "./pages/Editorial";
 import Inbox from "./pages/Inbox";
+import Formularios from "./pages/Formularios";
 
 const queryClient = new QueryClient();
 
@@ -89,6 +90,7 @@ const App = () => (
                 <Route path="/clientes" element={<ClientesGrid />} />
                 <Route path="/editorial" element={<Editorial />} />
                 <Route path="/inbox" element={<ProtectedRoute adminOnly><Inbox /></ProtectedRoute>} />
+                <Route path="/formularios" element={<ProtectedRoute adminOnly><Formularios /></ProtectedRoute>} />
               </Route>
 
               {/* App Principal (protegido, com sidebar — somente equipe interna) */}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox, Star, Building2, Clapperboard, MessageCircle } from "lucide-react";
+import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox, Star, Building2, Clapperboard, MessageCircle, Webhook } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -98,6 +98,15 @@ const Hub = () => {
       icon: MessageCircle,
       color: "from-emerald-500 to-green-600",
       route: "/inbox",
+      adminOnly: true,
+    },
+    {
+      id: "formularios",
+      name: "Formulários",
+      description: "Webhook de captação: receba contatos de landing pages e formulários direto nos Leads.",
+      icon: Webhook,
+      color: "from-cyan-500 to-blue-600",
+      route: "/formularios",
       adminOnly: true,
     },
     {
