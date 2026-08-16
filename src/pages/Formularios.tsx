@@ -203,11 +203,13 @@ const Formularios = () => {
                   {tags.length === 0 && <span className="text-xs text-muted-foreground">Nenhuma tag cadastrada.</span>}
                   {tags.map((t: any) => {
                     const on = (editing.default_tag_ids || []).includes(t.id);
+                    const label = t.nome || t.name;
+                    const cor = t.cor || t.color || "#6366f1";
                     return (
                       <button key={t.id} onClick={() => toggleEditTag(t.id)}
                         className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${on ? "border-transparent text-white" : "border-border text-muted-foreground"}`}
-                        style={on ? { backgroundColor: t.color || "#10b981" } : {}}>
-                        {t.name}
+                        style={on ? { backgroundColor: cor } : { borderColor: cor }}>
+                        {label}
                       </button>
                     );
                   })}
