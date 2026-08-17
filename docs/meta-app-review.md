@@ -130,6 +130,49 @@ No painel do app → **Webhooks**:
 
 ---
 
+## 🎬 REENVIO — Roteiro do screencast (1ª leva: Instagram Login)
+
+> **Motivo da 1ª rejeição:** "Screencast não alinhado com o caso de uso" para `instagram_business_basic`, `instagram_business_content_publish` e `instagram_business_manage_comments`.
+> A Meta **aprovou o caso de uso** — reprovou só o vídeo. Ele precisa mostrar o fluxo INTEIRO, sem cortes.
+>
+> ⚠️ **Os 3 erros que causam essa rejeição (evite todos):**
+> 1. Começar o vídeo **já conectado** (pula o login da Meta e o consentimento). **TEM que mostrar o OAuth do Instagram do zero.**
+> 2. Não mostrar a **ação real acontecendo** (o post aparecendo no perfil, a resposta no comentário).
+> 3. UI em português **sem legendas** em inglês explicando os botões.
+
+### Regras da gravação
+- **Um único vídeo contínuo** (pode cobrir as 3 permissões de uma vez) OU um vídeo por permissão — mas cada um **começa pelo login da Meta**.
+- **Idioma:** ideal a UI em inglês. Se a tela estiver em PT, **coloque legendas/anotações em inglês** em cada passo explicando o que o botão faz (a Meta exige isso no ponto 4).
+- **Mostre a barra de URL** (`leadqui.vps.pequi.digital`) para provar que é o app da submissão.
+- Use uma **conta profissional de Instagram real** (não a de teste do app) para o consentimento.
+- **No campo de notas do reenvio, cole:** *"This app uses front-end Instagram Login (OAuth). It is NOT server-to-server. The full Meta login and consent flow is shown at 00:00–00:30 of the screencast."*
+
+### Passo a passo do vídeo (com o que legendar em inglês)
+
+| Tempo | O que fazer na tela | Legenda em inglês (sobrepor) |
+|---|---|---|
+| 00:00 | Abrir `leadqui.vps.pequi.digital` e fazer login no app. | "Logging into our platform (agency user)." |
+| 00:10 | Abrir **Clientes → Conta Demo → aba Meta/Conexões**. | "Opening a client profile to connect their Instagram." |
+| 00:15 | Clicar em **Conectar Instagram**. | "Starting Instagram Login (OAuth)." |
+| 00:20 | **Tela da Meta:** login do Instagram (usuário + senha). | "Meta login flow — user authenticates." |
+| 00:30 | **Tela de consentimento** do Instagram com os toggles das permissões. Mostrar por 3s. | "User grants permissions: profile, publish content, manage comments." |
+| 00:35 | Clicar **Permitir** e voltar ao app já conectado. | "Consent granted — account is now connected." |
+| 00:40 | **[basic]** Mostrar o nome/@ e foto da conta conectada na tela de Conexões. | "instagram_business_basic: we show the connected professional account." |
+| 00:50 | **[content_publish]** Ir ao **Editorial**, criar conteúdo, anexar imagem, aprovar/publicar. | "instagram_business_content_publish: creating and publishing a post." |
+| 01:10 | Abrir o **perfil no Instagram** e mostrar o post publicado ao vivo. | "The post now appears on the Instagram profile." |
+| 01:20 | **[manage_comments]** No Instagram, comentar no post da conta. Ativar/mostrar a **auto-reply** e a **resposta aparecendo** no comentário + no log do sistema. | "instagram_business_manage_comments: replying to a comment on the client's behalf." |
+| 01:40 | Encerrar mostrando a URL do app novamente. | "All actions performed inside our platform." |
+
+> Dica: grave em 1080p, 1–3 min, sem cortes bruscos. Legendas podem ser texto sobreposto simples (CapCut, ou até anotações do QuickTime). Áudio narrado em inglês é opcional mas ajuda.
+
+### O que reenviar em cada permissão
+- **`instagram_business_basic`** → mesmo vídeo; nas notas aponte o trecho **00:40**.
+- **`instagram_business_content_publish`** → mesmo vídeo; aponte **00:50–01:20**.
+- **`instagram_business_manage_comments`** → mesmo vídeo; aponte **01:20–01:40**.
+- Reaproveite as **justificativas em inglês** dos itens 6, 7 e do bloco "Instagram Login" acima.
+
+---
+
 ## ✅ Checklist final antes de enviar
 - [ ] App em **modo Ativo (Live)**.
 - [ ] Business **verificado** (feito).
