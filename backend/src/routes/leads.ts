@@ -9,7 +9,7 @@ router.use(requireStaff); // dados compartilhados pela equipe — bloqueia CLIEN
 
 // ── GET /api/leads ────────────────────────────────────────────────────
 router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
-  const { status, origem, search, tag_id, limit = "100", offset = "0" } = req.query;
+  const { status, origem, search, tag_id, tag_ids, limit = "100", offset = "0" } = req.query;
 
   try {
     const where: any = {};
@@ -24,8 +24,11 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
         { cidade: { contains: String(search) } },
       ];
     }
-    if (tag_id) {
-      where.tags = { some: { tag_id: String(tag_id) } };
+    // Filtro por tags: aceita tag_ids (várias, separadas por vírgula → leads com QUALQUER uma)
+    // ou tag_id (uma só, compatibilidade).
+    const ids = String(tag_ids || tag_id || "").split(",").map(s => s.trim()).filter(Boolean);
+    if (ids.length) {
+      where.tags = { some: { tag_id: { in: ids } } };
     }
 
     const [leads, total] = await Promise.all([

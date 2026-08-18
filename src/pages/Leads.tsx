@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
-  Search, Plus, Trash2, Edit2, Download, MapPin, Instagram, PenLine, Loader2, Kanban
+  Search, Plus, Trash2, Edit2, Download, MapPin, Instagram, PenLine, Loader2, Kanban,
+  Tag as TagIcon, Check, X, ChevronDown
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -55,7 +56,8 @@ const Leads = () => {
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
-  const [tagFilter, setTagFilter] = useState("todos");
+  const [tagFilters, setTagFilters] = useState<string[]>([]);
+  const [tagMenuOpen, setTagMenuOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [crmColumns, setCrmColumns] = useState<any[]>([]);
 
@@ -82,7 +84,7 @@ const Leads = () => {
       });
       if (statusFilter !== "todos") params.set("status", statusFilter);
       if (searchTerm) params.set("search", searchTerm);
-      if (tagFilter !== "todos") params.set("tag_id", tagFilter);
+      if (tagFilters.length) params.set("tag_ids", tagFilters.join(","));
 
       const data = await api.get(`/api/leads?${params}`);
       setLeads(data.leads || []);
@@ -92,7 +94,7 @@ const Leads = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, searchTerm, tagFilter, toast]);
+  }, [statusFilter, searchTerm, tagFilters, toast]);
 
   const fetchTags = async () => {
     try {
@@ -118,7 +120,7 @@ const Leads = () => {
     if (!user) return;
     setCurrentPage(1);
     fetchLeads(1);
-  }, [user, statusFilter, tagFilter]);
+  }, [user, statusFilter, tagFilters]);
 
   useEffect(() => {
     if (!user) return;
@@ -284,13 +286,61 @@ const Leads = () => {
             <SelectItem value="PERDIDO">Perdido</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={tagFilter} onValueChange={setTagFilter}>
-          <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Tag" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todas as tags</SelectItem>
-            {tags.map((t) => <SelectItem key={t.id} value={t.id}>{t.nome}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {/* Filtro de tags (multi-seleção) */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setTagMenuOpen(v => !v)}
+            className="w-full h-10 flex items-center gap-2 rounded-md bg-secondary border border-border px-3 text-sm text-left"
+          >
+            <TagIcon className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className={`flex-1 truncate ${tagFilters.length ? "text-foreground" : "text-muted-foreground"}`}>
+              {tagFilters.length === 0
+                ? "Todas as tags"
+                : tagFilters.length === 1
+                  ? (tags.find(t => t.id === tagFilters[0])?.nome || "1 tag")
+                  : `${tagFilters.length} tags selecionadas`}
+            </span>
+            {tagFilters.length > 0 && (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => { e.stopPropagation(); setTagFilters([]); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setTagFilters([]); } }}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                title="Limpar tags"
+              >
+                <X className="w-3.5 h-3.5" />
+              </span>
+            )}
+            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+          </button>
+          {tagMenuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setTagMenuOpen(false)} />
+              <div className="absolute left-0 right-0 top-full mt-1 z-20 max-h-64 overflow-y-auto rounded-lg border border-border bg-card shadow-2xl p-1">
+                {tags.length === 0 && <p className="text-xs text-muted-foreground px-2 py-2">Nenhuma tag cadastrada.</p>}
+                {tags.map((t) => {
+                  const on = tagFilters.includes(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setTagFilters(prev => on ? prev.filter(id => id !== t.id) : [...prev, t.id])}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-white/5 text-left"
+                    >
+                      <span className={`w-4 h-4 rounded flex items-center justify-center border ${on ? "border-transparent" : "border-border"}`} style={on ? { backgroundColor: t.cor || "#6366f1" } : {}}>
+                        {on && <Check className="w-3 h-3 text-white" />}
+                      </span>
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: t.cor || "#6366f1" }} />
+                      <span className="text-sm text-foreground flex-1 truncate">{t.nome}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Tabela */}
