@@ -270,7 +270,7 @@ const Leads = () => {
       </AnimatePresence>
 
       {/* Filtros */}
-      <div className="glass-card p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="glass-card p-4 grid grid-cols-1 md:grid-cols-3 gap-3 relative z-30">
         <div className="relative md:col-span-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Buscar por nome, telefone..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 bg-secondary border-border" />
