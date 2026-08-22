@@ -202,17 +202,56 @@ const Leads = () => {
     }
   };
 
-  const exportCSV = () => {
-    const header = "Nome,Telefone,Cidade,Status,Origem,Criado em";
-    const rows = leads.map((l) =>
-      `"${l.nome}","${l.telefone || ""}","${l.cidade || ""}","${l.status}","${l.origem}","${new Date(l.created_at).toLocaleDateString("pt-BR")}"`
-    );
-    const csv = [header, ...rows].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const [exporting, setExporting] = useState(false);
+
+  const buildCSV = (list: any[]) => {
+    const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const header = ["Nome", "Telefone", "Email", "Cidade", "Status", "Origem", "Tags", "Criado em"].join(",");
+    const rows = list.map((l) => [
+      esc(l.nome), esc(l.telefone || ""), esc(l.email || ""), esc(l.cidade || ""),
+      esc(l.status), esc(l.origem),
+      esc((l.tags || []).map((t: any) => t.tag?.nome).filter(Boolean).join(" | ")),
+      esc(new Date(l.created_at).toLocaleDateString("pt-BR")),
+    ].join(","));
+    return [header, ...rows].join("\n");
+  };
+
+  const download = (csv: string, filename: string) => {
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }); // BOM p/ acentos no Excel
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = "leads.csv"; a.click();
+    a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Busca todos os leads que batem com os filtros atuais (todas as páginas).
+  const fetchAllFiltered = async (): Promise<any[]> => {
+    const params = new URLSearchParams({ limit: "100000", offset: "0" });
+    if (statusFilter !== "todos") params.set("status", statusFilter);
+    if (searchTerm) params.set("search", searchTerm);
+    if (tagFilters.length) params.set("tag_ids", tagFilters.join(","));
+    const data = await api.get(`/api/leads?${params}`);
+    return data.leads || [];
+  };
+
+  // Exporta: apenas selecionados, ou todos os que batem com o filtro atual (ex.: tags escolhidas).
+  const exportCSV = async (onlySelected: boolean) => {
+    setExporting(true);
+    try {
+      const all = await fetchAllFiltered();
+      const list = onlySelected ? all.filter((l) => selectedIds.has(l.id)) : all;
+      if (list.length === 0) {
+        toast({ title: "Nada para exportar", description: onlySelected ? "Nenhum lead selecionado." : "Nenhum lead no filtro atual.", variant: "destructive" });
+        return;
+      }
+      const stamp = new Date().toISOString().slice(0, 10);
+      download(buildCSV(list), onlySelected ? `leads-selecionados-${stamp}.csv` : `leads-${stamp}.csv`);
+      toast({ title: `${list.length} lead(s) exportado(s)` });
+    } catch (e: any) {
+      toast({ title: "Erro ao exportar", description: e.message, variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
   };
 
   const toggleOne = (id: string) => {
@@ -246,8 +285,9 @@ const Leads = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={exportCSV} className="px-4 py-2 border border-border bg-secondary hover:bg-secondary/80 text-muted-foreground rounded-lg flex items-center gap-2 text-sm transition-colors">
-            <Download className="w-4 h-4" /> Exportar CSV
+          <button onClick={() => exportCSV(false)} disabled={exporting} title="Exporta todos os leads do filtro atual (respeita as tags selecionadas)" className="px-4 py-2 border border-border bg-secondary hover:bg-secondary/80 text-muted-foreground rounded-lg flex items-center gap-2 text-sm transition-colors disabled:opacity-50">
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {tagFilters.length ? "Exportar filtro" : "Exportar CSV"}
           </button>
           <button onClick={() => setNewLeadModal(true)} className="gradient-button px-4 py-2 flex items-center gap-2 text-sm">
             <Plus className="w-4 h-4" /> Novo Lead
@@ -261,6 +301,9 @@ const Leads = () => {
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
             className="glass-card p-3 flex items-center gap-3">
             <span className="text-sm text-muted-foreground">{selectedIds.size} selecionado(s)</span>
+            <button onClick={() => exportCSV(true)} disabled={exporting} className="px-3 py-1.5 text-sm rounded-md bg-primary/20 text-primary hover:bg-primary/30 flex items-center gap-1 disabled:opacity-50">
+              {exporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />} Exportar selecionados
+            </button>
             <button onClick={handleDeleteSelected} className="px-3 py-1.5 text-sm rounded-md bg-destructive/20 text-destructive hover:bg-destructive/30 flex items-center gap-1">
               <Trash2 className="w-3 h-3" /> Excluir selecionados
             </button>
