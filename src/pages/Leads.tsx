@@ -206,12 +206,25 @@ const Leads = () => {
 
   const buildCSV = (list: any[]) => {
     const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const header = ["Nome", "Telefone", "Email", "Cidade", "Status", "Origem", "Tags", "Criado em"].join(",");
+    const fmtDate = (d: any) => (d ? new Date(d).toLocaleString("pt-BR") : "");
+    const servicos = (s: any) => {
+      if (!s) return "";
+      try { const arr = JSON.parse(s); return Array.isArray(arr) ? arr.join(" | ") : String(s); }
+      catch { return String(s); }
+    };
+    const header = [
+      "Nome", "Telefone", "Email", "Endereço", "Cidade", "Categoria", "Website",
+      "Maps URL", "Google Place ID", "Username", "Perfil URL", "Biografia", "Seguidores",
+      "Observação", "Valor proposto", "Duração proposta", "Responsável proposto", "Serviços propostos",
+      "Origem", "Status", "Tags", "Criado em", "Atualizado em", "ID",
+    ].join(",");
     const rows = list.map((l) => [
-      esc(l.nome), esc(l.telefone || ""), esc(l.email || ""), esc(l.cidade || ""),
-      esc(l.status), esc(l.origem),
+      esc(l.nome), esc(l.telefone), esc(l.email), esc(l.endereco), esc(l.cidade), esc(l.categoria), esc(l.website),
+      esc(l.maps_url), esc(l.google_place_id), esc(l.username), esc(l.perfil_url), esc(l.biografia), esc(l.seguidores),
+      esc(l.observacao), esc(l.valor_proposto), esc(l.duracao_proposta), esc(l.responsavel_proposto), esc(servicos(l.servicos_propostos)),
+      esc(l.origem), esc(l.status),
       esc((l.tags || []).map((t: any) => t.tag?.nome).filter(Boolean).join(" | ")),
-      esc(new Date(l.created_at).toLocaleDateString("pt-BR")),
+      esc(fmtDate(l.created_at)), esc(fmtDate(l.updated_at)), esc(l.id),
     ].join(","));
     return [header, ...rows].join("\n");
   };
