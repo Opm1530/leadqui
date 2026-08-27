@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import prisma from "../lib/prisma";
 import bcrypt from "bcryptjs";
-import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
+import { authenticateJWT, requireStaff, getScopeClientId, AuthRequest } from "../middlewares/auth";
 import { startGoogleMapsExtraction, startInstagramExtraction } from "../lib/extractionService";
 import { getCompanySettingsUserId } from "../lib/companySettings";
 import { sendTeamDigestTest } from "../lib/teamDigest";
@@ -115,7 +115,8 @@ const router = Router();
 router.use(authenticateJWT);
 // Dados compartilhados pela equipe (bloqueia CLIENT), exceto rotas pessoais
 router.use((req, res, next) => {
-  if (req.path === "/settings" || req.path === "/me/client-profile") return next();
+  // /tags é multi-tenant (agência e clientes) — o isolamento é por client_id nas queries
+  if (req.path === "/settings" || req.path === "/me/client-profile" || req.path.startsWith("/tags")) return next();
   return requireStaff(req, res, next);
 });
 
@@ -123,7 +124,9 @@ router.use((req, res, next) => {
 
 router.get("/tags", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const client_id = await getScopeClientId(req);
     const tags = await prisma.tag.findMany({
+      where: { client_id } as any,
       orderBy: { nome: "asc" },
     });
     res.json({ tags });
@@ -137,12 +140,14 @@ router.post("/tags", async (req: AuthRequest, res: Response): Promise<void> => {
   if (!nome) { res.status(400).json({ error: "Nome é obrigatório" }); return; }
 
   try {
+    const client_id = await getScopeClientId(req);
     const tag = await prisma.tag.create({
       data: {
         user_id: req.user!.id,
+        client_id,
         nome,
         cor: cor || "#6366f1",
-      },
+      } as any,
     });
     res.status(201).json({ tag });
   } catch (error) {
@@ -155,7 +160,8 @@ router.put("/tags/:id", async (req: AuthRequest, res: Response): Promise<void> =
   const { nome, cor } = req.body;
 
   try {
-    const existing = await prisma.tag.findFirst({ where: { id } });
+    const client_id = await getScopeClientId(req);
+    const existing = await prisma.tag.findFirst({ where: { id, client_id } as any });
     if (!existing) { res.status(404).json({ error: "Tag não encontrada" }); return; }
 
     const tag = await prisma.tag.update({
@@ -171,7 +177,8 @@ router.put("/tags/:id", async (req: AuthRequest, res: Response): Promise<void> =
 router.delete("/tags/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const id = String(req.params.id);
   try {
-    const existing = await prisma.tag.findFirst({ where: { id } });
+    const client_id = await getScopeClientId(req);
+    const existing = await prisma.tag.findFirst({ where: { id, client_id } as any });
     if (!existing) { res.status(404).json({ error: "Tag não encontrada" }); return; }
 
     await prisma.tag.delete({ where: { id } });

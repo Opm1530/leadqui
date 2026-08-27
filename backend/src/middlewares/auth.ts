@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import prisma from "../lib/prisma";
 
 export interface AuthRequest extends Request {
   user?: {
@@ -64,6 +65,29 @@ export const requireStaff = (
     res.status(403).json({ error: "Acesso restrito à equipe interna" });
     return;
   }
+  next();
+};
+
+// Resolve o "tenant" (client_id) do usuário para isolamento de dados.
+// Retorna string (cliente) ou null (usuário da agência). Faz fallback ao banco
+// para tokens antigos (emitidos antes do campo entrar no JWT).
+export async function getScopeClientId(req: AuthRequest): Promise<string | null> {
+  if (!req.user) return null;
+  if (req.user.client_id !== undefined) return req.user.client_id ?? null;
+  const u = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { member_of_client_id: true, is_client_admin: true },
+  });
+  const cid = (u as any)?.member_of_client_id ?? null;
+  req.user.client_id = cid;
+  req.user.is_client_admin = !!(u as any)?.is_client_admin;
+  return cid;
+}
+
+// Exige que o usuário seja de um cliente (produto CRM). Bloqueia agência.
+export const requireClientUser = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  const cid = await getScopeClientId(req);
+  if (!cid) { res.status(403).json({ error: "Acesso restrito a usuários de cliente." }); return; }
   next();
 };
 

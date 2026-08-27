@@ -56,6 +56,7 @@ router.post("/:token", async (req: Request, res: Response): Promise<void> => {
       const lead = await prisma.lead.create({
         data: {
           user_id: ep.user_id,
+          client_id: ep.client_id || null, // isola o lead no tenant do formulário
           nome: nome || email || telefone || "Contato do formulário",
           telefone: telefone || null,
           telefone_limpo: telefone ? telefone.replace(/\D/g, "") : null,

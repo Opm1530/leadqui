@@ -1,18 +1,21 @@
 import { Router, Response } from "express";
 import prisma from "../lib/prisma";
-import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
+import { authenticateJWT, getScopeClientId, AuthRequest } from "../middlewares/auth";
 import { dayDate } from "../lib/dates";
 
 const router = Router();
 router.use(authenticateJWT);
-router.use(requireStaff); // dados compartilhados pela equipe — bloqueia CLIENT
+// Agência (scope null) enxerga todos os leads (comportamento atual). Usuário de um
+// cliente (scope = client_id) enxerga/gerencia apenas os leads do próprio cliente.
+const scopeWhere = (scope: string | null) => (scope ? { client_id: scope } : {});
 
 // ── GET /api/leads ────────────────────────────────────────────────────
 router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
   const { status, origem, search, tag_id, tag_ids, limit = "100", offset = "0" } = req.query;
 
   try {
-    const where: any = {};
+    const scope = await getScopeClientId(req);
+    const where: any = { ...scopeWhere(scope) };
 
     if (status) where.status = status;
     if (origem) where.origem = origem;
@@ -63,9 +66,11 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
   }
 
   try {
+    const scope = await getScopeClientId(req);
     const lead = await prisma.lead.create({
       data: {
         user_id: req.user!.id,
+        client_id: scope,
         nome,
         telefone: telefone || null,
         telefone_limpo: telefone ? telefone.replace(/\D/g, "") : null,
@@ -97,11 +102,13 @@ router.put("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   const { tags, tag_ids, ...data } = req.body;
 
   try {
-    const existing = await prisma.lead.findFirst({ where: { id } });
+    const scope = await getScopeClientId(req);
+    const existing = await prisma.lead.findFirst({ where: { id, ...scopeWhere(scope) } });
     if (!existing) {
       res.status(404).json({ error: "Lead não encontrado" });
       return;
     }
+    delete data.client_id; // não permite trocar o tenant via update
 
     if (data.telefone) {
       data.telefone_limpo = data.telefone.replace(/\D/g, "");
@@ -142,7 +149,8 @@ router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => 
   const id = String(req.params.id);
 
   try {
-    const existing = await prisma.lead.findFirst({ where: { id } });
+    const scope = await getScopeClientId(req);
+    const existing = await prisma.lead.findFirst({ where: { id, ...scopeWhere(scope) } });
     if (!existing) {
       res.status(404).json({ error: "Lead não encontrado" });
       return;
@@ -161,7 +169,8 @@ router.post("/:id/tags", async (req: AuthRequest, res: Response): Promise<void> 
   const { tag_ids } = req.body;
 
   try {
-    const lead = await prisma.lead.findFirst({ where: { id } });
+    const scope = await getScopeClientId(req);
+    const lead = await prisma.lead.findFirst({ where: { id, ...scopeWhere(scope) } });
     if (!lead) {
       res.status(404).json({ error: "Lead não encontrado" });
       return;
@@ -185,12 +194,14 @@ router.post("/:id/tags", async (req: AuthRequest, res: Response): Promise<void> 
 // ── GET /api/leads/stats ──────────────────────────────────────────────
 router.get("/stats/summary", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const scope = await getScopeClientId(req);
+    const s = scopeWhere(scope);
     const [total, novo, contatado, qualificado, convertido] = await Promise.all([
-      prisma.lead.count(),
-      prisma.lead.count({ where: { status: "NOVO" } }),
-      prisma.lead.count({ where: { status: "CONTATADO" } }),
-      prisma.lead.count({ where: { status: "QUALIFICADO" } }),
-      prisma.lead.count({ where: { status: "CONVERTIDO" } }),
+      prisma.lead.count({ where: { ...s } }),
+      prisma.lead.count({ where: { ...s, status: "NOVO" } }),
+      prisma.lead.count({ where: { ...s, status: "CONTATADO" } }),
+      prisma.lead.count({ where: { ...s, status: "QUALIFICADO" } }),
+      prisma.lead.count({ where: { ...s, status: "CONVERTIDO" } }),
     ]);
 
     res.json({ total, novo, contatado, qualificado, convertido });
@@ -201,6 +212,9 @@ router.get("/stats/summary", async (req: AuthRequest, res: Response): Promise<vo
 
 // ── Lembretes do lead ─────────────────────────────────────────────────
 router.get("/:id/reminders", async (req: AuthRequest, res: Response): Promise<void> => {
+  const scope = await getScopeClientId(req);
+  const lead = await prisma.lead.findFirst({ where: { id: String(req.params.id), ...scopeWhere(scope) }, select: { id: true } });
+  if (!lead) { res.status(404).json({ error: "Lead não encontrado" }); return; }
   const reminders = await (prisma as any).leadReminder.findMany({
     where: { lead_id: String(req.params.id) },
     orderBy: { remind_on: "asc" },
@@ -212,6 +226,9 @@ router.post("/:id/reminders", async (req: AuthRequest, res: Response): Promise<v
   const { message, remind_on } = req.body;
   if (!message || !remind_on) { res.status(400).json({ error: "Mensagem e data são obrigatórias" }); return; }
   try {
+    const scope = await getScopeClientId(req);
+    const lead = await prisma.lead.findFirst({ where: { id: String(req.params.id), ...scopeWhere(scope) }, select: { id: true } });
+    if (!lead) { res.status(404).json({ error: "Lead não encontrado" }); return; }
     const reminder = await (prisma as any).leadReminder.create({
       data: {
         lead_id: String(req.params.id),
@@ -224,9 +241,19 @@ router.post("/:id/reminders", async (req: AuthRequest, res: Response): Promise<v
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
+// Garante que o lembrete pertence a um lead do tenant do usuário.
+async function reminderInScope(req: AuthRequest, rid: string): Promise<boolean> {
+  const scope = await getScopeClientId(req);
+  const r = await (prisma as any).leadReminder.findUnique({ where: { id: rid }, select: { lead_id: true } });
+  if (!r) return false;
+  const lead = await prisma.lead.findFirst({ where: { id: r.lead_id, ...scopeWhere(scope) }, select: { id: true } });
+  return !!lead;
+}
+
 router.patch("/reminders/:rid", async (req: AuthRequest, res: Response): Promise<void> => {
   const { done, message, remind_on } = req.body;
   try {
+    if (!(await reminderInScope(req, String(req.params.rid)))) { res.status(404).json({ error: "Lembrete não encontrado" }); return; }
     const reminder = await (prisma as any).leadReminder.update({
       where: { id: String(req.params.rid) },
       data: {
@@ -241,6 +268,7 @@ router.patch("/reminders/:rid", async (req: AuthRequest, res: Response): Promise
 
 router.delete("/reminders/:rid", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!(await reminderInScope(req, String(req.params.rid)))) { res.status(404).json({ error: "Lembrete não encontrado" }); return; }
     await (prisma as any).leadReminder.delete({ where: { id: String(req.params.rid) } });
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
