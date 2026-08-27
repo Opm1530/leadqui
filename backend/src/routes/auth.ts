@@ -37,8 +37,11 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     }
     registerLoginSuccess(ip); // login ok → zera o contador de falhas do IP
 
+    const clientId = (user as any).member_of_client_id || null;
+    const isClientAdmin = !!(user as any).is_client_admin;
+
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user.id, email: user.email, role: user.role, client_id: clientId, is_client_admin: isClientAdmin },
       process.env.JWT_SECRET!,
       { expiresIn: process.env.JWT_EXPIRES_IN || "7d" } as jwt.SignOptions
     );
@@ -52,6 +55,8 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
         role: user.role,
         position: (user as any).position,
         gender: (user as any).gender,
+        client_id: clientId,
+        is_client_admin: isClientAdmin,
       },
     });
   } catch (error) {
@@ -197,7 +202,7 @@ router.get("/me", authenticateJWT, async (req: AuthRequest, res: Response): Prom
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      select: { id: true, name: true, email: true, role: true, position: true, gender: true, created_at: true },
+      select: { id: true, name: true, email: true, role: true, position: true, gender: true, created_at: true, member_of_client_id: true, is_client_admin: true },
     });
 
     if (!user) {
@@ -205,7 +210,7 @@ router.get("/me", authenticateJWT, async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    res.json({ user });
+    res.json({ user: { ...user, client_id: (user as any).member_of_client_id || null } });
   } catch (error) {
     res.status(500).json({ error: "Erro interno" });
   }

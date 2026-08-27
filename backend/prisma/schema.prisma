@@ -26,6 +26,9 @@ model User {
   role                  UserRole  @default(CLIENT)
   position              String?
   gender                String?   // "F" | "M" — usado na saudação do Hub
+  // Multi-tenant: usuário de um CLIENTE (produto CRM). null = usuário da agência.
+  member_of_client_id   String?
+  is_client_admin       Boolean   @default(false) // gerencia os usuários do próprio cliente
   reset_token           String?   @unique
   reset_token_expires   DateTime?
   created_at            DateTime  @default(now())
@@ -53,6 +56,7 @@ model User {
   editorial_responsible EditorialContent[] @relation("EditorialResponsible")
   task_comments         TaskComment[]
   form_endpoints        FormEndpoint[]
+  member_of_client      Client? @relation("ClientMembers", fields: [member_of_client_id], references: [id], onDelete: SetNull)
 
   @@map("users")
 }
@@ -166,6 +170,7 @@ enum LeadOrigem {
 model FormEndpoint {
   id                   String   @id @default(uuid())
   user_id              String
+  client_id            String?  // null = formulários da agência; preenchido = de um cliente
   name                 String   // ex.: "LP Black Friday"
   token                String   @unique // slug secreto que vai na URL pública
   active               Boolean  @default(true)
@@ -210,6 +215,7 @@ enum LeadStatus {
 model Tag {
   id         String    @id @default(uuid())
   user_id    String
+  client_id  String?   // null = tags da agência; preenchido = tags isoladas de um cliente
   nome       String
   cor        String    @default("#6366f1")
   created_at DateTime  @default(now())
@@ -217,6 +223,7 @@ model Tag {
   user  User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
   leads LeadTag[]
 
+  @@index([client_id])
   @@map("tags")
 }
 
@@ -312,6 +319,7 @@ model Client {
   influencer_partnerships InfluencerPartnership[]
   onboarding       Onboarding?
   editorial_contents EditorialContent[]
+  members          User[] @relation("ClientMembers")
 
   @@map("clients")
 }
@@ -973,6 +981,7 @@ enum ExtractionStatus {
 model CRMColumn {
   id         String    @id @default(uuid())
   user_id    String
+  client_id  String?   // null = quadro da agência; preenchido = CRM isolado de um cliente
   nome       String
   cor        String    @default("#6366f1")
   posicao    Int       @default(0)
@@ -982,12 +991,14 @@ model CRMColumn {
   user  User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
   cards CRMCard[]
 
+  @@index([client_id])
   @@map("crm_columns")
 }
 
 model CRMCard {
   id         String   @id @default(uuid())
   user_id    String
+  client_id  String?  // null = quadro da agência; preenchido = CRM isolado de um cliente
   lead_id    String
   coluna_id  String
   posicao    Int      @default(0)
@@ -999,6 +1010,7 @@ model CRMCard {
   column CRMColumn @relation(fields: [coluna_id], references: [id], onDelete: Cascade)
 
   @@unique([lead_id, user_id])
+  @@index([client_id])
   @@map("crm_cards")
 }
 

@@ -6,6 +6,8 @@ export interface AuthRequest extends Request {
     id: string;
     email: string;
     role: string;
+    client_id?: string | null;      // cliente (tenant) do usuário; null/undefined = agência
+    is_client_admin?: boolean;
   };
 }
 
@@ -28,6 +30,8 @@ export const authenticateJWT = (
       id: string;
       email: string;
       role: string;
+      client_id?: string | null;
+      is_client_admin?: boolean;
     };
     req.user = decoded;
     next();
