@@ -1,21 +1,55 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, KeyRound, Mail, AlertCircle, Globe, Send } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Copy, Check, KeyRound, Mail, AlertCircle, Globe, Send, RefreshCw, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import api from "@/lib/api";
 
 interface ClientAccessModalProps {
   client: any;
   open: boolean;
   onClose: () => void;
+  onSaved?: () => void;
 }
 
-const ClientAccessModal = ({ client, open, onClose }: ClientAccessModalProps) => {
+const genPassword = () => Math.random().toString(36).slice(-4) + Math.random().toString(36).slice(-4).toUpperCase() + "!" + Math.floor(Math.random() * 90 + 10);
+const MODULES = [{ id: "CRM", label: "CRM" }, { id: "LEADS", label: "Leads" }, { id: "FORMS", label: "Formulários" }];
+
+const ClientAccessModal = ({ client, open, onClose, onSaved }: ClientAccessModalProps) => {
   const { toast } = useToast();
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const loginUrl = `${window.location.origin}/`;
   const hasAccess = client?.email && client?.initial_password;
+
+  // Form de criação de acesso (para clientes sem login)
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [modules, setModules] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open && client) {
+      setEmail(client.email || "");
+      setPassword(genPassword());
+      setModules(client.enabled_modules || []);
+    }
+  }, [open, client]);
+
+  const criarAcesso = async () => {
+    if (!email.trim() || !password) { toast({ title: "Informe e-mail e senha.", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      await api.put(`/api/clients/${client.id}`, { email: email.trim(), initial_password: password, enabled_modules: modules });
+      toast({ title: "Acesso criado!", description: `Login criado para ${email.trim()}` });
+      onSaved?.();
+      onClose();
+    } catch (e: any) {
+      toast({ title: "Erro ao criar acesso", description: e.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
 
   const copy = async (value: string, field: string) => {
     try {
@@ -65,14 +99,37 @@ const ClientAccessModal = ({ client, open, onClose }: ClientAccessModalProps) =>
           </p>
 
           {!hasAccess ? (
-            <div className="flex items-start gap-3 p-4 rounded-xl bg-orange-500/10 border border-orange-500/20">
-              <AlertCircle className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-bold text-orange-400">Sem acesso configurado</p>
-                <p className="text-xs text-orange-400/70 mt-0.5">
-                  Este cliente não tem e-mail ou senha definidos. Edite o cliente para criar as credenciais de acesso.
-                </p>
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20">
+                <AlertCircle className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-orange-400/80">Este cliente ainda não tem login. Crie o acesso abaixo para liberar o portal e os módulos.</p>
               </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">E-mail de acesso</label>
+                <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="cliente@empresa.com" className="bg-secondary border-border" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Senha inicial</label>
+                <div className="flex gap-2">
+                  <Input value={password} onChange={e => setPassword(e.target.value)} className="bg-secondary border-border font-mono" />
+                  <button type="button" onClick={() => setPassword(genPassword())} title="Gerar senha" className="p-2 rounded-md bg-secondary border border-border hover:bg-secondary/80 text-muted-foreground"><RefreshCw className="w-4 h-4" /></button>
+                </div>
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1"><KeyRound className="w-3 h-3" /> Anote a senha — não será exibida de novo.</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Módulos liberados</label>
+                <div className="grid grid-cols-3 gap-2 p-3 bg-secondary/50 rounded-lg border border-border/50">
+                  {MODULES.map(m => (
+                    <label key={m.id} className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox checked={modules.includes(m.id)} onCheckedChange={() => setModules(p => p.includes(m.id) ? p.filter(x => x !== m.id) : [...p, m.id])} />
+                      <span className="text-xs text-foreground">{m.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <Button onClick={criarAcesso} disabled={saving} className="w-full gradient-button">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Criar acesso do cliente"}
+              </Button>
             </div>
           ) : (
             <div className="space-y-2">

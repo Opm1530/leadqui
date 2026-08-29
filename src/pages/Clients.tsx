@@ -261,6 +261,7 @@ const Clients = () => {
         client={accessClient}
         open={!!accessClient}
         onClose={() => setAccessClient(null)}
+        onSaved={fetchClients}
       />
     </div>
   );

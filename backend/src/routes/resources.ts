@@ -400,14 +400,29 @@ router.put("/clients/:id", async (req: AuthRequest, res: Response): Promise<void
 
     // Sincronizar usuário de acesso se houver e-mail
     let login_user_id = existing.login_user_id;
-    if (email && email !== existing.email) {
-       const userWithEmail = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+    const mail = email ? String(email).toLowerCase().trim() : null;
+    if (mail && email !== existing.email) {
+       const userWithEmail = await prisma.user.findUnique({ where: { email: mail } });
        if (userWithEmail) {
          login_user_id = userWithEmail.id;
        } else if (existing.login_user_id) {
          // Atualizar e-mail do usuário de acesso atual
-         await prisma.user.update({ where: { id: existing.login_user_id }, data: { email: email.toLowerCase().trim() } });
+         await prisma.user.update({ where: { id: existing.login_user_id }, data: { email: mail } });
        }
+    }
+
+    // Cliente ainda SEM login: cria o acesso agora (e-mail + senha fornecidos)
+    if (!login_user_id && mail && initial_password) {
+      const existingUser = await prisma.user.findUnique({ where: { email: mail } });
+      if (existingUser) {
+        login_user_id = existingUser.id;
+      } else {
+        const hash = await bcrypt.hash(initial_password, 12);
+        const created = await prisma.user.create({
+          data: { name: name || existing.name, email: mail, password_hash: hash, role: "CLIENT" },
+        });
+        login_user_id = created.id;
+      }
     }
 
     if (initial_password && initial_password !== existing.initial_password && login_user_id) {
