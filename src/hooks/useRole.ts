@@ -8,6 +8,8 @@ export const useRole = () => {
 
   const role: UserRole = user?.role ?? "guest";
 
+  const clientId = user?.client_id ?? null;
+
   return {
     role,
     loading,
@@ -16,5 +18,9 @@ export const useRole = () => {
     isOperator: role === "OPERATOR",
     isDesigner: role === "DESIGNER",
     isClient: role === "CLIENT",
+    // Tenant: usuário pertence a um cliente (produto CRM white-label)
+    clientId,
+    isClientUser: !!clientId,
+    isClientAdmin: !!user?.is_client_admin,
   };
 };

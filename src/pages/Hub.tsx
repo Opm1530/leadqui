@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox, Star, Building2, Clapperboard, MessageCircle, Webhook } from "lucide-react";
 import api from "@/lib/api";
@@ -10,7 +10,7 @@ import { useModule } from "@/contexts/ModuleContext";
 const Hub = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { role, isAdmin, loading: roleLoading } = useRole();
+  const { role, isAdmin, isClientUser, loading: roleLoading } = useRole();
   const { setActiveModule } = useModule();
   const [clientProfile, setClientProfile] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
@@ -138,13 +138,33 @@ const Hub = () => {
     },
   ];
 
+  // Cards do HUB DO CLIENTE (produto CRM). Só aparecem para usuários de um cliente.
+  const clientApps = [
+    {
+      id: "viewqui", name: "Painel", description: "Sua visão geral: tarefas, calendário, tráfego e faturas.",
+      icon: MessageSquare, color: "from-indigo-500 to-purple-600", route: "/viewqui", adminOnly: false,
+    },
+    {
+      id: "crm", name: "CRM", description: "Gerencie seus leads em um quadro Kanban do seu jeito.",
+      icon: LayoutDashboard, color: "from-blue-500 to-indigo-600", route: "/c/crm", adminOnly: false,
+    },
+    {
+      id: "leads", name: "Leads", description: "Sua base de contatos: adicione, filtre, marque com tags e exporte.",
+      icon: Users, color: "from-emerald-500 to-green-600", route: "/c/leads", adminOnly: false,
+    },
+    {
+      id: "formularios", name: "Formulários", description: "Capte contatos de landing pages direto nos seus leads.",
+      icon: Webhook, color: "from-cyan-500 to-blue-600", route: "/c/formularios", adminOnly: false,
+    },
+  ];
+
   const ORDER = ["dashqui", "leadqui", "clientes"];
   allApps.sort((a, b) => {
     const ia = ORDER.indexOf(a.id); const ib = ORDER.indexOf(b.id);
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
   });
 
-  const availableApps = allApps.filter(app => {
+  const availableApps = isClientUser ? clientApps : allApps.filter(app => {
     if (isAdmin) return true;
     if (role === "OPERATOR") return ["clientes", "dashqui", "editorial"].includes(app.id);
     if (role === "DESIGNER") return ["editorial", "dashqui", "clientes"].includes(app.id);
@@ -161,11 +181,6 @@ const Hub = () => {
     // Show others as preview for now, but they will redirect to coming-soon anyway
     return true; 
   });
-
-  // CLIENT não deve ver o Hub — vai direto ao portal
-  if (!roleLoading && role === "CLIENT") {
-    return <Navigate to="/viewqui" replace />;
-  }
 
   const loading = roleLoading || loadingProfile;
 

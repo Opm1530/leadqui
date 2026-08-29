@@ -17,7 +17,7 @@ const Login = () => {
   const { user, signIn } = useAuth();
 
   useEffect(() => {
-    if (user) navigate(user.role === "CLIENT" ? "/viewqui" : "/hub");
+    if (user) navigate("/hub");
   }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,9 +25,9 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const loggedUser = await signIn(email, password);
+      await signIn(email, password);
       toast({ title: "Login realizado com sucesso!" });
-      navigate(loggedUser.role === "CLIENT" ? "/viewqui" : "/hub");
+      navigate("/hub");
     } catch (error: any) {
       toast({
         title: "Erro ao entrar",

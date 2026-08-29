@@ -93,6 +93,13 @@ const App = () => (
                 <Route path="/formularios" element={<ProtectedRoute adminOnly><Formularios /></ProtectedRoute>} />
               </Route>
 
+              {/* Área do cliente (produto CRM) — cabeçalho padrão, sem sidebar da agência */}
+              <Route element={<ProtectedRoute clientOnly><HubLayout /></ProtectedRoute>}>
+                <Route path="/c/crm" element={<CRM />} />
+                <Route path="/c/leads" element={<Leads />} />
+                <Route path="/c/formularios" element={<Formularios />} />
+              </Route>
+
               {/* App Principal (protegido, com sidebar — somente equipe interna) */}
               <Route element={<ProtectedRoute staffOnly><AppLayout /></ProtectedRoute>}>
                 <Route path="/dashboard" element={<Dashboard />} />

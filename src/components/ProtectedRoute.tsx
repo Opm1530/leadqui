@@ -7,9 +7,11 @@ interface ProtectedRouteProps {
   staffOnly?: boolean;
   /** Se true, permite apenas ADMIN (redireciona os demais para /hub) */
   adminOnly?: boolean;
+  /** Se true, permite apenas usuários de um cliente (produto CRM); demais vão para /hub */
+  clientOnly?: boolean;
 }
 
-const ProtectedRoute = ({ children, staffOnly = false, adminOnly = false }: ProtectedRouteProps) => {
+const ProtectedRoute = ({ children, staffOnly = false, adminOnly = false, clientOnly = false }: ProtectedRouteProps) => {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -26,11 +28,16 @@ const ProtectedRoute = ({ children, staffOnly = false, adminOnly = false }: Prot
 
   // Clientes não acessam rotas internas da agência
   if (staffOnly && user.role === "CLIENT") {
-    return <Navigate to="/viewqui" replace />;
+    return <Navigate to="/hub" replace />;
   }
 
   // Rotas exclusivas de administradores
   if (adminOnly && user.role !== "ADMIN") {
+    return <Navigate to="/hub" replace />;
+  }
+
+  // Rotas exclusivas de usuários de cliente (produto CRM)
+  if (clientOnly && !user.client_id) {
     return <Navigate to="/hub" replace />;
   }
 

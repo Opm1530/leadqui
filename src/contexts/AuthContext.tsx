@@ -8,6 +8,8 @@ type AuthUser = {
   role: "ADMIN" | "MANAGER" | "OPERATOR" | "DESIGNER" | "CLIENT";
   position?: string;
   gender?: "F" | "M" | null;
+  client_id?: string | null;      // tenant (cliente) do usuário; null = agência
+  is_client_admin?: boolean;
 };
 
 type AuthContextType = {
