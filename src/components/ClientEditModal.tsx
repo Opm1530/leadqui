@@ -37,6 +37,7 @@ const ClientEditModal = ({ client, open, onClose, onSaved }: ClientEditModalProp
   const [responsible, setResponsible] = useState("");
   const [driveUrl, setDriveUrl] = useState("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [enabledModules, setEnabledModules] = useState<string[]>([]);
 
   // WhatsApp — vínculo de grupo para aprovação
   const [instances, setInstances] = useState<any[]>([]);
@@ -66,6 +67,7 @@ const ClientEditModal = ({ client, open, onClose, onSaved }: ClientEditModalProp
       }
       // Preenche serviços
       setSelectedServices((client.services || []).map((s: any) => s.service));
+      setEnabledModules(client.enabled_modules || []);
       // WhatsApp
       setWaInstanceId(client.wa_instance_id || "");
       setWaGroupId(client.wa_group_id || "");
@@ -101,6 +103,7 @@ const ClientEditModal = ({ client, open, onClose, onSaved }: ClientEditModalProp
           responsible: responsible || null,
         },
         services: selectedServices,
+        enabled_modules: enabledModules,
         wa_instance_id: waInstanceId || null,
         wa_group_id: waGroupId || null,
         wa_group_name: waGroupName || null,
@@ -203,6 +206,24 @@ const ClientEditModal = ({ client, open, onClose, onSaved }: ClientEditModalProp
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Módulos do produto CRM liberados no hub do cliente */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground uppercase tracking-widest">Módulos liberados para o cliente</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-secondary/50 rounded-lg border border-border/50">
+                {[{ id: "CRM", label: "CRM (Kanban)" }, { id: "LEADS", label: "Leads" }, { id: "FORMS", label: "Formulários" }].map((m) => (
+                  <div key={m.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`mod-${m.id}`}
+                      checked={enabledModules.includes(m.id)}
+                      onCheckedChange={() => setEnabledModules((prev) => prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id])}
+                    />
+                    <label htmlFor={`mod-${m.id}`} className="text-xs font-medium text-foreground cursor-pointer">{m.label}</label>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">Controla o que aparece no hub do cliente. O Painel aparece sempre.</p>
             </div>
           </div>
 

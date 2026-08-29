@@ -26,9 +26,17 @@ interface ConvertLeadModalProps {
   userId: string;
 }
 
+// Módulos do produto CRM que a agência pode liberar no hub do cliente.
+const CLIENT_MODULES: { id: string; label: string }[] = [
+  { id: "CRM", label: "CRM (Kanban)" },
+  { id: "LEADS", label: "Leads" },
+  { id: "FORMS", label: "Formulários" },
+];
+
 const ConvertLeadModal = ({ lead, open, onClose, onConverted }: ConvertLeadModalProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [enabledModules, setEnabledModules] = useState<string[]>([]);
   const [companyName, setCompanyName] = useState("");
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [monthlyValue, setMonthlyValue] = useState("");
@@ -103,6 +111,7 @@ const ConvertLeadModal = ({ lead, open, onClose, onConverted }: ConvertLeadModal
           responsible,
         },
         services: isUniqueJob ? [] : selectedServices,
+        enabled_modules: enabledModules,
       });
 
       toast({ title: "Lead convertido em Cliente!", description: `Acesso criado para ${email}` });
@@ -232,6 +241,23 @@ const ConvertLeadModal = ({ lead, open, onClose, onConverted }: ConvertLeadModal
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <KeyRound className="w-3 h-3" /> Anote a senha — ela não será exibida novamente.
               </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase tracking-widest">Módulos liberados para o cliente</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-secondary/50 rounded-lg border border-border/50">
+                {CLIENT_MODULES.map((m) => (
+                  <div key={m.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`mod-${m.id}`}
+                      checked={enabledModules.includes(m.id)}
+                      onCheckedChange={() => setEnabledModules((prev) => prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id])}
+                    />
+                    <label htmlFor={`mod-${m.id}`} className="text-xs font-medium text-foreground cursor-pointer">{m.label}</label>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] text-muted-foreground">O Painel do cliente aparece sempre. Marque o que ele poderá usar no hub dele.</p>
             </div>
           </div>
         </div>

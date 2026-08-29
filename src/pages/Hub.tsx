@@ -16,14 +16,14 @@ const Hub = () => {
   const [loadingProfile, setLoadingProfile] = useState(false);
 
   useEffect(() => {
-    if (role === "CLIENT") {
+    if (role === "CLIENT" || isClientUser) {
       setLoadingProfile(true);
       api.get("/api/me/client-profile")
         .then(res => setClientProfile(res.client))
         .catch(() => {})
         .finally(() => setLoadingProfile(false));
     }
-  }, [role]);
+  }, [role, isClientUser]);
 
   const allApps = [
     {
@@ -139,24 +139,25 @@ const Hub = () => {
   ];
 
   // Cards do HUB DO CLIENTE (produto CRM). Só aparecem para usuários de um cliente.
+  const enabledModules: string[] = clientProfile?.enabled_modules || [];
   const clientApps = [
     {
       id: "viewqui", name: "Painel", description: "Sua visão geral: tarefas, calendário, tráfego e faturas.",
-      icon: MessageSquare, color: "from-indigo-500 to-purple-600", route: "/viewqui", adminOnly: false,
+      icon: MessageSquare, color: "from-indigo-500 to-purple-600", route: "/viewqui", adminOnly: false, module: null,
     },
     {
       id: "crm", name: "CRM", description: "Gerencie seus leads em um quadro Kanban do seu jeito.",
-      icon: LayoutDashboard, color: "from-blue-500 to-indigo-600", route: "/c/crm", adminOnly: false,
+      icon: LayoutDashboard, color: "from-blue-500 to-indigo-600", route: "/c/crm", adminOnly: false, module: "CRM",
     },
     {
       id: "leads", name: "Leads", description: "Sua base de contatos: adicione, filtre, marque com tags e exporte.",
-      icon: Users, color: "from-emerald-500 to-green-600", route: "/c/leads", adminOnly: false,
+      icon: Users, color: "from-emerald-500 to-green-600", route: "/c/leads", adminOnly: false, module: "LEADS",
     },
     {
       id: "formularios", name: "Formulários", description: "Capte contatos de landing pages direto nos seus leads.",
-      icon: Webhook, color: "from-cyan-500 to-blue-600", route: "/c/formularios", adminOnly: false,
+      icon: Webhook, color: "from-cyan-500 to-blue-600", route: "/c/formularios", adminOnly: false, module: "FORMS",
     },
-  ];
+  ].filter(app => !app.module || enabledModules.includes(app.module));
 
   const ORDER = ["dashqui", "leadqui", "clientes"];
   allApps.sort((a, b) => {

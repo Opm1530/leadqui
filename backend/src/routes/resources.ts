@@ -204,8 +204,9 @@ router.get("/clients", async (req: AuthRequest, res: Response): Promise<void> =>
 });
 
 router.post("/clients", async (req: AuthRequest, res: Response): Promise<void> => {
-  const { name, email, origin_lead_id, contract, services = [], initial_password, isUniqueJob, uniqueJobName, template_id } = req.body;
+  const { name, email, origin_lead_id, contract, services = [], initial_password, isUniqueJob, uniqueJobName, template_id, enabled_modules } = req.body;
   if (!name) { res.status(400).json({ error: "Nome é obrigatório" }); return; }
+  const modules: string[] = Array.isArray(enabled_modules) ? enabled_modules.filter((m: any) => ["CRM", "LEADS", "FORMS"].includes(m)) : [];
 
   try {
     let login_user_id: string | null = null;
@@ -236,6 +237,7 @@ router.post("/clients", async (req: AuthRequest, res: Response): Promise<void> =
         email: email || null,
         initial_password: initial_password || null,
         status: "ATIVO",
+        enabled_modules: modules,
         ...(contract && {
           contract: {
             create: {
@@ -254,6 +256,14 @@ router.post("/clients", async (req: AuthRequest, res: Response): Promise<void> =
       },
       include: { contract: true, services: true },
     });
+
+    // Marca o login do cliente como membro + admin do próprio cliente (tenant)
+    if (login_user_id) {
+      await prisma.user.update({
+        where: { id: login_user_id },
+        data: { member_of_client_id: client.id, is_client_admin: true } as any,
+      }).catch(() => {});
+    }
 
     // Update lead status if origin_lead_id
     if (origin_lead_id) {
@@ -383,7 +393,10 @@ router.put("/clients/:id", async (req: AuthRequest, res: Response): Promise<void
   if (!existing) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
 
   try {
-    const { name, email, status, contract, services, initial_password, wa_instance_id, wa_group_id, wa_group_name, drive_url } = req.body;
+    const { name, email, status, contract, services, initial_password, wa_instance_id, wa_group_id, wa_group_name, drive_url, enabled_modules } = req.body;
+    const modules: string[] | undefined = Array.isArray(enabled_modules)
+      ? enabled_modules.filter((m: any) => ["CRM", "LEADS", "FORMS"].includes(m))
+      : undefined;
 
     // Sincronizar usuário de acesso se houver e-mail
     let login_user_id = existing.login_user_id;
@@ -410,6 +423,7 @@ router.put("/clients/:id", async (req: AuthRequest, res: Response): Promise<void
         initial_password: initial_password !== undefined ? initial_password : existing.initial_password,
         status: status || existing.status,
         login_user_id,
+        ...(modules !== undefined && { enabled_modules: modules }),
         ...(wa_instance_id !== undefined && { wa_instance_id: wa_instance_id || null }),
         ...(wa_group_id    !== undefined && { wa_group_id:    wa_group_id || null }),
         ...(wa_group_name  !== undefined && { wa_group_name:  wa_group_name || null }),
@@ -417,6 +431,14 @@ router.put("/clients/:id", async (req: AuthRequest, res: Response): Promise<void
       },
       include: { contract: true, services: true }
     });
+
+    // Garante que o login do cliente é membro + admin do próprio cliente
+    if (login_user_id) {
+      await prisma.user.update({
+        where: { id: login_user_id },
+        data: { member_of_client_id: id, is_client_admin: true } as any,
+      }).catch(() => {});
+    }
 
     if (contract) {
       await prisma.contract.upsert({
@@ -638,15 +660,15 @@ router.delete("/extractions/:id", async (req: AuthRequest, res: Response): Promi
 
 router.get("/me/client-profile", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (req.user?.role === "CLIENT") {
-      const client = await prisma.client.findFirst({ 
-        where: { login_user_id: req.user.id } as any,
-        include: { services: true }
-      });
-      res.json({ client });
-    } else {
-      res.status(403).json({ error: "Acesso negado" });
-    }
+    const scope = await getScopeClientId(req);
+    // Qualquer usuário de um cliente (admin ou membro) — resolvido pelo tenant.
+    const clientId = scope || (req.user?.role === "CLIENT" ? undefined : null);
+    if (!clientId) { res.json({ client: null }); return; }
+    const client = await prisma.client.findUnique({
+      where: { id: clientId } as any,
+      include: { services: true },
+    });
+    res.json({ client });
   } catch (error) {
     res.status(500).json({ error: "Erro ao buscar perfil" });
   }
