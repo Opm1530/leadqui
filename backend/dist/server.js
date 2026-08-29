@@ -36,6 +36,10 @@ const dashqui_1 = __importDefault(require("./routes/dashqui"));
 const files_1 = __importDefault(require("./routes/files"));
 const editorial_1 = __importDefault(require("./routes/editorial"));
 const public_1 = __importDefault(require("./routes/public"));
+const inbox_1 = __importDefault(require("./routes/inbox"));
+const forms_1 = __importDefault(require("./routes/forms"));
+const formEndpoints_1 = __importDefault(require("./routes/formEndpoints"));
+const clientUsers_1 = __importDefault(require("./routes/clientUsers"));
 const instagramScheduler_1 = require("./lib/instagramScheduler");
 const adsAnalyzerJob_1 = require("./lib/adsAnalyzerJob");
 const app = (0, express_1.default)();
@@ -55,6 +59,9 @@ app.use((0, helmet_1.default)({
     },
     crossOriginEmbedderPolicy: false, // compatibilidade com uploads de imagem
 }));
+// Webhook público de formulários/landing pages — ANTES do CORS global,
+// pois precisa aceitar POST de qualquer domínio (tem CORS e parsers próprios).
+app.use("/api/forms", forms_1.default);
 // Rate limiting de login — só bloqueia após muitas FALHAS (login com sucesso zera).
 app.use("/api/auth/login", (req, res, next) => {
     if ((0, authRateLimit_1.isLoginBlocked)(req.ip || "unknown")) {
@@ -104,6 +111,9 @@ app.use("/api/onboarding", onboarding_1.default);
 app.use("/api/dashqui", dashqui_1.default);
 app.use("/api/files", files_1.default);
 app.use("/api/editorial", editorial_1.default);
+app.use("/api/inbox", inbox_1.default);
+app.use("/api/form-endpoints", formEndpoints_1.default);
+app.use("/api/client-users", clientUsers_1.default);
 app.use("/api", resources_1.default);
 // ── 404 ───────────────────────────────────────────────────────────────
 app.use((_req, res) => {

@@ -54,6 +54,7 @@ import ClientesGrid from "./pages/ClientesGrid";
 import Editorial from "./pages/Editorial";
 import Inbox from "./pages/Inbox";
 import Formularios from "./pages/Formularios";
+import ClientTeam from "./pages/ClientTeam";
 
 const queryClient = new QueryClient();
 
@@ -98,6 +99,7 @@ const App = () => (
                 <Route path="/c/crm" element={<CRM />} />
                 <Route path="/c/leads" element={<Leads />} />
                 <Route path="/c/formularios" element={<Formularios />} />
+                <Route path="/c/equipe" element={<ClientTeam />} />
               </Route>
 
               {/* App Principal (protegido, com sidebar — somente equipe interna) */}

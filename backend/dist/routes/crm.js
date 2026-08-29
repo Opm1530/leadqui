@@ -8,10 +8,13 @@ const prisma_1 = __importDefault(require("../lib/prisma"));
 const auth_1 = require("../middlewares/auth");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateJWT);
-router.use(auth_1.requireStaff);
+// Sem requireStaff: tanto a equipe da agência (scope null) quanto os usuários de
+// um cliente (scope = client_id) usam o CRM — cada um vê apenas o próprio quadro.
 // ── GET /api/crm/columns ─────────────────────────────────────────────
 router.get("/columns", async (req, res) => {
+    const client_id = await (0, auth_1.getScopeClientId)(req);
     const columns = await prisma_1.default.cRMColumn.findMany({
+        where: { client_id },
         orderBy: { posicao: "asc" },
     });
     res.json({ columns });
@@ -23,9 +26,10 @@ router.post("/columns", async (req, res) => {
         res.status(400).json({ error: "Nome é obrigatório" });
         return;
     }
-    const count = await prisma_1.default.cRMColumn.count();
+    const client_id = await (0, auth_1.getScopeClientId)(req);
+    const count = await prisma_1.default.cRMColumn.count({ where: { client_id } });
     const column = await prisma_1.default.cRMColumn.create({
-        data: { user_id: req.user.id, nome, cor, posicao: count },
+        data: { user_id: req.user.id, client_id, nome, cor, posicao: count },
     });
     res.status(201).json({ column });
 });
@@ -33,7 +37,8 @@ router.post("/columns", async (req, res) => {
 router.put("/columns/:id", async (req, res) => {
     const id = String(req.params.id);
     const { nome, cor, posicao } = req.body;
-    const existing = await prisma_1.default.cRMColumn.findFirst({ where: { id } });
+    const client_id = await (0, auth_1.getScopeClientId)(req);
+    const existing = await prisma_1.default.cRMColumn.findFirst({ where: { id, client_id } });
     if (!existing) {
         res.status(404).json({ error: "Coluna não encontrada" });
         return;
@@ -48,7 +53,7 @@ router.put("/columns/:id", async (req, res) => {
     });
     res.json({ column });
 });
-// ── PUT /api/crm/columns/reorder ─────────────────────────────────────
+// ── PUT /api/crm/columns-reorder ─────────────────────────────────────
 // Recebe array de ids na nova ordem e atualiza posicao de cada uma
 router.put("/columns-reorder", async (req, res) => {
     const { order } = req.body; // string[] de ids
@@ -56,8 +61,9 @@ router.put("/columns-reorder", async (req, res) => {
         res.status(400).json({ error: "order deve ser um array" });
         return;
     }
+    const client_id = await (0, auth_1.getScopeClientId)(req);
     try {
-        await Promise.all(order.map((colId, idx) => prisma_1.default.cRMColumn.update({ where: { id: colId }, data: { posicao: idx } })));
+        await Promise.all(order.map((colId, idx) => prisma_1.default.cRMColumn.updateMany({ where: { id: colId, client_id }, data: { posicao: idx } })));
         res.json({ success: true });
     }
     catch (e) {
@@ -67,7 +73,8 @@ router.put("/columns-reorder", async (req, res) => {
 // ── DELETE /api/crm/columns/:id ──────────────────────────────────────
 router.delete("/columns/:id", async (req, res) => {
     const id = String(req.params.id);
-    const existing = await prisma_1.default.cRMColumn.findFirst({ where: { id } });
+    const client_id = await (0, auth_1.getScopeClientId)(req);
+    const existing = await prisma_1.default.cRMColumn.findFirst({ where: { id, client_id } });
     if (!existing) {
         res.status(404).json({ error: "Coluna não encontrada" });
         return;
@@ -78,7 +85,9 @@ router.delete("/columns/:id", async (req, res) => {
 });
 // ── GET /api/crm/cards ───────────────────────────────────────────────
 router.get("/cards", async (req, res) => {
+    const client_id = await (0, auth_1.getScopeClientId)(req);
     const cards = await prisma_1.default.cRMCard.findMany({
+        where: { client_id },
         include: {
             lead: {
                 include: { tags: { include: { tag: true } } },
@@ -95,15 +104,29 @@ router.post("/cards", async (req, res) => {
         res.status(400).json({ error: "lead_id e coluna_id são obrigatórios" });
         return;
     }
+    const client_id = await (0, auth_1.getScopeClientId)(req);
+    // A coluna precisa ser do mesmo tenant. O lead: cliente só usa os seus;
+    // a agência (client_id null) pode usar qualquer lead da agência.
+    const leadWhere = client_id ? { id: lead_id, client_id } : { id: lead_id };
+    const lead = await prisma_1.default.lead.findFirst({ where: leadWhere, select: { id: true } });
+    if (!lead) {
+        res.status(404).json({ error: "Lead não encontrado" });
+        return;
+    }
+    const col = await prisma_1.default.cRMColumn.findFirst({ where: { id: coluna_id, client_id }, select: { id: true } });
+    if (!col) {
+        res.status(404).json({ error: "Coluna não encontrada" });
+        return;
+    }
     // Verificar se já existe
-    const existing = await prisma_1.default.cRMCard.findFirst({ where: { lead_id } });
+    const existing = await prisma_1.default.cRMCard.findFirst({ where: { lead_id, client_id } });
     if (existing) {
         res.status(409).json({ error: "Lead já está no CRM" });
         return;
     }
     const count = await prisma_1.default.cRMCard.count({ where: { coluna_id } });
     const card = await prisma_1.default.cRMCard.create({
-        data: { user_id: req.user.id, lead_id, coluna_id, posicao: count },
+        data: { user_id: req.user.id, client_id, lead_id, coluna_id, posicao: count },
         include: { lead: { include: { tags: { include: { tag: true } } } } },
     });
     res.status(201).json({ card });
@@ -112,7 +135,8 @@ router.post("/cards", async (req, res) => {
 router.put("/cards/:id", async (req, res) => {
     const id = String(req.params.id);
     const { coluna_id, posicao } = req.body;
-    const existing = await prisma_1.default.cRMCard.findFirst({ where: { id } });
+    const client_id = await (0, auth_1.getScopeClientId)(req);
+    const existing = await prisma_1.default.cRMCard.findFirst({ where: { id, client_id } });
     if (!existing) {
         res.status(404).json({ error: "Card não encontrado" });
         return;
@@ -130,7 +154,8 @@ router.put("/cards/:id", async (req, res) => {
 // ── DELETE /api/crm/cards/:id ────────────────────────────────────────
 router.delete("/cards/:id", async (req, res) => {
     const id = String(req.params.id);
-    const existing = await prisma_1.default.cRMCard.findFirst({ where: { id } });
+    const client_id = await (0, auth_1.getScopeClientId)(req);
+    const existing = await prisma_1.default.cRMCard.findFirst({ where: { id, client_id } });
     if (!existing) {
         res.status(404).json({ error: "Card não encontrado" });
         return;

@@ -9,12 +9,15 @@ const auth_1 = require("../middlewares/auth");
 const dates_1 = require("../lib/dates");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateJWT);
-router.use(auth_1.requireStaff); // dados compartilhados pela equipe — bloqueia CLIENT
+// Agência (scope null) enxerga todos os leads (comportamento atual). Usuário de um
+// cliente (scope = client_id) enxerga/gerencia apenas os leads do próprio cliente.
+const scopeWhere = (scope) => (scope ? { client_id: scope } : {});
 // ── GET /api/leads ────────────────────────────────────────────────────
 router.get("/", async (req, res) => {
-    const { status, origem, search, tag_id, limit = "100", offset = "0" } = req.query;
+    const { status, origem, search, tag_id, tag_ids, limit = "100", offset = "0" } = req.query;
     try {
-        const where = {};
+        const scope = await (0, auth_1.getScopeClientId)(req);
+        const where = { ...scopeWhere(scope) };
         if (status)
             where.status = status;
         if (origem)
@@ -27,8 +30,11 @@ router.get("/", async (req, res) => {
                 { cidade: { contains: String(search) } },
             ];
         }
-        if (tag_id) {
-            where.tags = { some: { tag_id: String(tag_id) } };
+        // Filtro por tags: aceita tag_ids (várias, separadas por vírgula → leads com QUALQUER uma)
+        // ou tag_id (uma só, compatibilidade).
+        const ids = String(tag_ids || tag_id || "").split(",").map(s => s.trim()).filter(Boolean);
+        if (ids.length) {
+            where.tags = { some: { tag_id: { in: ids } } };
         }
         const [leads, total] = await Promise.all([
             prisma_1.default.lead.findMany({
@@ -55,9 +61,11 @@ router.post("/", async (req, res) => {
         return;
     }
     try {
+        const scope = await (0, auth_1.getScopeClientId)(req);
         const lead = await prisma_1.default.lead.create({
             data: {
                 user_id: req.user.id,
+                client_id: scope,
                 nome,
                 telefone: telefone || null,
                 telefone_limpo: telefone ? telefone.replace(/\D/g, "") : null,
@@ -87,11 +95,13 @@ router.put("/:id", async (req, res) => {
     const id = String(req.params.id);
     const { tags, tag_ids, ...data } = req.body;
     try {
-        const existing = await prisma_1.default.lead.findFirst({ where: { id } });
+        const scope = await (0, auth_1.getScopeClientId)(req);
+        const existing = await prisma_1.default.lead.findFirst({ where: { id, ...scopeWhere(scope) } });
         if (!existing) {
             res.status(404).json({ error: "Lead não encontrado" });
             return;
         }
+        delete data.client_id; // não permite trocar o tenant via update
         if (data.telefone) {
             data.telefone_limpo = data.telefone.replace(/\D/g, "");
         }
@@ -125,7 +135,8 @@ router.put("/:id", async (req, res) => {
 router.delete("/:id", async (req, res) => {
     const id = String(req.params.id);
     try {
-        const existing = await prisma_1.default.lead.findFirst({ where: { id } });
+        const scope = await (0, auth_1.getScopeClientId)(req);
+        const existing = await prisma_1.default.lead.findFirst({ where: { id, ...scopeWhere(scope) } });
         if (!existing) {
             res.status(404).json({ error: "Lead não encontrado" });
             return;
@@ -142,7 +153,8 @@ router.post("/:id/tags", async (req, res) => {
     const id = String(req.params.id);
     const { tag_ids } = req.body;
     try {
-        const lead = await prisma_1.default.lead.findFirst({ where: { id } });
+        const scope = await (0, auth_1.getScopeClientId)(req);
+        const lead = await prisma_1.default.lead.findFirst({ where: { id, ...scopeWhere(scope) } });
         if (!lead) {
             res.status(404).json({ error: "Lead não encontrado" });
             return;
@@ -163,12 +175,14 @@ router.post("/:id/tags", async (req, res) => {
 // ── GET /api/leads/stats ──────────────────────────────────────────────
 router.get("/stats/summary", async (req, res) => {
     try {
+        const scope = await (0, auth_1.getScopeClientId)(req);
+        const s = scopeWhere(scope);
         const [total, novo, contatado, qualificado, convertido] = await Promise.all([
-            prisma_1.default.lead.count(),
-            prisma_1.default.lead.count({ where: { status: "NOVO" } }),
-            prisma_1.default.lead.count({ where: { status: "CONTATADO" } }),
-            prisma_1.default.lead.count({ where: { status: "QUALIFICADO" } }),
-            prisma_1.default.lead.count({ where: { status: "CONVERTIDO" } }),
+            prisma_1.default.lead.count({ where: { ...s } }),
+            prisma_1.default.lead.count({ where: { ...s, status: "NOVO" } }),
+            prisma_1.default.lead.count({ where: { ...s, status: "CONTATADO" } }),
+            prisma_1.default.lead.count({ where: { ...s, status: "QUALIFICADO" } }),
+            prisma_1.default.lead.count({ where: { ...s, status: "CONVERTIDO" } }),
         ]);
         res.json({ total, novo, contatado, qualificado, convertido });
     }
@@ -178,6 +192,12 @@ router.get("/stats/summary", async (req, res) => {
 });
 // ── Lembretes do lead ─────────────────────────────────────────────────
 router.get("/:id/reminders", async (req, res) => {
+    const scope = await (0, auth_1.getScopeClientId)(req);
+    const lead = await prisma_1.default.lead.findFirst({ where: { id: String(req.params.id), ...scopeWhere(scope) }, select: { id: true } });
+    if (!lead) {
+        res.status(404).json({ error: "Lead não encontrado" });
+        return;
+    }
     const reminders = await prisma_1.default.leadReminder.findMany({
         where: { lead_id: String(req.params.id) },
         orderBy: { remind_on: "asc" },
@@ -191,6 +211,12 @@ router.post("/:id/reminders", async (req, res) => {
         return;
     }
     try {
+        const scope = await (0, auth_1.getScopeClientId)(req);
+        const lead = await prisma_1.default.lead.findFirst({ where: { id: String(req.params.id), ...scopeWhere(scope) }, select: { id: true } });
+        if (!lead) {
+            res.status(404).json({ error: "Lead não encontrado" });
+            return;
+        }
         const reminder = await prisma_1.default.leadReminder.create({
             data: {
                 lead_id: String(req.params.id),
@@ -205,9 +231,22 @@ router.post("/:id/reminders", async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
+// Garante que o lembrete pertence a um lead do tenant do usuário.
+async function reminderInScope(req, rid) {
+    const scope = await (0, auth_1.getScopeClientId)(req);
+    const r = await prisma_1.default.leadReminder.findUnique({ where: { id: rid }, select: { lead_id: true } });
+    if (!r)
+        return false;
+    const lead = await prisma_1.default.lead.findFirst({ where: { id: r.lead_id, ...scopeWhere(scope) }, select: { id: true } });
+    return !!lead;
+}
 router.patch("/reminders/:rid", async (req, res) => {
     const { done, message, remind_on } = req.body;
     try {
+        if (!(await reminderInScope(req, String(req.params.rid)))) {
+            res.status(404).json({ error: "Lembrete não encontrado" });
+            return;
+        }
         const reminder = await prisma_1.default.leadReminder.update({
             where: { id: String(req.params.rid) },
             data: {
@@ -224,6 +263,10 @@ router.patch("/reminders/:rid", async (req, res) => {
 });
 router.delete("/reminders/:rid", async (req, res) => {
     try {
+        if (!(await reminderInScope(req, String(req.params.rid)))) {
+            res.status(404).json({ error: "Lembrete não encontrado" });
+            return;
+        }
         await prisma_1.default.leadReminder.delete({ where: { id: String(req.params.rid) } });
         res.json({ success: true });
     }

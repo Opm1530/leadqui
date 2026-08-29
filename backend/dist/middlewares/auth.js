@@ -3,8 +3,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.denyRoles = exports.requireStaff = exports.requireAdmin = exports.authenticateJWT = void 0;
+exports.denyRoles = exports.requireClientAdmin = exports.requireClientUser = exports.requireStaff = exports.requireAdmin = exports.authenticateJWT = void 0;
+exports.getScopeClientId = getScopeClientId;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const prisma_1 = __importDefault(require("../lib/prisma"));
 const authenticateJWT = (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -41,6 +43,43 @@ const requireStaff = (req, res, next) => {
     next();
 };
 exports.requireStaff = requireStaff;
+// Resolve o "tenant" (client_id) do usuário para isolamento de dados.
+// Retorna string (cliente) ou null (usuário da agência). Faz fallback ao banco
+// para tokens antigos (emitidos antes do campo entrar no JWT).
+async function getScopeClientId(req) {
+    if (!req.user)
+        return null;
+    if (req.user.client_id !== undefined)
+        return req.user.client_id ?? null;
+    const u = await prisma_1.default.user.findUnique({
+        where: { id: req.user.id },
+        select: { member_of_client_id: true, is_client_admin: true },
+    });
+    const cid = u?.member_of_client_id ?? null;
+    req.user.client_id = cid;
+    req.user.is_client_admin = !!u?.is_client_admin;
+    return cid;
+}
+// Exige que o usuário seja de um cliente (produto CRM). Bloqueia agência.
+const requireClientUser = async (req, res, next) => {
+    const cid = await getScopeClientId(req);
+    if (!cid) {
+        res.status(403).json({ error: "Acesso restrito a usuários de cliente." });
+        return;
+    }
+    next();
+};
+exports.requireClientUser = requireClientUser;
+// Exige que o usuário seja o admin do próprio cliente (gerencia a equipe dele).
+const requireClientAdmin = async (req, res, next) => {
+    const cid = await getScopeClientId(req);
+    if (!cid || !req.user?.is_client_admin) {
+        res.status(403).json({ error: "Acesso restrito ao administrador do cliente." });
+        return;
+    }
+    next();
+};
+exports.requireClientAdmin = requireClientAdmin;
 // Bloqueia cargos específicos (ex.: DESIGNER não acessa cofre/financeiro).
 const denyRoles = (...roles) => (req, res, next) => {
     if (req.user && roles.includes(req.user.role)) {

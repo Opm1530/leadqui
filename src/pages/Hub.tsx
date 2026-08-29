@@ -10,7 +10,7 @@ import { useModule } from "@/contexts/ModuleContext";
 const Hub = () => {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { role, isAdmin, isClientUser, loading: roleLoading } = useRole();
+  const { role, isAdmin, isClientUser, isClientAdmin, loading: roleLoading } = useRole();
   const { setActiveModule } = useModule();
   const [clientProfile, setClientProfile] = useState<any>(null);
   const [loadingProfile, setLoadingProfile] = useState(false);
@@ -157,6 +157,10 @@ const Hub = () => {
       id: "formularios", name: "Formulários", description: "Capte contatos de landing pages direto nos seus leads.",
       icon: Webhook, color: "from-cyan-500 to-blue-600", route: "/c/formularios", adminOnly: false, module: "FORMS",
     },
+    ...(isClientAdmin ? [{
+      id: "equipe", name: "Equipe", description: "Gerencie quem da sua equipe tem acesso ao CRM.",
+      icon: Users, color: "from-violet-500 to-purple-600", route: "/c/equipe", adminOnly: false, module: null,
+    }] : []),
   ].filter(app => !app.module || enabledModules.includes(app.module));
 
   const ORDER = ["dashqui", "leadqui", "clientes"];

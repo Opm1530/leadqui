@@ -7,6 +7,8 @@ const express_1 = require("express");
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const approval_1 = require("../lib/approval");
 const demandClassifier_1 = require("../lib/demandClassifier");
+const whatsapp_1 = require("../lib/whatsapp");
+const storage_1 = require("../lib/storage");
 const router = (0, express_1.Router)();
 // Extrai texto de um payload de mensagem do Evolution (vários formatos possíveis).
 function extractText(data) {
@@ -35,13 +37,48 @@ router.post("/webhook", async (req, res) => {
     try {
         const body = req.body || {};
         const data = body.data || body;
-        // Ignora mensagens enviadas por nós mesmos
-        if (data?.key?.fromMe)
+        const instance = body.instance || body.instanceName || "";
+        const chatJid = data?.key?.remoteJid || "";
+        const fromMe = !!data?.key?.fromMe;
+        const text = extractText(data).trim();
+        // ── Inbox: persiste mensagens SÓ das instâncias marcadas para o Hub de Conversas ──
+        const media = (0, whatsapp_1.detectMedia)(data);
+        if (instance && chatJid && chatJid !== "status@broadcast" && (text || media) && await (0, whatsapp_1.isInboxInstance)(instance)) {
+            const isGroup = chatJid.endsWith("@g.us");
+            let mediaKey = null;
+            let mediaMime = media?.mime;
+            if (media) {
+                try {
+                    const fetched = await (0, whatsapp_1.fetchMediaBase64)(instance, data);
+                    if (fetched) {
+                        const key = `whatsapp/${instance}/${Date.now()}-${media.type}`;
+                        await (0, storage_1.uploadFile)(key, fetched.buffer, fetched.mime || media.mime);
+                        mediaKey = key;
+                        mediaMime = fetched.mime || media.mime;
+                    }
+                }
+                catch { /* segue sem o arquivo */ }
+            }
+            await (0, whatsapp_1.recordMessage)({
+                instance,
+                chatJid,
+                text,
+                fromMe,
+                waMessageId: data?.key?.id || null,
+                authorName: fromMe ? null : (data?.pushName || null),
+                name: (!isGroup && !fromMe) ? (data?.pushName || null) : null,
+                mediaType: media?.type || null,
+                mediaKey,
+                mediaMime,
+                mediaName: media?.name || null,
+            }).catch(() => { });
+        }
+        // ── Aprovação de posts (comportamento existente) — só grupos de cliente, msg recebida ──
+        if (fromMe)
             return;
-        const groupJid = data?.key?.remoteJid || "";
+        const groupJid = chatJid;
         if (!groupJid.endsWith("@g.us"))
             return; // só grupos
-        const text = extractText(data).trim();
         if (!text)
             return;
         // Acha o cliente vinculado a esse grupo

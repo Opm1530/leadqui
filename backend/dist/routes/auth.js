@@ -35,7 +35,9 @@ router.post("/login", async (req, res) => {
             return;
         }
         (0, authRateLimit_1.registerLoginSuccess)(ip); // login ok → zera o contador de falhas do IP
-        const token = jsonwebtoken_1.default.sign({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "7d" });
+        const clientId = user.member_of_client_id || null;
+        const isClientAdmin = !!user.is_client_admin;
+        const token = jsonwebtoken_1.default.sign({ id: user.id, email: user.email, role: user.role, client_id: clientId, is_client_admin: isClientAdmin }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || "7d" });
         res.json({
             token,
             user: {
@@ -45,6 +47,8 @@ router.post("/login", async (req, res) => {
                 role: user.role,
                 position: user.position,
                 gender: user.gender,
+                client_id: clientId,
+                is_client_admin: isClientAdmin,
             },
         });
     }
@@ -165,13 +169,13 @@ router.get("/me", auth_1.authenticateJWT, async (req, res) => {
     try {
         const user = await prisma_1.default.user.findUnique({
             where: { id: req.user.id },
-            select: { id: true, name: true, email: true, role: true, position: true, gender: true, created_at: true },
+            select: { id: true, name: true, email: true, role: true, position: true, gender: true, created_at: true, member_of_client_id: true, is_client_admin: true },
         });
         if (!user) {
             res.status(404).json({ error: "Usuário não encontrado" });
             return;
         }
-        res.json({ user });
+        res.json({ user: { ...user, client_id: user.member_of_client_id || null } });
     }
     catch (error) {
         res.status(500).json({ error: "Erro interno" });

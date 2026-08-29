@@ -104,14 +104,17 @@ const router = (0, express_1.Router)();
 router.use(auth_1.authenticateJWT);
 // Dados compartilhados pela equipe (bloqueia CLIENT), exceto rotas pessoais
 router.use((req, res, next) => {
-    if (req.path === "/settings" || req.path === "/me/client-profile")
+    // /tags é multi-tenant (agência e clientes) — o isolamento é por client_id nas queries
+    if (req.path === "/settings" || req.path === "/me/client-profile" || req.path.startsWith("/tags"))
         return next();
     return (0, auth_1.requireStaff)(req, res, next);
 });
 // ─── TAGS ─────────────────────────────────────────────────────────────
 router.get("/tags", async (req, res) => {
     try {
+        const client_id = await (0, auth_1.getScopeClientId)(req);
         const tags = await prisma_1.default.tag.findMany({
+            where: { client_id },
             orderBy: { nome: "asc" },
         });
         res.json({ tags });
@@ -127,9 +130,11 @@ router.post("/tags", async (req, res) => {
         return;
     }
     try {
+        const client_id = await (0, auth_1.getScopeClientId)(req);
         const tag = await prisma_1.default.tag.create({
             data: {
                 user_id: req.user.id,
+                client_id,
                 nome,
                 cor: cor || "#6366f1",
             },
@@ -144,7 +149,8 @@ router.put("/tags/:id", async (req, res) => {
     const id = String(req.params.id);
     const { nome, cor } = req.body;
     try {
-        const existing = await prisma_1.default.tag.findFirst({ where: { id } });
+        const client_id = await (0, auth_1.getScopeClientId)(req);
+        const existing = await prisma_1.default.tag.findFirst({ where: { id, client_id } });
         if (!existing) {
             res.status(404).json({ error: "Tag não encontrada" });
             return;
@@ -162,7 +168,8 @@ router.put("/tags/:id", async (req, res) => {
 router.delete("/tags/:id", async (req, res) => {
     const id = String(req.params.id);
     try {
-        const existing = await prisma_1.default.tag.findFirst({ where: { id } });
+        const client_id = await (0, auth_1.getScopeClientId)(req);
+        const existing = await prisma_1.default.tag.findFirst({ where: { id, client_id } });
         if (!existing) {
             res.status(404).json({ error: "Tag não encontrada" });
             return;
@@ -188,11 +195,12 @@ router.get("/clients", async (req, res) => {
     res.json({ clients });
 });
 router.post("/clients", async (req, res) => {
-    const { name, email, origin_lead_id, contract, services = [], initial_password, isUniqueJob, uniqueJobName, template_id } = req.body;
+    const { name, email, origin_lead_id, contract, services = [], initial_password, isUniqueJob, uniqueJobName, template_id, enabled_modules } = req.body;
     if (!name) {
         res.status(400).json({ error: "Nome é obrigatório" });
         return;
     }
+    const modules = Array.isArray(enabled_modules) ? enabled_modules.filter((m) => ["CRM", "LEADS", "FORMS"].includes(m)) : [];
     try {
         let login_user_id = null;
         if (email && initial_password) {
@@ -221,6 +229,7 @@ router.post("/clients", async (req, res) => {
                 email: email || null,
                 initial_password: initial_password || null,
                 status: "ATIVO",
+                enabled_modules: modules,
                 ...(contract && {
                     contract: {
                         create: {
@@ -239,6 +248,13 @@ router.post("/clients", async (req, res) => {
             },
             include: { contract: true, services: true },
         });
+        // Marca o login do cliente como membro + admin do próprio cliente (tenant)
+        if (login_user_id) {
+            await prisma_1.default.user.update({
+                where: { id: login_user_id },
+                data: { member_of_client_id: client.id, is_client_admin: true },
+            }).catch(() => { });
+        }
         // Update lead status if origin_lead_id
         if (origin_lead_id) {
             await prisma_1.default.lead.update({
@@ -356,7 +372,10 @@ router.put("/clients/:id", async (req, res) => {
         return;
     }
     try {
-        const { name, email, status, contract, services, initial_password, wa_instance_id, wa_group_id, wa_group_name, drive_url } = req.body;
+        const { name, email, status, contract, services, initial_password, wa_instance_id, wa_group_id, wa_group_name, drive_url, enabled_modules } = req.body;
+        const modules = Array.isArray(enabled_modules)
+            ? enabled_modules.filter((m) => ["CRM", "LEADS", "FORMS"].includes(m))
+            : undefined;
         // Sincronizar usuário de acesso se houver e-mail
         let login_user_id = existing.login_user_id;
         if (email && email !== existing.email) {
@@ -381,6 +400,7 @@ router.put("/clients/:id", async (req, res) => {
                 initial_password: initial_password !== undefined ? initial_password : existing.initial_password,
                 status: status || existing.status,
                 login_user_id,
+                ...(modules !== undefined && { enabled_modules: modules }),
                 ...(wa_instance_id !== undefined && { wa_instance_id: wa_instance_id || null }),
                 ...(wa_group_id !== undefined && { wa_group_id: wa_group_id || null }),
                 ...(wa_group_name !== undefined && { wa_group_name: wa_group_name || null }),
@@ -388,6 +408,13 @@ router.put("/clients/:id", async (req, res) => {
             },
             include: { contract: true, services: true }
         });
+        // Garante que o login do cliente é membro + admin do próprio cliente
+        if (login_user_id) {
+            await prisma_1.default.user.update({
+                where: { id: login_user_id },
+                data: { member_of_client_id: id, is_client_admin: true },
+            }).catch(() => { });
+        }
         if (contract) {
             await prisma_1.default.contract.upsert({
                 where: { client_id: id },
@@ -598,16 +625,18 @@ router.delete("/extractions/:id", async (req, res) => {
 // ─── CLIENT PROFILE FOR HUB ───────────────────────────────────────────
 router.get("/me/client-profile", async (req, res) => {
     try {
-        if (req.user?.role === "CLIENT") {
-            const client = await prisma_1.default.client.findFirst({
-                where: { login_user_id: req.user.id },
-                include: { services: true }
-            });
-            res.json({ client });
+        const scope = await (0, auth_1.getScopeClientId)(req);
+        // Qualquer usuário de um cliente (admin ou membro) — resolvido pelo tenant.
+        const clientId = scope || (req.user?.role === "CLIENT" ? undefined : null);
+        if (!clientId) {
+            res.json({ client: null });
+            return;
         }
-        else {
-            res.status(403).json({ error: "Acesso negado" });
-        }
+        const client = await prisma_1.default.client.findUnique({
+            where: { id: clientId },
+            include: { services: true },
+        });
+        res.json({ client });
     }
     catch (error) {
         res.status(500).json({ error: "Erro ao buscar perfil" });

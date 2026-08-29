@@ -91,6 +91,13 @@ export const requireClientUser = async (req: AuthRequest, res: Response, next: N
   next();
 };
 
+// Exige que o usuário seja o admin do próprio cliente (gerencia a equipe dele).
+export const requireClientAdmin = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  const cid = await getScopeClientId(req);
+  if (!cid || !req.user?.is_client_admin) { res.status(403).json({ error: "Acesso restrito ao administrador do cliente." }); return; }
+  next();
+};
+
 // Bloqueia cargos específicos (ex.: DESIGNER não acessa cofre/financeiro).
 export const denyRoles = (...roles: string[]) => (
   req: AuthRequest,

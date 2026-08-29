@@ -4,10 +4,15 @@ export interface AuthRequest extends Request {
         id: string;
         email: string;
         role: string;
+        client_id?: string | null;
+        is_client_admin?: boolean;
     };
 }
 export declare const authenticateJWT: (req: AuthRequest, res: Response, next: NextFunction) => void;
 export declare const requireAdmin: (req: AuthRequest, res: Response, next: NextFunction) => void;
 export declare const requireStaff: (req: AuthRequest, res: Response, next: NextFunction) => void;
+export declare function getScopeClientId(req: AuthRequest): Promise<string | null>;
+export declare const requireClientUser: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+export declare const requireClientAdmin: (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 export declare const denyRoles: (...roles: string[]) => (req: AuthRequest, res: Response, next: NextFunction) => void;
 //# sourceMappingURL=auth.d.ts.map

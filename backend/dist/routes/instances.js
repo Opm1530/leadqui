@@ -8,6 +8,7 @@ const axios_1 = __importDefault(require("axios"));
 const prisma_1 = __importDefault(require("../lib/prisma"));
 const auth_1 = require("../middlewares/auth");
 const companySettings_1 = require("../lib/companySettings");
+const whatsapp_1 = require("../lib/whatsapp");
 const router = (0, express_1.Router)();
 router.use(auth_1.authenticateJWT);
 router.use(auth_1.requireStaff);
@@ -23,11 +24,37 @@ const getEvolutionConfig = async (_userId) => {
     };
 };
 // ── GET /api/instances ────────────────────────────────────────────────
+// Mostra SOMENTE as instâncias criadas no sistema (do banco), mas atualiza o
+// status real consultando a Evolution. Não importa instâncias externas.
 router.get("/", async (req, res) => {
     try {
-        const instances = await prisma_1.default.instance.findMany({
-            orderBy: { created_at: "desc" },
-        });
+        const dbInstances = await prisma_1.default.instance.findMany({ orderBy: { created_at: "desc" } });
+        // Estado real na Evolution (uma chamada só), casado por nome da instância
+        let evoByName = new Map();
+        try {
+            const { baseUrl, apiKey } = await getEvolutionConfig();
+            const r = await axios_1.default.get(`${baseUrl}/instance/fetchInstances`, { headers: { apikey: apiKey }, timeout: 15000 });
+            const list = Array.isArray(r.data) ? r.data : (r.data?.instances || []);
+            for (const raw of list) {
+                const i = raw.instance || raw;
+                const name = i.instanceName || i.name;
+                if (!name)
+                    continue;
+                const stateRaw = i.connectionStatus || i.state || i.status || "";
+                const jid = i.owner || i.number || i.ownerJid || null;
+                evoByName.set(name, { connected: ["open", "connected", "CONNECTED"].includes(stateRaw), phone: jid ? String(jid).replace(/@.*/, "") : null });
+            }
+        }
+        catch { /* Evolution indisponível → mantém o status do banco */ }
+        const instances = [];
+        for (const d of dbInstances) {
+            const real = evoByName.get(d.evolution_instance_id);
+            const gone = evoByName.size > 0 && !real; // sumiu da Evolution
+            const status = real ? (real.connected ? "CONECTADO" : "DESCONECTADO") : d.status;
+            if (real && status !== d.status)
+                await prisma_1.default.instance.update({ where: { id: d.id }, data: { status } }).catch(() => { });
+            instances.push({ ...d, status, phone: real?.phone || null, gone });
+        }
         res.json({ instances });
     }
     catch (error) {
@@ -151,26 +178,57 @@ router.get("/:id/status", async (req, res) => {
     }
 });
 // ── GET /api/instances/:id/groups ─────────────────────────────────────
-// Lista os grupos de WhatsApp da instância (via Evolution)
+// Lista os grupos de WhatsApp da instância (via Evolution). Com cache (5min).
+const groupsCache = new Map();
+const GROUPS_TTL = 5 * 60 * 1000;
 router.get("/:id/groups", async (req, res) => {
     const id = String(req.params.id);
+    const forceRefresh = req.query.refresh === "1";
     try {
         const instance = await prisma_1.default.instance.findFirst({ where: { id } });
         if (!instance) {
             res.status(404).json({ error: "Instância não encontrada" });
             return;
         }
+        const cacheKey = instance.evolution_instance_id;
+        const cached = groupsCache.get(cacheKey);
+        if (!forceRefresh && cached && Date.now() - cached.at < GROUPS_TTL) {
+            res.json({ groups: cached.groups, cached: true });
+            return;
+        }
         const { baseUrl, apiKey } = await getEvolutionConfig(req.user.id);
-        const evoRes = await axios_1.default.get(`${baseUrl}/group/fetchAllGroups/${instance.evolution_instance_id}`, { headers: { apikey: apiKey }, params: { getParticipants: "false" } });
+        const evoRes = await axios_1.default.get(`${baseUrl}/group/fetchAllGroups/${instance.evolution_instance_id}`, { headers: { apikey: apiKey }, params: { getParticipants: "false" }, timeout: 90000 });
         const raw = Array.isArray(evoRes.data) ? evoRes.data : (evoRes.data?.groups || []);
-        const groups = raw.map((g) => ({
-            id: g.id || g.jid,
-            name: g.subject || g.name || g.id,
-        })).filter((g) => g.id);
+        const groups = raw
+            .map((g) => ({ id: g.id || g.jid, name: g.subject || g.name || g.id }))
+            .filter((g) => g.id)
+            .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+        groupsCache.set(cacheKey, { groups, at: Date.now() });
         res.json({ groups });
     }
     catch (error) {
+        if (error.code === "ECONNABORTED") {
+            res.status(504).json({ error: "A Evolution demorou demais para responder. Tente novamente em instantes." });
+            return;
+        }
         res.status(500).json({ error: error.response?.data?.message || error.message });
+    }
+});
+// ── PATCH /api/instances/:id ── (liga/desliga o inbox) ────────────────
+router.patch("/:id", async (req, res) => {
+    const id = String(req.params.id);
+    try {
+        const data = {};
+        if (req.body.inbox_enabled !== undefined)
+            data.inbox_enabled = !!req.body.inbox_enabled;
+        if (req.body.nome !== undefined && req.body.nome)
+            data.nome = String(req.body.nome);
+        const instance = await prisma_1.default.instance.update({ where: { id }, data });
+        (0, whatsapp_1.clearInboxInstanceCache)();
+        res.json({ instance });
+    }
+    catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 // ── DELETE /api/instances/:id ─────────────────────────────────────────
