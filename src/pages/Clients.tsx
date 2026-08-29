@@ -133,6 +133,24 @@ const Clients = () => {
                             <Briefcase className="w-2.5 h-2.5" /> Lead #{client.origin_lead_id.slice(-6)}
                           </span>
                         )}
+                        {/* Selo de acesso / módulos do produto CRM */}
+                        <div className="flex flex-wrap items-center gap-1 mt-1">
+                          {!client.login_user_id ? (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase bg-orange-500/15 text-orange-400 flex items-center gap-1">
+                              <KeyRound className="w-2.5 h-2.5" /> Sem acesso
+                            </span>
+                          ) : (client.enabled_modules || []).length === 0 ? (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase bg-white/5 text-muted-foreground">
+                              Só painel
+                            </span>
+                          ) : (
+                            (client.enabled_modules as string[]).map((m) => (
+                              <span key={m} className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase bg-emerald-500/15 text-emerald-400">
+                                {m === "CRM" ? "CRM" : m === "LEADS" ? "Leads" : "Forms"}
+                              </span>
+                            ))
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="p-4 text-sm text-muted-foreground">{client.email || "—"}</td>
