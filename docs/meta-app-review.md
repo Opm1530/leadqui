@@ -19,15 +19,15 @@
 ---
 
 ## 📋 Dados do app (para colar nos campos)
-- **App URL:** https://leadqui.vps.pequi.digital
-- **OAuth Redirect (Facebook):** https://leadqui.vps.pequi.digital/api/techqui/oauth/callback
-- **Webhook Callback (Instagram):** https://leadqui.vps.pequi.digital/api/techqui/webhook/instagram
+- **App URL:** https://hub.pequi.digital
+- **OAuth Redirect (Facebook):** https://hub.pequi.digital/api/techqui/oauth/callback
+- **Webhook Callback (Instagram):** https://hub.pequi.digital/api/techqui/webhook/instagram
 - **Webhook Verify Token:** `pequi_webhook_2026` (env `META_WEBHOOK_VERIFY_TOKEN`)
 - **Privacidade / Termos / Exclusão de dados:** páginas públicas em `/api/legal/*` (confirme as URLs no painel).
 
 ## 👤 Usuário de teste para o revisor (JÁ CRIADO)
 ```
-URL:   https://leadqui.vps.pequi.digital
+URL:   https://hub.pequi.digital
 Email: reviewer@pequidigital.com.br
 Senha: MetaReview#2026
 Cliente demo: "Conta Demo"  (o revisor conecta o próprio Instagram nele)
@@ -123,7 +123,7 @@ Use a **mesma justificativa** dos itens 6 e 7, adaptando o nome.
 ## 🔔 Configuração do Webhook de comentários (fazer no painel, antes do review de comentários)
 No painel do app → **Webhooks**:
 1. Objeto **Instagram** (ou **Page**, no fluxo com Página).
-2. **Callback URL:** `https://leadqui.vps.pequi.digital/api/techqui/webhook/instagram`
+2. **Callback URL:** `https://hub.pequi.digital/api/techqui/webhook/instagram`
 3. **Verify Token:** `pequi_webhook_2026`
 4. Assinar o campo **`comments`**.
 5. No sistema, em cada conta, use **"Ativar auto-reply"** (o diagnóstico em Conexões mostra se o webhook está ativo).
@@ -143,7 +143,7 @@ No painel do app → **Webhooks**:
 ### Regras da gravação
 - **Um único vídeo contínuo** (pode cobrir as 3 permissões de uma vez) OU um vídeo por permissão — mas cada um **começa pelo login da Meta**.
 - **Idioma:** ideal a UI em inglês. Se a tela estiver em PT, **coloque legendas/anotações em inglês** em cada passo explicando o que o botão faz (a Meta exige isso no ponto 4).
-- **Mostre a barra de URL** (`leadqui.vps.pequi.digital`) para provar que é o app da submissão.
+- **Mostre a barra de URL** (`hub.pequi.digital`) para provar que é o app da submissão.
 - Use uma **conta profissional de Instagram real** (não a de teste do app) para o consentimento.
 - **No campo de notas do reenvio, cole:** *"This app uses front-end Instagram Login (OAuth). It is NOT server-to-server. The full Meta login and consent flow is shown at 00:00–00:30 of the screencast."*
 
@@ -151,7 +151,7 @@ No painel do app → **Webhooks**:
 
 | Tempo | O que fazer na tela | Legenda em inglês (sobrepor) |
 |---|---|---|
-| 00:00 | Abrir `leadqui.vps.pequi.digital` e fazer login no app. | "Logging into our platform (agency user)." |
+| 00:00 | Abrir `hub.pequi.digital` e fazer login no app. | "Logging into our platform (agency user)." |
 | 00:10 | Abrir **Clientes → Conta Demo → aba Meta/Conexões**. | "Opening a client profile to connect their Instagram." |
 | 00:15 | Clicar em **Conectar Instagram**. | "Starting Instagram Login (OAuth)." |
 | 00:20 | **Tela da Meta:** login do Instagram (usuário + senha). | "Meta login flow — user authenticates." |

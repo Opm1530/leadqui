@@ -355,7 +355,7 @@ const Settings = () => {
               </div>
               <div className="bg-secondary/50 rounded-lg p-3 space-y-1">
                 <p className="text-[10px] text-muted-foreground">Redirect URI (OAuth):</p>
-                <code className="block text-[10px] font-mono text-primary break-all">https://leadqui.vps.pequi.digital/api/techqui/oauth/instagram/callback</code>
+                <code className="block text-[10px] font-mono text-primary break-all">{window.location.origin}/api/techqui/oauth/instagram/callback</code>
                 <p className="text-[10px] text-muted-foreground mt-1">Webhook: <code className="font-mono text-primary">.../api/techqui/webhook/instagram</code> · token <code className="font-mono text-primary">pequi_webhook_2026</code></p>
               </div>
             </div>

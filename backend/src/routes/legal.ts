@@ -4,7 +4,8 @@ const router = Router();
 
 const EMPRESA = "Pequi Digital";
 const CONTATO = "ginannymoreira@gmail.com";
-const DOMINIO = "https://leadqui.vps.pequi.digital";
+// Segue o domínio público configurado (FRONTEND_URL). Fallback para o novo domínio.
+const DOMINIO = (process.env.FRONTEND_URL || "https://hub.pequi.digital").replace(/\/$/, "");
 const ATUALIZADO = "03 de agosto de 2026";
 
 const layout = (titulo: string, conteudo: string) => `<!DOCTYPE html>

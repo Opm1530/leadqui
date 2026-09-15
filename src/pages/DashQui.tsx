@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Loader2, ListTodo, CalendarClock, TrendingUp, TrendingDown, Wallet, Check, Paperclip, Clapperboard, Plus } from "lucide-react";
 import { confirm } from "@/components/ConfirmDialog";
 import { CONTENT_STATUS, typeLabel } from "@/lib/editorial";
+import { TaskDetailModal } from "@/components/TaskDetailModal";
 
 const brl = (n: number) => (n || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -20,9 +21,13 @@ const DashQui = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [allTasks, setAllTasks] = useState<any[]>([]);
+  const [team, setTeam] = useState<any[]>([]);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
 
+  const reloadTasks = () => api.get("/api/dashqui").then(d => setAllTasks(d.tasks || [])).catch(() => {});
   useEffect(() => {
     api.get("/api/dashqui").then(d => { setData(d); setAllTasks(d.tasks || []); }).catch(() => {}).finally(() => setLoading(false));
+    api.get("/api/teamqui").then(d => setTeam(Array.isArray(d) ? d : (d.team || []))).catch(() => {});
   }, []);
 
   // Minhas tarefas (checklist do dashboard, para qualquer responsável)
@@ -178,10 +183,10 @@ const DashQui = () => {
                   <button onClick={() => concluir(t)} className={`w-5 h-5 rounded-md border flex items-center justify-center flex-shrink-0 ${done ? "bg-green-600 border-green-600" : "border-muted-foreground/40 hover:border-green-500"}`}>
                     {done && <Check className="w-3.5 h-3.5 text-white" />}
                   </button>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>{t.title}</p>
+                  <button onClick={() => setSelectedTask(t)} className="flex-1 min-w-0 text-left" title="Abrir detalhes">
+                    <p className={`text-sm hover:text-primary ${done ? "line-through text-muted-foreground" : "text-foreground"}`}>{t.title}</p>
                     <p className="text-[11px] text-muted-foreground">{t.client?.name || "—"}{atrasada && <span className="text-red-400"> · atrasada</span>}</p>
-                  </div>
+                  </button>
                 </div>
               );
             })}
@@ -225,6 +230,14 @@ const DashQui = () => {
           </div>
         </div>
       </div>
+
+      <TaskDetailModal
+        task={selectedTask}
+        isOpen={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onUpdate={reloadTasks}
+        team={team}
+      />
     </div>
   );
 };

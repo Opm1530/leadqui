@@ -1363,7 +1363,7 @@ const SettingsTab = ({ settings, onSaved, toast }: any) => {
         </div>
         <div className="bg-secondary/50 rounded-lg p-3">
           <p className="text-[10px] text-muted-foreground mb-1">Registre este Redirect URI nas configurações do Instagram Login:</p>
-          <code className="block text-[10px] font-mono text-primary break-all">https://leadqui.vps.pequi.digital/api/techqui/oauth/instagram/callback</code>
+          <code className="block text-[10px] font-mono text-primary break-all">{window.location.origin}/api/techqui/oauth/instagram/callback</code>
         </div>
       </div>
 
@@ -1386,7 +1386,7 @@ const SettingsTab = ({ settings, onSaved, toast }: any) => {
         </h3>
         <p className="text-xs text-muted-foreground">Configure este URL no seu App Meta → Webhooks → Instagram → campo <code className="bg-secondary px-1 rounded text-[10px]">comments</code>:</p>
         <code className="block bg-secondary rounded-lg p-3 text-xs font-mono text-primary break-all">
-          https://leadqui.vps.pequi.digital/api/techqui/webhook/instagram
+          {window.location.origin}/api/techqui/webhook/instagram
         </code>
         <p className="text-xs text-muted-foreground">Token de verificação:</p>
         <code className="block bg-secondary rounded-lg p-2 text-xs font-mono text-primary">pequi_webhook_2026</code>

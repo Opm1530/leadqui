@@ -102,5 +102,5 @@ PLANEJADO ─► PRODUZINDO ─► ARTE_PRONTA ─► AGUARDANDO_APROVACAO ─�
 - **Trello** (Configurações → Trello): API Key + Token → escolher quadro,
   lista padrão e lista "Concluído" → **Registrar webhook**.
 - **Evolution**: apontar o webhook da instância para
-  `https://leadqui.vps.pequi.digital/api/whatsapp/webhook` (evento `messages.upsert`).
+  `https://hub.pequi.digital/api/whatsapp/webhook` (evento `messages.upsert`).
 - **Meta/Instagram** (Configurações → Meta): app + conexão OAuth por cliente.
