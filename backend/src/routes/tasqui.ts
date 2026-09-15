@@ -55,22 +55,28 @@ router.post("/tasks", authenticateJWT, async (req: AuthRequest, res: Response): 
     return;
   }
 
-  const { title, description, client_id, project_id, responsible_id, due_date, priority } = req.body;
+  const { title, description, client_id, project_id, responsible_id, due_date, priority, quick } = req.body;
 
-  if (!title || !client_id) {
+  // Tarefa rápida (quick): só o título — responsável = quem criou, prazo = hoje, sem cliente.
+  if (!title) {
+    res.status(400).json({ error: "Título é obrigatório" });
+    return;
+  }
+  if (!quick && !client_id) {
     res.status(400).json({ error: "Título e Cliente são obrigatórios" });
     return;
   }
 
   try {
+    const today = new Date().toISOString().slice(0, 10);
     const task = await (prisma as any).task.create({
       data: {
         title,
         description,
-        client_id,
+        client_id: client_id || null,
         project_id: project_id || null,
-        responsible_id,
-        due_date: dayDate(due_date),
+        responsible_id: responsible_id || (quick ? req.user!.id : null),
+        due_date: dayDate(quick ? (due_date || today) : due_date),
         priority: priority || "MEDIA"
       },
       include: {

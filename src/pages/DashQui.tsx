@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, ListTodo, CalendarClock, TrendingUp, TrendingDown, Wallet, Check, Paperclip, Clapperboard } from "lucide-react";
+import { ArrowLeft, Loader2, ListTodo, CalendarClock, TrendingUp, TrendingDown, Wallet, Check, Paperclip, Clapperboard, Plus } from "lucide-react";
 import { confirm } from "@/components/ConfirmDialog";
 import { CONTENT_STATUS, typeLabel } from "@/lib/editorial";
 
@@ -31,6 +31,20 @@ const DashQui = () => {
   const concluir = async (t: any) => {
     setAllTasks(p => p.map(x => x.id === t.id ? { ...x, status: x.status === "CONCLUIDO" ? "PENDENTE" : "CONCLUIDO" } : x));
     await api.patch(`/api/tasqui/tasks/${t.id}`, { status: t.status === "CONCLUIDO" ? "PENDENTE" : "CONCLUIDO" }).catch(() => {});
+  };
+
+  // Tarefa rápida do dia: só o título → responsável = você, prazo = hoje, sem cliente.
+  const [quickTitle, setQuickTitle] = useState("");
+  const [adding, setAdding] = useState(false);
+  const addQuick = async () => {
+    const title = quickTitle.trim();
+    if (!title || adding) return;
+    setAdding(true);
+    try {
+      const t = await api.post("/api/tasqui/tasks", { title, quick: true });
+      setAllTasks(p => [{ ...t, responsible: { id: user?.id, name: user?.name }, status: "PENDENTE" }, ...p]);
+      setQuickTitle("");
+    } catch { /* */ } finally { setAdding(false); }
   };
 
   const reloadFinance = () => api.get("/api/dashqui").then(setData).catch(() => {});
@@ -141,6 +155,19 @@ const DashQui = () => {
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
             <ListTodo className="w-4 h-4 text-blue-400" /> Minhas tarefas do dia ({myTasks.filter(t => t.status !== "CONCLUIDO").length})
           </h2>
+          {/* Adicionar tarefa rápida (só título) */}
+          <div className="flex items-center gap-2 mb-2">
+            <input
+              value={quickTitle}
+              onChange={e => setQuickTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") addQuick(); }}
+              placeholder="Adicionar tarefa rápida do dia..."
+              className="flex-1 bg-secondary/40 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-blue-500/50"
+            />
+            <button onClick={addQuick} disabled={adding || !quickTitle.trim()} title="Adicionar" className="h-9 w-9 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center disabled:opacity-40">
+              {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            </button>
+          </div>
           <div className="space-y-1.5 max-h-96 overflow-y-auto">
             {myTasks.length === 0 && <p className="text-sm text-muted-foreground py-3 text-center">Nenhuma tarefa sua para hoje. 🎉</p>}
             {myTasks.map((t: any) => {

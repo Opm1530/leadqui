@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import multer from "multer";
 import os from "os";
+import archiver = require("archiver");
 import prisma from "../lib/prisma";
 import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth";
 import { uploadTempFile, getFile, deleteFile, isStorageConfigured } from "../lib/storage";
@@ -71,6 +72,41 @@ router.post("/", upload.single("file"), async (req: AuthRequest, res: Response):
   } catch (e: any) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// Download em massa (zip) — recebe { ids: [] } e transmite um zip com todos.
+router.post("/download-zip", async (req: AuthRequest, res: Response): Promise<void> => {
+  const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : [];
+  if (!ids.length) { res.status(400).json({ error: "Nenhum arquivo selecionado" }); return; }
+  const files = await (prisma as any).clientFile.findMany({ where: { id: { in: ids } } });
+  if (!files.length) { res.status(404).json({ error: "Arquivos não encontrados" }); return; }
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.setHeader("Content-Type", "application/zip");
+  res.setHeader("Content-Disposition", `attachment; filename="arquivos-${stamp}.zip"`);
+
+  const archive = new archiver.ZipArchive({ zlib: { level: 6 } });
+  archive.on("error", () => { try { res.destroy(); } catch { /* */ } });
+  archive.pipe(res);
+
+  const used = new Set<string>();
+  for (const f of files) {
+    try {
+      const { body } = await getFile(f.key);
+      // Evita nomes duplicados dentro do zip
+      let name = f.name || "arquivo";
+      if (used.has(name)) {
+        const dot = name.lastIndexOf(".");
+        const base = dot > 0 ? name.slice(0, dot) : name;
+        const ext = dot > 0 ? name.slice(dot) : "";
+        let i = 1; while (used.has(`${base} (${i})${ext}`)) i++;
+        name = `${base} (${i})${ext}`;
+      }
+      used.add(name);
+      archive.append(body as any, { name });
+    } catch { /* pula arquivo que falhar */ }
+  }
+  await archive.finalize();
 });
 
 // Download (stream do R2)

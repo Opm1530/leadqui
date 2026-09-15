@@ -9,9 +9,11 @@ export interface ViewFile {
 }
 
 const ext = (name: string) => (name.split(".").pop() || "").toLowerCase();
+const isHeic = (f: ViewFile) => /heic|heif/i.test(f.mime || "") || /^(heic|heif)$/.test(ext(f.name));
 const kind = (f: ViewFile) => {
   const e = ext(f.name);
   const m = f.mime || "";
+  if (isHeic(f)) return "image"; // convertido para JPEG antes de exibir
   if (m.startsWith("image/") || /^(jpe?g|png|gif|webp|svg|bmp|avif)$/.test(e)) return "image";
   if (m.startsWith("video/") || /^(mp4|mov|webm|m4v|ogv)$/.test(e)) return "video";
   if (m.startsWith("audio/") || /^(mp3|wav|ogg|m4a|aac)$/.test(e)) return "audio";
@@ -20,30 +22,50 @@ const kind = (f: ViewFile) => {
 };
 
 export default function FileViewerModal({ file, onClose }: { file: ViewFile | null; onClose: () => void }) {
-  const [blobUrl, setBlobUrl] = useState<string>("");
+  const [blobUrl, setBlobUrl] = useState<string>("");   // usado para exibição (HEIC → JPEG)
+  const [origUrl, setOrigUrl] = useState<string>("");   // arquivo original, usado no download
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!file) { setBlobUrl(""); setError(""); return; }
-    let revoked = "";
-    setLoading(true); setError("");
+    if (!file) { setBlobUrl(""); setOrigUrl(""); setError(""); return; }
+    const urls: string[] = [];
+    setLoading(true); setError(""); setBlobUrl(""); setOrigUrl("");
     const token = localStorage.getItem("pequi_token");
-    fetch(file.url, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => { if (!r.ok) throw new Error("Falha ao carregar o arquivo"); return r.blob(); })
-      .then(b => { const u = URL.createObjectURL(b); revoked = u; setBlobUrl(u); })
-      .catch(e => setError(e.message || "Não foi possível abrir o arquivo"))
-      .finally(() => setLoading(false));
-    return () => { if (revoked) URL.revokeObjectURL(revoked); };
+    (async () => {
+      try {
+        const r = await fetch(file.url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!r.ok) throw new Error("Falha ao carregar o arquivo");
+        const b = await r.blob();
+        const ou = URL.createObjectURL(b); urls.push(ou); setOrigUrl(ou);
+        if (isHeic(file)) {
+          // HEIC (fotos do iPhone) não renderiza no navegador — converte para JPEG.
+          try {
+            const heic2any = (await import("heic2any")).default as any;
+            const out = await heic2any({ blob: b, toType: "image/jpeg", quality: 0.9 });
+            const jpg = (Array.isArray(out) ? out[0] : out) as Blob;
+            const du = URL.createObjectURL(jpg); urls.push(du); setBlobUrl(du);
+          } catch {
+            setError("Não foi possível gerar a pré-visualização deste HEIC. Você ainda pode baixá-lo.");
+          }
+        } else {
+          setBlobUrl(ou);
+        }
+      } catch (e: any) {
+        setError(e.message || "Não foi possível abrir o arquivo");
+      } finally { setLoading(false); }
+    })();
+    return () => { urls.forEach(u => URL.revokeObjectURL(u)); };
   }, [file?.url]);
 
   if (!file) return null;
   const k = kind(file);
 
   const baixar = () => {
-    if (!blobUrl) return;
+    const url = origUrl || blobUrl;
+    if (!url) return;
     const a = document.createElement("a");
-    a.href = blobUrl; a.download = file.name; a.click();
+    a.href = url; a.download = file.name; a.click();
   };
 
   return (
@@ -56,7 +78,7 @@ export default function FileViewerModal({ file, onClose }: { file: ViewFile | nu
             <span className="text-sm font-medium text-foreground truncate">{file.name}</span>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <button onClick={baixar} disabled={!blobUrl} title="Baixar" className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5 disabled:opacity-40"><Download className="w-4 h-4" /></button>
+            <button onClick={baixar} disabled={!origUrl && !blobUrl} title="Baixar" className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5 disabled:opacity-40"><Download className="w-4 h-4" /></button>
             <button onClick={onClose} title="Fechar" className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/5"><X className="w-4 h-4" /></button>
           </div>
         </div>
@@ -66,7 +88,10 @@ export default function FileViewerModal({ file, onClose }: { file: ViewFile | nu
           {loading ? (
             <div className="py-20 text-center"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground mx-auto" /></div>
           ) : error ? (
-            <div className="py-20 text-center text-sm text-red-400 px-6">{error}</div>
+            <div className="py-20 text-center px-6 space-y-3">
+              <p className="text-sm text-red-400">{error}</p>
+              {origUrl && <button onClick={baixar} className="inline-flex items-center gap-2 text-sm text-primary hover:underline"><Download className="w-4 h-4" /> Baixar arquivo</button>}
+            </div>
           ) : !blobUrl ? null : k === "image" ? (
             <img src={blobUrl} alt={file.name} className="max-h-[80vh] max-w-full object-contain" />
           ) : k === "video" ? (

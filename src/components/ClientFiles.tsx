@@ -22,7 +22,35 @@ export default function ClientFiles({ clientId }: { clientId: string }) {
   const [showNewFolder, setShowNewFolder] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const [viewing, setViewing] = useState<ViewFile | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [zipping, setZipping] = useState(false);
   const abrir = (f: any) => setViewing({ name: f.name, mime: f.mime, url: `/api/files/${f.id}/download` });
+
+  const toggleSel = (id: string) => setSelected(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allSelected = files.length > 0 && files.every(f => selected.has(f.id));
+  const toggleAll = () => setSelected(allSelected ? new Set() : new Set(files.map(f => f.id)));
+
+  // Download em massa: junta os selecionados num zip único.
+  const baixarZip = async () => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    setZipping(true);
+    try {
+      const token = localStorage.getItem("pequi_token");
+      const r = await fetch("/api/files/download-zip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids }),
+      });
+      if (!r.ok) throw new Error();
+      const b = await r.blob();
+      const url = URL.createObjectURL(b);
+      const a = document.createElement("a"); a.href = url; a.download = `arquivos-${new Date().toISOString().slice(0, 10)}.zip`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setSelected(new Set());
+    } catch { toast({ title: "Erro ao baixar", variant: "destructive" }); }
+    finally { setZipping(false); }
+  };
 
   const load = () => {
     setLoading(true);
@@ -34,7 +62,7 @@ export default function ClientFiles({ clientId }: { clientId: string }) {
     api.get("/api/files/status").then(d => setConfigured(d.configured)).catch(() => setConfigured(false));
     loadFolders();
   }, [clientId]);
-  useEffect(() => { load(); }, [clientId, current]);
+  useEffect(() => { load(); setSelected(new Set()); }, [clientId, current]);
 
   const criarPasta = async () => {
     if (!newFolder.trim()) return;
@@ -137,8 +165,21 @@ export default function ClientFiles({ clientId }: { clientId: string }) {
       : files.length === 0 ? <p className="text-sm text-muted-foreground py-6 text-center">Nenhum arquivo {current ? "nesta pasta" : "na raiz"}.</p>
       : (
         <div className="space-y-1.5">
+          {/* Barra de seleção / download em massa */}
+          <div className="flex items-center justify-between px-1 pb-1">
+            <label className="flex items-center gap-2 text-[11px] text-muted-foreground cursor-pointer select-none">
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded" />
+              {selected.size > 0 ? `${selected.size} selecionado(s)` : "Selecionar todos"}
+            </label>
+            {selected.size > 0 && (
+              <Button onClick={baixarZip} disabled={zipping} size="sm" variant="outline" className="border-border gap-1.5 h-7 text-xs">
+                {zipping ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Baixar {selected.size} (.zip)
+              </Button>
+            )}
+          </div>
           {files.map(f => (
-            <div key={f.id} className="flex items-center gap-3 bg-secondary/40 rounded-lg px-3 py-2">
+            <div key={f.id} className={`flex items-center gap-3 rounded-lg px-3 py-2 ${selected.has(f.id) ? "bg-primary/10" : "bg-secondary/40"}`}>
+              <input type="checkbox" checked={selected.has(f.id)} onChange={() => toggleSel(f.id)} className="rounded flex-shrink-0" />
               <FileIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               <button onClick={() => abrir(f)} className="flex-1 min-w-0 text-left">
                 <p className="text-sm text-foreground truncate hover:text-primary">{f.name}</p>

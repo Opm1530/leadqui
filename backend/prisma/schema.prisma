@@ -547,8 +547,8 @@ enum ProjectStatus {
 model Task {
   id             String    @id @default(uuid())
   project_id     String?
-  client_id      String
-  responsible_id String?   
+  client_id      String?   // opcional: tarefas rápidas pessoais não têm cliente
+  responsible_id String?
   title          String
   description    String?
   status         TaskStatus @default(PENDENTE)
@@ -560,7 +560,7 @@ model Task {
   updated_at     DateTime  @updatedAt
 
   project     Project? @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  client      Client  @relation(fields: [client_id], references: [id], onDelete: Cascade)
+  client      Client?  @relation(fields: [client_id], references: [id], onDelete: Cascade)
   responsible User?   @relation("ResponsibleUser", fields: [responsible_id], references: [id])
   editorial   EditorialContent?
   comments    TaskComment[]
