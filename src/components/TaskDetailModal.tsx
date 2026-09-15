@@ -17,7 +17,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Trash2, User, Briefcase, Tag, Archive, Send, Loader2 } from "lucide-react";
+import { Calendar, Trash2, User, Briefcase, Tag, Archive, Send, Loader2, Download } from "lucide-react";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -65,9 +65,34 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, team }: TaskD
   const [files, setFiles] = useState<any[]>([]);
   const [viewFile, setViewFile] = useState<ViewFile | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [selFiles, setSelFiles] = useState<Set<string>>(new Set());
+  const [zipping, setZipping] = useState(false);
   useEffect(() => {
+    setSelFiles(new Set());
     if (task?.id && isOpen) api.get(`/api/files?task_id=${task.id}`).then(d => setFiles(d.files || [])).catch(() => setFiles([]));
   }, [task?.id, isOpen]);
+
+  const toggleSelFile = (id: string) => setSelFiles(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const baixarZip = async () => {
+    const ids = [...selFiles];
+    if (!ids.length) return;
+    setZipping(true);
+    try {
+      const token = localStorage.getItem("pequi_token");
+      const r = await fetch("/api/files/download-zip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ids }),
+      });
+      if (!r.ok) throw new Error();
+      const b = await r.blob();
+      const url = URL.createObjectURL(b);
+      const a = document.createElement("a"); a.href = url; a.download = `anexos-${new Date().toISOString().slice(0, 10)}.zip`; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setSelFiles(new Set());
+    } catch { toast({ title: "Erro ao baixar", variant: "destructive" }); }
+    finally { setZipping(false); }
+  };
 
   // Comentários da tarefa
   const [comments, setComments] = useState<any[]>([]);
@@ -248,15 +273,23 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, team }: TaskD
           <div className="space-y-2 pt-2 border-t border-white/5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-widest text-gray-400">Anexos</label>
-              <label className="text-xs text-primary hover:underline cursor-pointer">
-                {uploading ? "enviando..." : "+ anexar"}
-                <input type="file" onChange={uploadAnexo} disabled={uploading} className="hidden" />
-              </label>
+              <div className="flex items-center gap-3">
+                {selFiles.size > 0 && (
+                  <button onClick={baixarZip} disabled={zipping} className="text-xs text-primary hover:underline flex items-center gap-1">
+                    {zipping ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />} Baixar {selFiles.size} (.zip)
+                  </button>
+                )}
+                <label className="text-xs text-primary hover:underline cursor-pointer">
+                  {uploading ? "enviando..." : "+ anexar"}
+                  <input type="file" onChange={uploadAnexo} disabled={uploading} className="hidden" />
+                </label>
+              </div>
             </div>
             {files.length === 0 ? <p className="text-xs text-gray-500">Nenhum anexo.</p> : (
               <div className="space-y-1.5">
                 {files.map(af => (
-                  <div key={af.id} className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-1.5">
+                  <div key={af.id} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 ${selFiles.has(af.id) ? "bg-primary/10" : "bg-white/5"}`}>
+                    <input type="checkbox" checked={selFiles.has(af.id)} onChange={() => toggleSelFile(af.id)} className="rounded flex-shrink-0" />
                     <button onClick={() => baixarAnexo(af)} className="flex-1 min-w-0 text-left text-xs text-foreground truncate hover:text-primary">{af.name}</button>
                     <button onClick={() => delAnexo(af)} className="text-gray-500 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
