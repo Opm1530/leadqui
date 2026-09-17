@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Loader2, ListTodo, CalendarClock, TrendingUp, TrendingDown, Wallet, Check, Paperclip, Clapperboard, Plus } from "lucide-react";
+import { ArrowLeft, Loader2, ListTodo, CalendarClock, TrendingUp, TrendingDown, Wallet, Check, Paperclip, Clapperboard, Plus, AlertTriangle, X, ChevronRight } from "lucide-react";
 import { confirm } from "@/components/ConfirmDialog";
 import { CONTENT_STATUS, typeLabel } from "@/lib/editorial";
 import { TaskDetailModal } from "@/components/TaskDetailModal";
@@ -24,11 +24,19 @@ const DashQui = () => {
   const [team, setTeam] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<any>(null);
 
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const loadAlerts = () => api.get("/api/alerts").then(d => setAlerts(d.alerts || [])).catch(() => {});
   const reloadTasks = () => api.get("/api/dashqui").then(d => setAllTasks(d.tasks || [])).catch(() => {});
   useEffect(() => {
     api.get("/api/dashqui").then(d => { setData(d); setAllTasks(d.tasks || []); }).catch(() => {}).finally(() => setLoading(false));
     api.get("/api/teamqui").then(d => setTeam(Array.isArray(d) ? d : (d.team || []))).catch(() => {});
+    loadAlerts();
   }, []);
+
+  const dispensarAlerta = async (a: any) => {
+    setAlerts(p => p.filter(x => x.id !== a.id));
+    if (!a.dynamic) await api.post(`/api/alerts/${a.id}/resolve`, {}).catch(() => {});
+  };
 
   // Minhas tarefas (checklist do dashboard, para qualquer responsável)
   const myTasks = allTasks.filter((t: any) => t.responsible?.id === user?.id);
@@ -103,6 +111,32 @@ const DashQui = () => {
           );
         })()}
       </div>
+
+      {/* Central de alertas */}
+      {alerts.length > 0 && (
+        <div className="mb-6 space-y-2">
+          {alerts.map(a => {
+            const sev = a.severity === "CRITICAL"
+              ? { ring: "border-red-500/40 bg-red-500/10", dot: "text-red-400" }
+              : a.severity === "INFO"
+                ? { ring: "border-blue-500/40 bg-blue-500/10", dot: "text-blue-400" }
+                : { ring: "border-orange-500/40 bg-orange-500/10", dot: "text-orange-400" };
+            return (
+              <div key={a.id} className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${sev.ring}`}>
+                <AlertTriangle className={`w-4 h-4 shrink-0 ${sev.dot}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">{a.title}</p>
+                  {a.message && <p className="text-xs text-muted-foreground">{a.message}</p>}
+                </div>
+                {a.link && (
+                  <button onClick={() => navigate(a.link)} title="Abrir" className="shrink-0 text-muted-foreground hover:text-foreground"><ChevronRight className="w-4 h-4" /></button>
+                )}
+                <button onClick={() => dispensarAlerta(a)} title="Dispensar" className="shrink-0 text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
 
       {/* Finanças do dia (só admin) */}

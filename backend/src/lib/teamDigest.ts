@@ -1,6 +1,7 @@
 import axios from "axios";
 import prisma from "./prisma";
 import { getCompanySettings } from "./companySettings";
+import { listAlerts } from "./alerts";
 
 // Início/fim do dia atual em horário de São Paulo, convertidos para Date (UTC).
 function rangeHojeSP(): { start: Date; end: Date; label: string } {
@@ -46,9 +47,20 @@ async function buildDigest(hour: number): Promise<{ text: string; reminders: num
     orderBy: { due_date: "asc" },
   });
 
-  if (!reminders.length && !tasks.length) return null;
+  let alerts: any[] = [];
+  try { alerts = await listAlerts(); } catch { /* alertas não bloqueiam o boletim */ }
+
+  if (!reminders.length && !tasks.length && !alerts.length) return null;
 
   let msg = `${SAUDACAO[hour] || "📋 *Boletim*"}\n📅 ${label}\n`;
+
+  if (alerts.length) {
+    const icon: Record<string, string> = { CRITICAL: "🔴", WARNING: "🟠", INFO: "🔵" };
+    msg += `\n${LINHA}\n🚨 *ALERTAS (${alerts.length})*\n`;
+    for (const a of alerts) {
+      msg += `\n${icon[a.severity] || "⚠️"} ${a.title}${a.message ? `\n     ${a.message}` : ""}\n`;
+    }
+  }
 
   if (reminders.length) {
     msg += `\n${LINHA}\n🔔 *LEMBRETES (${reminders.length})*\n`;

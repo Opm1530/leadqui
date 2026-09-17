@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Plus, Trash2, Edit2, Settings2, TrendingUp, Wallet, DollarSign } from "lucide-react";
+import { Loader2, Plus, Trash2, Edit2, Settings2, TrendingUp, Wallet, DollarSign, ArrowUp, ArrowDown } from "lucide-react";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,18 @@ export default function ClientTraffic({ clientId }: { clientId: string }) {
   const delColuna = async (id: string) => {
     if (!confirm("Excluir esta coluna? Os valores dela nas verificações somem.")) return;
     await api.delete(`/api/traffic/${clientId}/columns/${id}`).catch(() => {}); load();
+  };
+  // Move uma coluna pra cima/baixo trocando a ordem com a vizinha.
+  const moverColuna = async (idx: number, dir: -1 | 1) => {
+    const cols = data.columns || [];
+    const j = idx + dir;
+    if (j < 0 || j >= cols.length) return;
+    const a = cols[idx], b = cols[j];
+    await Promise.all([
+      api.patch(`/api/traffic/${clientId}/columns/${a.id}`, { order: j }),
+      api.patch(`/api/traffic/${clientId}/columns/${b.id}`, { order: idx }),
+    ]).catch(() => {});
+    load();
   };
 
   const abrirNovo = () => { setForm(emptyCheck()); setCheckModal(true); };
@@ -193,8 +205,12 @@ export default function ClientTraffic({ clientId }: { clientId: string }) {
           <div className="space-y-3">
             <div className="space-y-1.5">
               {columns.length === 0 && <p className="text-xs text-muted-foreground">Nenhuma coluna personalizada ainda.</p>}
-              {columns.map(c => (
+              {columns.map((c, i) => (
                 <div key={c.id} className="flex items-center gap-2 bg-secondary/40 rounded-lg px-3 py-2">
+                  <div className="flex flex-col -my-1">
+                    <button onClick={() => moverColuna(i, -1)} disabled={i === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-25 leading-none"><ArrowUp className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => moverColuna(i, 1)} disabled={i === columns.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-25 leading-none"><ArrowDown className="w-3.5 h-3.5" /></button>
+                  </div>
                   <span className="flex-1 text-sm text-foreground">{c.name}</span>
                   <span className="text-[10px] text-muted-foreground uppercase">{COL_TYPES.find(t => t.id === c.type)?.label || c.type}</span>
                   <button onClick={() => delColuna(c.id)} className="text-muted-foreground hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>

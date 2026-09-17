@@ -736,6 +736,25 @@ model TaskTemplateItem {
   @@map("task_template_items")
 }
 
+// ── Central de alertas (saldo baixo, falhas, campanha/conta bloqueada, etc.) ──
+// Alertas persistidos (dirigidos por evento). Alertas ao vivo (ex.: saldo baixo)
+// são calculados na hora em lib/alerts.ts e mesclados na listagem.
+model Alert {
+  id          String    @id @default(uuid())
+  type        String    // TRAFFIC_LOW_BALANCE | SYSTEM_FAILURE | CAMPAIGN_BLOCKED | ACCOUNT_BLOCKED | INFO
+  severity    String    @default("WARNING") // INFO | WARNING | CRITICAL
+  title       String
+  message     String?
+  client_id   String?
+  link        String?   // rota no app (ex.: /cliente/<id>)
+  resolved    Boolean   @default(false)
+  created_at  DateTime  @default(now())
+  resolved_at DateTime?
+
+  @@index([resolved])
+  @@map("alerts")
+}
+
 // ── Painel de verificação de tráfego pago (diário de checagens por cliente) ──
 // Verba mensal do cliente (definida mês a mês, sem repetição automática).
 model TrafficBudget {
