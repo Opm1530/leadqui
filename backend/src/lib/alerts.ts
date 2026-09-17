@@ -25,24 +25,27 @@ export async function computeTrafficAlerts(): Promise<AlertItem[]> {
     where: { month, amount: { gt: 0 } },
     include: { client: { select: { id: true, name: true, status: true } } },
   });
+  const PLAT: Record<string, string> = { META: "Meta Ads", GOOGLE: "Google Ads", TIKTOK: "TikTok Ads" };
   const out: AlertItem[] = [];
   for (const b of budgets) {
     if (b.client?.status && b.client.status !== "ATIVO") continue;
-    const checks = await (prisma as any).trafficCheck.findMany({ where: { client_id: b.client_id, month }, select: { spend: true } });
+    const platform = b.platform || "META";
+    const checks = await (prisma as any).trafficCheck.findMany({ where: { client_id: b.client_id, month, platform }, select: { spend: true } });
     const gasto = checks.reduce((s: number, c: any) => s + (c.spend || 0), 0);
     const saldo = b.amount - gasto;
     const pct = saldo / b.amount;
     const nome = b.client?.name || "Cliente";
+    const plat = PLAT[platform] || platform;
     if (saldo < 0) {
       out.push({
-        id: `traffic:${b.client_id}:${month}`, type: "TRAFFIC_LOW_BALANCE", severity: "CRITICAL",
-        title: `Verba estourada — ${nome}`, message: `Gasto ${brl(gasto)} de ${brl(b.amount)} · saldo ${brl(saldo)}`,
+        id: `traffic:${b.client_id}:${month}:${platform}`, type: "TRAFFIC_LOW_BALANCE", severity: "CRITICAL",
+        title: `Verba estourada — ${nome} (${plat})`, message: `Gasto ${brl(gasto)} de ${brl(b.amount)} · saldo ${brl(saldo)}`,
         client_id: b.client_id, link: `/cliente/${b.client_id}`, dynamic: true, created_at: new Date().toISOString(),
       });
     } else if (pct <= LOW_PCT) {
       out.push({
-        id: `traffic:${b.client_id}:${month}`, type: "TRAFFIC_LOW_BALANCE", severity: "WARNING",
-        title: `Saldo baixo — ${nome}`, message: `Restam ${brl(saldo)} de ${brl(b.amount)} (${Math.round(pct * 100)}%)`,
+        id: `traffic:${b.client_id}:${month}:${platform}`, type: "TRAFFIC_LOW_BALANCE", severity: "WARNING",
+        title: `Saldo baixo — ${nome} (${plat})`, message: `Restam ${brl(saldo)} de ${brl(b.amount)} (${Math.round(pct * 100)}%)`,
         client_id: b.client_id, link: `/cliente/${b.client_id}`, dynamic: true, created_at: new Date().toISOString(),
       });
     }

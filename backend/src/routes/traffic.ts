@@ -8,27 +8,31 @@ router.use(authenticateJWT);
 router.use(requireStaff);
 
 const COLUMN_TYPES = ["NUMBER", "CURRENCY", "PERCENT", "TEXT"];
+const PLATFORMS = ["META", "GOOGLE", "TIKTOK"];
+const platformOf = (p?: any) => (PLATFORMS.includes(String(p)) ? String(p) : "META");
 const monthOf = (d?: string) => {
   const dt = d ? new Date(d) : new Date();
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
 };
 
-// GET /api/traffic/:clientId?month=YYYY-MM → verba, colunas, verificações e totais do mês
+// GET /api/traffic/:clientId?month=YYYY-MM&platform=META → verba, colunas, verificações e totais
 router.get("/:clientId", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const client_id = String(req.params.clientId);
     const month = String(req.query.month || monthOf());
+    const platform = platformOf(req.query.platform);
 
     const [budget, columns, checks] = await Promise.all([
-      (prisma as any).trafficBudget.findUnique({ where: { client_id_month: { client_id, month } } }),
+      (prisma as any).trafficBudget.findUnique({ where: { client_id_month_platform: { client_id, month, platform } } }),
       (prisma as any).trafficColumn.findMany({ where: { client_id }, orderBy: { order: "asc" } }),
-      (prisma as any).trafficCheck.findMany({ where: { client_id, month }, orderBy: { checked_at: "desc" } }),
+      (prisma as any).trafficCheck.findMany({ where: { client_id, month, platform }, orderBy: { checked_at: "desc" } }),
     ]);
 
     const gasto = checks.reduce((s: number, c: any) => s + (c.spend || 0), 0);
     const verba = budget?.amount || 0;
     res.json({
       month,
+      platform,
       budget: verba,
       columns,
       checks,
@@ -42,10 +46,11 @@ router.put("/:clientId/budget", async (req: AuthRequest, res: Response): Promise
   try {
     const client_id = String(req.params.clientId);
     const month = String(req.body.month || monthOf());
+    const platform = platformOf(req.body.platform);
     const amount = Number(req.body.amount) || 0;
     const budget = await (prisma as any).trafficBudget.upsert({
-      where: { client_id_month: { client_id, month } },
-      create: { client_id, month, amount },
+      where: { client_id_month_platform: { client_id, month, platform } },
+      create: { client_id, month, platform, amount },
       update: { amount },
     });
     res.json({ budget });
@@ -105,7 +110,7 @@ router.post("/:clientId/checks", async (req: AuthRequest, res: Response): Promis
     const client_id = String(req.params.clientId);
     const d = checkData(req.body);
     const check = await (prisma as any).trafficCheck.create({
-      data: { client_id, month: monthOf(d.checked_at.toISOString()), user_id: req.user!.id, ...d },
+      data: { client_id, platform: platformOf(req.body.platform), month: monthOf(d.checked_at.toISOString()), user_id: req.user!.id, ...d },
     });
     res.status(201).json({ check });
   } catch (e: any) { res.status(500).json({ error: e.message }); }

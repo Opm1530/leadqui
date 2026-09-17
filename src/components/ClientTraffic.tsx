@@ -19,6 +19,11 @@ const fmtColVal = (v: any, type: string) => {
   if (type === "PERCENT") return `${v}%`;
   return String(v);
 };
+const PLATFORMS = [
+  { id: "META", label: "Meta Ads" },
+  { id: "GOOGLE", label: "Google Ads" },
+  { id: "TIKTOK", label: "TikTok Ads" },
+];
 const nowMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 const emptyCheck = () => ({
   id: "", checked_at: new Date().toISOString().slice(0, 16),
@@ -27,6 +32,7 @@ const emptyCheck = () => ({
 
 export default function ClientTraffic({ clientId }: { clientId: string }) {
   const { toast } = useToast();
+  const [platform, setPlatform] = useState("META");
   const [month, setMonth] = useState(nowMonth());
   const [data, setData] = useState<any>({ budget: 0, columns: [], checks: [], totals: { gasto: 0, saldo: 0, count: 0 } });
   const [loading, setLoading] = useState(true);
@@ -40,15 +46,15 @@ export default function ClientTraffic({ clientId }: { clientId: string }) {
 
   const load = useCallback(() => {
     setLoading(true);
-    api.get(`/api/traffic/${clientId}?month=${month}`)
+    api.get(`/api/traffic/${clientId}?month=${month}&platform=${platform}`)
       .then(d => { setData(d); setBudgetInput(d.budget ? String(d.budget) : ""); })
       .catch(() => {}).finally(() => setLoading(false));
-  }, [clientId, month]);
+  }, [clientId, month, platform]);
   useEffect(() => { load(); }, [load]);
 
   const salvarVerba = async () => {
     setSavingBudget(true);
-    try { await api.put(`/api/traffic/${clientId}/budget`, { month, amount: Number(budgetInput) || 0 }); load(); toast({ title: "Verba salva!" }); }
+    try { await api.put(`/api/traffic/${clientId}/budget`, { month, platform, amount: Number(budgetInput) || 0 }); load(); toast({ title: "Verba salva!" }); }
     catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
     finally { setSavingBudget(false); }
   };
@@ -85,7 +91,7 @@ export default function ClientTraffic({ clientId }: { clientId: string }) {
 
   const salvarCheck = async () => {
     setSaving(true);
-    const payload = { ...form, spend: Number(form.spend) || 0 };
+    const payload = { ...form, spend: Number(form.spend) || 0, platform };
     try {
       if (form.id) await api.patch(`/api/traffic/${clientId}/checks/${form.id}`, payload);
       else await api.post(`/api/traffic/${clientId}/checks`, payload);
@@ -118,6 +124,16 @@ export default function ClientTraffic({ clientId }: { clientId: string }) {
             <Button variant="outline" size="sm" className="border-border gap-1.5" onClick={() => setColModal(true)}><Settings2 className="w-4 h-4" /> Colunas</Button>
             <Button size="sm" className="gradient-button gap-1.5" onClick={abrirNovo}><Plus className="w-4 h-4" /> Verificação</Button>
           </div>
+        </div>
+
+        {/* Guias de plataforma */}
+        <div className="flex items-center gap-1 mb-4 bg-secondary/40 rounded-xl p-1 w-fit">
+          {PLATFORMS.map(p => (
+            <button key={p.id} onClick={() => setPlatform(p.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${platform === p.id ? "bg-white/10 text-foreground shadow" : "text-muted-foreground hover:text-foreground"}`}>
+              {p.label}
+            </button>
+          ))}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

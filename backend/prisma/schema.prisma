@@ -760,6 +760,7 @@ model Alert {
 model TrafficBudget {
   id         String   @id @default(uuid())
   client_id  String
+  platform   String   @default("META") // META | GOOGLE | TIKTOK
   month      String   // "YYYY-MM"
   amount     Float    @default(0)
   created_at DateTime @default(now())
@@ -767,7 +768,7 @@ model TrafficBudget {
 
   client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
 
-  @@unique([client_id, month])
+  @@unique([client_id, month, platform])
   @@map("traffic_budgets")
 }
 
@@ -790,6 +791,7 @@ model TrafficColumn {
 model TrafficCheck {
   id            String   @id @default(uuid())
   client_id     String
+  platform      String   @default("META") // META | GOOGLE | TIKTOK
   month         String   // "YYYY-MM" (derivado de checked_at)
   checked_at    DateTime @default(now())
   campaign_name String?
