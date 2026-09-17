@@ -36,6 +36,7 @@ import inboxRoutes from "./routes/inbox";
 import formsRoutes from "./routes/forms";
 import formEndpointsRoutes from "./routes/formEndpoints";
 import clientUsersRoutes from "./routes/clientUsers";
+import trafficRoutes from "./routes/traffic";
 import { startInstagramScheduler } from "./lib/instagramScheduler";
 import { startAdsAnalyzerJob } from "./lib/adsAnalyzerJob";
 
@@ -116,6 +117,7 @@ app.use("/api/editorial", editorialRoutes);
 app.use("/api/inbox", inboxRoutes);
 app.use("/api/form-endpoints", formEndpointsRoutes);
 app.use("/api/client-users", clientUsersRoutes);
+app.use("/api/traffic", trafficRoutes);
 app.use("/api", resourcesRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────

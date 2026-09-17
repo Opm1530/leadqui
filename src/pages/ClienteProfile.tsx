@@ -12,6 +12,7 @@ import { useRole } from "@/hooks/useRole";
 import { backgroundUpload } from "@/contexts/UploadContext";
 import { askInvoiceReceipt, openInvoiceReceipt } from "@/lib/receipts";
 import ClientTaskBoard from "@/components/ClientTaskBoard";
+import ClientTraffic from "@/components/ClientTraffic";
 import ClientEditorial from "@/components/ClientEditorial";
 import AdsManager from "@/components/AdsManager";
 import ClientFiles from "@/components/ClientFiles";
@@ -27,6 +28,7 @@ const TABS = [
   { id: "tarefas", label: "Tarefas", icon: ListTodo },
   { id: "editorial", label: "Editorial", icon: Clapperboard },
   { id: "meta", label: "Meta", icon: Instagram },
+  { id: "trafego", label: "Tráfego", icon: BarChart2 },
   { id: "financas", label: "Finanças", icon: DollarSign },
   { id: "influencers", label: "Influencers", icon: Star },
   { id: "dados", label: "Dados", icon: ClipboardList },
@@ -159,6 +161,7 @@ const ClienteProfile = () => {
 
       {tab === "tarefas" && <ClientTaskBoard clientId={id!} tasks={tasks} setTasks={setTasks} team={team} reload={reloadTasks} />}
       {tab === "editorial" && <ClientEditorial clientId={id!} clientName={client?.name || ""} team={team} />}
+      {tab === "trafego" && <ClientTraffic clientId={id!} />}
       {tab === "financas" && <FinancasTab clientId={id!} invoices={invoices} setInvoices={setInvoices} toast={toast} navigate={navigate} />}
       {tab === "meta" && (
         <div className="space-y-4">

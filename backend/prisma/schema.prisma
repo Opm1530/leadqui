@@ -321,6 +321,9 @@ model Client {
   onboarding       Onboarding?
   editorial_contents EditorialContent[]
   members          User[] @relation("ClientMembers")
+  traffic_budgets  TrafficBudget[]
+  traffic_columns  TrafficColumn[]
+  traffic_checks   TrafficCheck[]
 
   @@map("clients")
 }
@@ -731,6 +734,59 @@ model TaskTemplateItem {
   template TaskTemplate @relation(fields: [template_id], references: [id], onDelete: Cascade)
 
   @@map("task_template_items")
+}
+
+// ── Painel de verificação de tráfego pago (diário de checagens por cliente) ──
+// Verba mensal do cliente (definida mês a mês, sem repetição automática).
+model TrafficBudget {
+  id         String   @id @default(uuid())
+  client_id  String
+  month      String   // "YYYY-MM"
+  amount     Float    @default(0)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@unique([client_id, month])
+  @@map("traffic_budgets")
+}
+
+// Colunas de métricas personalizadas por cliente (além das fixas).
+model TrafficColumn {
+  id         String   @id @default(uuid())
+  client_id  String
+  name       String
+  type       String   @default("NUMBER") // NUMBER | CURRENCY | PERCENT | TEXT
+  order      Int      @default(0)
+  created_at DateTime @default(now())
+
+  client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@index([client_id])
+  @@map("traffic_columns")
+}
+
+// Uma verificação (linha da tabela). Gasto é do período — o saldo soma os gastos.
+model TrafficCheck {
+  id            String   @id @default(uuid())
+  client_id     String
+  month         String   // "YYYY-MM" (derivado de checked_at)
+  checked_at    DateTime @default(now())
+  campaign_name String?
+  campaign_id   String?
+  adset_name    String?
+  ad_name       String?
+  spend         Float    @default(0)
+  observation   String?
+  values        Json     @default("{}") // { [columnId]: valor }
+  user_id       String?
+  created_at    DateTime @default(now())
+
+  client Client @relation(fields: [client_id], references: [id], onDelete: Cascade)
+
+  @@index([client_id, month])
+  @@map("traffic_checks")
 }
 
 model TrafficCampaign {
