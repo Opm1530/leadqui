@@ -736,6 +736,25 @@ model TaskTemplateItem {
   @@map("task_template_items")
 }
 
+// ── SDR de IA (prospecção) — Playbook (o "cérebro" configurável do agente) ──
+model SdrPlaybook {
+  id                 String   @id @default(uuid())
+  user_id            String   @unique
+  icp                String?  // cliente ideal (ICP)
+  offer              String?  // oferta / o que vende
+  tone               String?  // tom de voz
+  qualifying         String?  // perguntas de qualificação (texto livre)
+  first_msg_guidance String?  // diretrizes do 1º contato
+  followup_guidance  String?  // diretrizes de follow-up
+  goal               String?  // objetivo (ex.: agendar reunião)
+  daily_limit        Int      @default(10)
+  active             Boolean  @default(false)
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  @@map("sdr_playbooks")
+}
+
 // ── Central de alertas (saldo baixo, falhas, campanha/conta bloqueada, etc.) ──
 // Alertas persistidos (dirigidos por evento). Alertas ao vivo (ex.: saldo baixo)
 // são calculados na hora em lib/alerts.ts e mesclados na listagem.

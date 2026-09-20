@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox, Star, Building2, Clapperboard, MessageCircle, Webhook } from "lucide-react";
+import { Zap, LayoutDashboard, DollarSign, Rocket, MessageSquare, ChevronRight, LogOut, ShieldAlert, Users, Sparkles, Settings as SettingsIcon, Inbox, Star, Building2, Clapperboard, MessageCircle, Webhook, Bot } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRole } from "@/hooks/useRole";
@@ -107,6 +107,15 @@ const Hub = () => {
       icon: Webhook,
       color: "from-cyan-500 to-blue-600",
       route: "/formularios",
+      adminOnly: true,
+    },
+    {
+      id: "prospeccao",
+      name: "Prospecção IA",
+      description: "Seu SDR de IA: prospecta, conversa, qualifica e agenda reuniões. Você entra pra fechar.",
+      icon: Bot,
+      color: "from-fuchsia-500 to-purple-600",
+      route: "/prospeccao",
       adminOnly: true,
     },
     {

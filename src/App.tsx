@@ -55,6 +55,7 @@ import Editorial from "./pages/Editorial";
 import Inbox from "./pages/Inbox";
 import Formularios from "./pages/Formularios";
 import ClientTeam from "./pages/ClientTeam";
+import SdrProspeccao from "./pages/SdrProspeccao";
 
 const queryClient = new QueryClient();
 
@@ -90,6 +91,7 @@ const App = () => (
                 <Route path="/tarefas" element={<Tarefas />} />
                 <Route path="/clientes" element={<ClientesGrid />} />
                 <Route path="/editorial" element={<Editorial />} />
+                <Route path="/prospeccao" element={<SdrProspeccao />} />
                 <Route path="/inbox" element={<ProtectedRoute adminOnly><Inbox /></ProtectedRoute>} />
                 <Route path="/formularios" element={<ProtectedRoute adminOnly><Formularios /></ProtectedRoute>} />
               </Route>
