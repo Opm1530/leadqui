@@ -190,12 +190,16 @@ function FilaTab({ toast }: { toast: any }) {
         : <div className="space-y-2">
             {drafts.map(dft => {
               const lead = dft.conversation?.lead;
+              const lastLead = (dft.conversation?.messages || []).find((m: any) => m.sender === "lead");
               return (
                 <div key={dft.id} className="glass-card p-3">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-sm font-semibold text-foreground">{lead?.nome || "Lead"} <span className="text-[10px] font-normal text-muted-foreground">· {lead?.cidade || lead?.categoria || ""}</span></span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-fuchsia-500/15 text-fuchsia-400 uppercase">{dft.kind === "FIRST_CONTACT" ? "1º contato" : dft.kind === "FOLLOWUP" ? "Follow-up" : "Resposta"}</span>
                   </div>
+                  {dft.kind === "REPLY" && lastLead && (
+                    <div className="mb-1.5 text-xs text-muted-foreground bg-secondary/40 rounded-lg px-3 py-1.5"><span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">Lead disse</span><br />{lastLead.text}</div>
+                  )}
                   <textarea value={edits[dft.id] ?? dft.text} onChange={e => setEdits(s => ({ ...s, [dft.id]: e.target.value }))} rows={3}
                     className="w-full rounded-lg bg-secondary border border-border px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/50" />
                   <div className="flex items-center gap-2 mt-2">

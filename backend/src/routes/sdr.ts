@@ -114,7 +114,14 @@ router.get("/queue", async (_req: AuthRequest, res: Response): Promise<void> => 
   try {
     const drafts = await (prisma as any).sdrDraft.findMany({
       where: { status: "PENDING" }, orderBy: { created_at: "asc" }, take: 200,
-      include: { conversation: { include: { lead: { select: { id: true, nome: true, telefone: true, cidade: true, categoria: true } } } } },
+      include: {
+        conversation: {
+          include: {
+            lead: { select: { id: true, nome: true, telefone: true, cidade: true, categoria: true } },
+            messages: { orderBy: { created_at: "desc" }, take: 4 },
+          },
+        },
+      },
     });
     // Contador do limite diário (1º contatos enviados hoje)
     const sentToday = await (prisma as any).sdrDraft.count({ where: { kind: "FIRST_CONTACT", status: "SENT", sent_at: { gte: todayStart() } } });
@@ -145,6 +152,7 @@ router.post("/drafts/:id/approve", async (req: AuthRequest, res: Response): Prom
     const waId = sent?.key?.id || sent?.message?.key?.id || null;
 
     await (prisma as any).sdrDraft.update({ where: { id: draft.id }, data: { status: "SENT", sent_at: new Date(), text } });
+    await (prisma as any).sdrMessage.create({ data: { conversation_id: draft.conversation_id, sender: "sdr", text } });
     const nextStage = draft.conversation.stage === "NOVO" ? "ABORDADO" : draft.conversation.stage;
     await (prisma as any).sdrConversation.update({ where: { id: draft.conversation_id }, data: { stage: nextStage, last_message_at: new Date(), instance } });
     // Registra no inbox (best-effort) para o histórico da conversa

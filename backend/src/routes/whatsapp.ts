@@ -3,6 +3,7 @@ import prisma from "../lib/prisma";
 import { sendTextToClientGroup, onClientApproved, onClientRejected } from "../lib/approval";
 import { classifyDemand } from "../lib/demandClassifier";
 import { recordMessage, isInboxInstance, detectMedia, fetchMediaBase64 } from "../lib/whatsapp";
+import { handleSdrIncoming } from "../lib/sdrInbound";
 import { uploadFile } from "../lib/storage";
 
 const router = Router();
@@ -73,6 +74,11 @@ router.post("/webhook", async (req: Request, res: Response) => {
         mediaMime,
         mediaName: media?.name || null,
       }).catch(() => {});
+    }
+
+    // ── SDR (prospecção): resposta 1:1 de um lead → gera rascunho de réplica ──
+    if (!fromMe && chatJid && !chatJid.endsWith("@g.us") && text) {
+      handleSdrIncoming(chatJid, text).catch(() => {});
     }
 
     // ── Aprovação de posts (comportamento existente) — só grupos de cliente, msg recebida ──
