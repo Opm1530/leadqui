@@ -47,6 +47,20 @@ export async function generateFirstContact(lead: any, pb: Playbook): Promise<str
   return textOf(r);
 }
 
+// Follow-up: lead parou de responder → cutucada leve, sem pressão.
+export async function generateFollowup(pb: Playbook, lead: any, history: { from: "lead" | "sdr"; text: string }[], attempt: number): Promise<string> {
+  const a = await client();
+  const convo = history.map(h => `${h.from === "lead" ? "LEAD" : "SDR"}: ${h.text}`).join("\n");
+  const r = await a.messages.create({
+    model: MODEL, max_tokens: 300, system: systemPrompt(pb),
+    messages: [{
+      role: "user",
+      content: `${leadCtx(lead)}\n\nConversa até agora:\n${convo}\n\nO lead não respondeu. Escreva um follow-up curto e leve (tentativa ${attempt}), sem pressão e sem soar cobrança. ${pb.followup_guidance || "Agregue um insight rápido sobre delivery e reabra a conversa com uma pergunta simples."}\n\nResponda SOMENTE com o texto da mensagem.`,
+    }],
+  });
+  return textOf(r);
+}
+
 export interface ReplyResult {
   reply: string;
   opt_out: boolean;      // pediu para parar / sem interesse

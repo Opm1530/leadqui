@@ -40,6 +40,7 @@ import trafficRoutes from "./routes/traffic";
 import alertsRoutes from "./routes/alerts";
 import sdrRoutes from "./routes/sdr";
 import { startInstagramScheduler } from "./lib/instagramScheduler";
+import { startSdrFollowup } from "./lib/sdrFollowup";
 import { startAdsAnalyzerJob } from "./lib/adsAnalyzerJob";
 
 const app = express();
@@ -145,6 +146,7 @@ app.listen(PORT, () => {
   startAdsAnalyzerJob();
   startDemandDigest();
   startTeamDigest();
+  startSdrFollowup();
 });
 
 export default app;

@@ -97,8 +97,10 @@ const SdrProspeccao = () => {
             <Field label="Diretrizes do 1º contato" value={pb.first_msg_guidance || ""} onChange={v => set("first_msg_guidance", v)} />
             <Field label="Diretrizes de follow-up" value={pb.followup_guidance || ""} onChange={v => set("followup_guidance", v)} />
             <Field label="Objetivo" value={pb.goal || ""} onChange={v => set("goal", v)} />
-            <div className="flex items-end gap-4">
-              <div className="w-40"><label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Novos contatos/dia</label><Input type="number" min={1} max={200} value={pb.daily_limit} onChange={e => set("daily_limit", e.target.value)} className="bg-secondary border-border mt-1" /></div>
+            <div className="flex items-end gap-3 flex-wrap">
+              <div className="w-32"><label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Contatos/dia</label><Input type="number" min={1} max={200} value={pb.daily_limit} onChange={e => set("daily_limit", e.target.value)} className="bg-secondary border-border mt-1" /></div>
+              <div className="w-40"><label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Follow-up após (h)</label><Input type="number" min={1} max={720} value={pb.followup_hours} onChange={e => set("followup_hours", e.target.value)} className="bg-secondary border-border mt-1" /></div>
+              <div className="w-36"><label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Máx. follow-ups</label><Input type="number" min={0} max={10} value={pb.max_followups} onChange={e => set("max_followups", e.target.value)} className="bg-secondary border-border mt-1" /></div>
               <Button onClick={salvar} disabled={saving} className="gradient-button gap-2 ml-auto">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Salvar</Button>
             </div>
           </div>

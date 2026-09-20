@@ -21,6 +21,8 @@ const DEFAULTS = {
   followup_guidance: "Se o lead não responder, mande um lembrete leve e sem pressão, agregando um insight rápido sobre delivery.",
   goal: "Agendar uma reunião com o dono para mostrar como crescer o delivery.",
   daily_limit: 10,
+  followup_hours: 24,
+  max_followups: 2,
 };
 
 // Telefone do lead → número no formato da Evolution (com DDI 55 quando faltar).
@@ -55,6 +57,8 @@ router.put("/playbook", async (req: AuthRequest, res: Response): Promise<void> =
     }
     if (instance !== undefined) data.instance = instance || null;
     if (daily_limit !== undefined) data.daily_limit = Math.max(1, Math.min(200, parseInt(String(daily_limit)) || 10));
+    if (req.body.followup_hours !== undefined) data.followup_hours = Math.max(1, Math.min(720, parseInt(String(req.body.followup_hours)) || 24));
+    if (req.body.max_followups !== undefined) data.max_followups = Math.max(0, Math.min(10, parseInt(String(req.body.max_followups)) || 2));
     if (active !== undefined) data.active = !!active;
     const playbook = await (prisma as any).sdrPlaybook.upsert({ where: { user_id }, create: { user_id, ...DEFAULTS, ...data }, update: data });
     res.json({ playbook });

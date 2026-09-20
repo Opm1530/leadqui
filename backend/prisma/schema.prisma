@@ -749,6 +749,8 @@ model SdrPlaybook {
   followup_guidance  String?  // diretrizes de follow-up
   goal               String?  // objetivo (ex.: agendar reunião)
   daily_limit        Int      @default(10)
+  followup_hours     Int      @default(24) // horas sem resposta para gerar follow-up
+  max_followups      Int      @default(2)  // nº máximo de follow-ups por lead
   instance           String?  // instância Evolution (número dedicado do SDR)
   active             Boolean  @default(false)
   created_at         DateTime @default(now())
