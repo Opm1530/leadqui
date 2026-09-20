@@ -138,6 +138,7 @@ model Lead {
   client  Client?   @relation(fields: [client_id], references: [id], onDelete: SetNull)
   crmCards CRMCard[]
   reminders LeadReminder[]
+  sdr_conversation SdrConversation?
 
   @@map("leads")
 }
@@ -748,11 +749,50 @@ model SdrPlaybook {
   followup_guidance  String?  // diretrizes de follow-up
   goal               String?  // objetivo (ex.: agendar reunião)
   daily_limit        Int      @default(10)
+  instance           String?  // instância Evolution (número dedicado do SDR)
   active             Boolean  @default(false)
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
 
   @@map("sdr_playbooks")
+}
+
+// Conversa do SDR com um lead (o funil de prospecção).
+model SdrConversation {
+  id               String    @id @default(uuid())
+  lead_id          String    @unique
+  instance         String?   // número (instância) usado
+  chat_jid         String?   // jid do WhatsApp do lead
+  stage            String    @default("NOVO") // NOVO|ABORDADO|EM_CONVERSA|QUALIFICADO|REUNIAO|PERDIDO
+  status           String    @default("ACTIVE") // ACTIVE|PAUSED|OPTOUT|DONE
+  qualification    String?   // resumo/pontuação da qualificação
+  last_message_at  DateTime?
+  next_followup_at DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  lead   Lead      @relation(fields: [lead_id], references: [id], onDelete: Cascade)
+  drafts SdrDraft[]
+
+  @@index([stage])
+  @@map("sdr_conversations")
+}
+
+// Rascunho gerado pela IA aguardando aprovação (a fila do copiloto).
+model SdrDraft {
+  id              String    @id @default(uuid())
+  conversation_id String
+  lead_id         String
+  kind            String    @default("FIRST_CONTACT") // FIRST_CONTACT|REPLY|FOLLOWUP
+  text            String
+  status          String    @default("PENDING") // PENDING|SENT|DISCARDED
+  created_at      DateTime  @default(now())
+  sent_at         DateTime?
+
+  conversation SdrConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("sdr_drafts")
 }
 
 // ── Central de alertas (saldo baixo, falhas, campanha/conta bloqueada, etc.) ──
