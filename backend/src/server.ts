@@ -39,8 +39,10 @@ import clientUsersRoutes from "./routes/clientUsers";
 import trafficRoutes from "./routes/traffic";
 import alertsRoutes from "./routes/alerts";
 import sdrRoutes from "./routes/sdr";
+import extractionSchedulesRoutes from "./routes/extractionSchedules";
 import { startInstagramScheduler } from "./lib/instagramScheduler";
 import { startSdrFollowup } from "./lib/sdrFollowup";
+import { startExtractionScheduler } from "./lib/extractionScheduler";
 import { startAdsAnalyzerJob } from "./lib/adsAnalyzerJob";
 
 const app = express();
@@ -123,6 +125,7 @@ app.use("/api/client-users", clientUsersRoutes);
 app.use("/api/traffic", trafficRoutes);
 app.use("/api/alerts", alertsRoutes);
 app.use("/api/sdr", sdrRoutes);
+app.use("/api/extraction-schedules", extractionSchedulesRoutes);
 app.use("/api", resourcesRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────
@@ -147,6 +150,7 @@ app.listen(PORT, () => {
   startDemandDigest();
   startTeamDigest();
   startSdrFollowup();
+  startExtractionScheduler();
 });
 
 export default app;

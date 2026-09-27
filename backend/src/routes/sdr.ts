@@ -4,6 +4,7 @@ import { authenticateJWT, requireStaff, AuthRequest } from "../middlewares/auth"
 import { getCompanySettingsUserId } from "../lib/companySettings";
 import { generateFirstContact } from "../lib/sdrAgent";
 import { sendWhatsappText, recordMessage } from "../lib/whatsapp";
+import { enrollLeads, leadNumber } from "../lib/sdrEnroll";
 
 const router = Router();
 router.use(authenticateJWT);
@@ -25,14 +26,6 @@ const DEFAULTS = {
   max_followups: 2,
 };
 
-// Telefone do lead → número no formato da Evolution (com DDI 55 quando faltar).
-function leadNumber(lead: any): string | null {
-  const digits = String(lead?.telefone_limpo || lead?.telefone || "").replace(/\D/g, "");
-  if (!digits) return null;
-  if (digits.startsWith("55")) return digits;
-  if (digits.length === 10 || digits.length === 11) return "55" + digits;
-  return digits;
-}
 const todayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 
 async function getPlaybook() {
@@ -94,21 +87,7 @@ router.post("/generate", async (req: AuthRequest, res: Response): Promise<void> 
   try {
     const ids: string[] = Array.isArray(req.body.lead_ids) ? req.body.lead_ids.map(String) : [];
     if (!ids.length) { res.status(400).json({ error: "Selecione ao menos um lead." }); return; }
-    const pb = await getPlaybook();
-    let created = 0;
-    for (const lead_id of ids) {
-      const lead = await prisma.lead.findUnique({ where: { id: lead_id } });
-      if (!lead || !leadNumber(lead)) continue;
-      const existing = await (prisma as any).sdrConversation.findUnique({ where: { lead_id } });
-      if (existing) continue; // já está no funil
-      const conv = await (prisma as any).sdrConversation.create({
-        data: { lead_id, instance: pb.instance || null, chat_jid: `${leadNumber(lead)}@s.whatsapp.net`, stage: "NOVO" },
-      });
-      const text = await generateFirstContact(lead, pb).catch(() => "");
-      if (!text) continue;
-      await (prisma as any).sdrDraft.create({ data: { conversation_id: conv.id, lead_id, kind: "FIRST_CONTACT", text } });
-      created++;
-    }
+    const created = await enrollLeads(ids);
     res.json({ ok: true, created });
   } catch (e: any) { res.status(500).json({ error: e.message }); }
 });

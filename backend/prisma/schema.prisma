@@ -737,6 +737,26 @@ model TaskTemplateItem {
   @@map("task_template_items")
 }
 
+// ── Extração automática de leads (regras agendadas) ──────────────────
+model ExtractionSchedule {
+  id          String    @id @default(uuid())
+  user_id     String
+  tipo        String    @default("GOOGLE_MAPS") // GOOGLE_MAPS (Instagram no futuro)
+  categoria   String    // ex.: "restaurante delivery"
+  cidades     String[]  @default([]) // roda a busca em cada cidade
+  quantidade  Int       @default(20) // leads por cidade por rodada
+  tag_id      String?
+  frequency   String    @default("DAILY") // DAILY | WEEKLY
+  auto_sdr    Boolean   @default(false)   // enfileira novos leads no SDR
+  active      Boolean   @default(true)
+  last_run_at DateTime?
+  next_run_at DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  @@map("extraction_schedules")
+}
+
 // ── SDR de IA (prospecção) — Playbook (o "cérebro" configurável do agente) ──
 model SdrPlaybook {
   id                 String   @id @default(uuid())

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Bot, Loader2, Sparkles, Save, Send, X, Check, Users, BarChart3, Inbox } from "lucide-react";
+import { ArrowLeft, Bot, Loader2, Sparkles, Save, Send, X, Users, BarChart3, Inbox, Radar, Play, Trash2, Power } from "lucide-react";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,7 @@ const Field = ({ label, hint, value, onChange, rows = 2 }: { label: string; hint
 const SdrProspeccao = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [tab, setTab] = useState<"playbook" | "fila" | "funil">("playbook");
+  const [tab, setTab] = useState<"playbook" | "fontes" | "fila" | "funil">("playbook");
   const [pb, setPb] = useState<any>(null);
   const [instances, setInstances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +63,7 @@ const SdrProspeccao = () => {
 
       {/* Abas */}
       <div className="flex items-center gap-1 mb-5 bg-secondary/40 rounded-xl p-1 w-fit">
-        {([["playbook", "Playbook", Sparkles], ["fila", "Fila", Inbox], ["funil", "Funil", BarChart3]] as const).map(([id, label, Icon]) => (
+        {([["playbook", "Playbook", Sparkles], ["fontes", "Fontes", Radar], ["fila", "Fila", Inbox], ["funil", "Funil", BarChart3]] as const).map(([id, label, Icon]) => (
           <button key={id} onClick={() => setTab(id)} className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${tab === id ? "bg-white/10 text-foreground shadow" : "text-muted-foreground hover:text-foreground"}`}>
             <Icon className="w-3.5 h-3.5" /> {label}
           </button>
@@ -117,6 +117,7 @@ const SdrProspeccao = () => {
         </div>
       )}
 
+      {tab === "fontes" && <FontesTab toast={toast} />}
       {tab === "fila" && <FilaTab toast={toast} />}
       {tab === "funil" && <FunilTab />}
     </div>
@@ -246,6 +247,85 @@ function FunilTab() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ── Fontes (extração automática) ──────────────────────────────────────
+function FontesTab({ toast }: { toast: any }) {
+  const [rules, setRules] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ categoria: "restaurante delivery", cidades: "", quantidade: 20, frequency: "DAILY", auto_sdr: true });
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(() => api.get("/api/extraction-schedules").then(d => setRules(d.schedules || [])).catch(() => {}).finally(() => setLoading(false)), []);
+  useEffect(() => { load(); }, [load]);
+
+  const criar = async () => {
+    if (!form.categoria.trim()) { toast({ title: "Informe a categoria.", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      await api.post("/api/extraction-schedules", {
+        categoria: form.categoria.trim(),
+        cidades: form.cidades.split(",").map(c => c.trim()).filter(Boolean),
+        quantidade: form.quantidade, frequency: form.frequency, auto_sdr: form.auto_sdr,
+      });
+      setForm({ ...form, cidades: "" }); load(); toast({ title: "Fonte criada!" });
+    } catch (e: any) { toast({ title: "Erro", description: e.message, variant: "destructive" }); }
+    finally { setSaving(false); }
+  };
+  const toggle = async (r: any) => { setRules(p => p.map(x => x.id === r.id ? { ...x, active: !x.active } : x)); await api.patch(`/api/extraction-schedules/${r.id}`, { active: !r.active }).catch(() => load()); };
+  const toggleSdr = async (r: any) => { setRules(p => p.map(x => x.id === r.id ? { ...x, auto_sdr: !x.auto_sdr } : x)); await api.patch(`/api/extraction-schedules/${r.id}`, { auto_sdr: !r.auto_sdr }).catch(() => load()); };
+  const rodar = async (r: any) => { await api.post(`/api/extraction-schedules/${r.id}/run-now`, {}).catch(() => {}); toast({ title: "Extração iniciada", description: "Os leads aparecem em instantes." }); };
+  const excluir = async (r: any) => { if (!confirm("Excluir esta fonte?")) return; setRules(p => p.filter(x => x.id !== r.id)); await api.delete(`/api/extraction-schedules/${r.id}`).catch(() => {}); };
+
+  return (
+    <div className="space-y-4">
+      <div className="glass-card p-3 text-[11px] text-muted-foreground">Busca leads no Google Maps (via Serper) por <b>categoria + cidades</b> na frequência escolhida. Com <b>Auto-SDR</b> ligado, os novos leads já entram na fila do SDR (respeitando o limite diário). Requer a <b>Serper API Key</b> em Configurações.</div>
+
+      {/* Nova fonte */}
+      <div className="glass-card p-4 space-y-3">
+        <h3 className="text-sm font-bold text-foreground flex items-center gap-2"><Radar className="w-4 h-4 text-fuchsia-400" /> Nova fonte</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div><label className="text-[11px] uppercase tracking-widest text-muted-foreground">Categoria (o que buscar)</label><Input value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })} placeholder="restaurante delivery" className="bg-secondary border-border mt-1" /></div>
+          <div><label className="text-[11px] uppercase tracking-widest text-muted-foreground">Cidades (separadas por vírgula)</label><Input value={form.cidades} onChange={e => setForm({ ...form, cidades: e.target.value })} placeholder="Goiânia, Aparecida de Goiânia" className="bg-secondary border-border mt-1" /></div>
+          <div><label className="text-[11px] uppercase tracking-widest text-muted-foreground">Leads por cidade</label><Input type="number" min={1} max={100} value={form.quantidade} onChange={e => setForm({ ...form, quantidade: parseInt(e.target.value) || 20 })} className="bg-secondary border-border mt-1" /></div>
+          <div><label className="text-[11px] uppercase tracking-widest text-muted-foreground">Frequência</label>
+            <select value={form.frequency} onChange={e => setForm({ ...form, frequency: e.target.value })} className="w-full h-10 rounded-lg bg-secondary border border-border px-3 text-sm text-foreground mt-1">
+              <option value="DAILY">Diária</option><option value="WEEKLY">Semanal</option>
+            </select>
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer"><input type="checkbox" checked={form.auto_sdr} onChange={e => setForm({ ...form, auto_sdr: e.target.checked })} /> Enfileirar novos leads no SDR (Auto-SDR)</label>
+          <Button onClick={criar} disabled={saving} className="gradient-button gap-1.5">{saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Criar fonte</Button>
+        </div>
+      </div>
+
+      {/* Lista */}
+      {loading ? <div className="py-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+      : rules.length === 0 ? <p className="text-sm text-muted-foreground py-6 text-center glass-card">Nenhuma fonte ainda.</p>
+      : <div className="space-y-2">
+          {rules.map(r => (
+            <div key={r.id} className="glass-card p-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`w-2 h-2 rounded-full ${r.active ? "bg-emerald-500" : "bg-muted-foreground"}`} />
+                <span className="text-sm font-semibold text-foreground">{r.categoria}</span>
+                <span className="text-xs text-muted-foreground">· {(r.cidades || []).join(", ") || "sem cidade"}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground uppercase">{r.frequency === "WEEKLY" ? "Semanal" : "Diária"}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-secondary text-muted-foreground">{r.quantidade}/cidade</span>
+                {r.auto_sdr && <span className="text-[10px] px-1.5 py-0.5 rounded bg-fuchsia-500/15 text-fuchsia-400">Auto-SDR</span>}
+                <div className="flex items-center gap-1 ml-auto">
+                  <button onClick={() => rodar(r)} title="Rodar agora" className="p-1.5 text-muted-foreground hover:text-emerald-400"><Play className="w-4 h-4" /></button>
+                  <button onClick={() => toggleSdr(r)} title="Alternar Auto-SDR" className="p-1.5 text-muted-foreground hover:text-fuchsia-400"><Bot className="w-4 h-4" /></button>
+                  <button onClick={() => toggle(r)} title={r.active ? "Pausar" : "Ativar"} className="p-1.5 text-muted-foreground hover:text-foreground"><Power className="w-4 h-4" /></button>
+                  <button onClick={() => excluir(r)} title="Excluir" className="p-1.5 text-muted-foreground hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              </div>
+              {r.last_run_at && <p className="text-[10px] text-muted-foreground mt-1">Última: {new Date(r.last_run_at).toLocaleString("pt-BR")}{r.next_run_at ? ` · Próxima: ${new Date(r.next_run_at).toLocaleString("pt-BR")}` : ""}</p>}
+            </div>
+          ))}
+        </div>}
     </div>
   );
 }
